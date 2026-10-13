@@ -26,6 +26,10 @@
   });
   const site = (CFG.siteUrl || location.origin + location.pathname).replace(/\/$/, '');
 
+  // compara documentos sem depender da ordem dos campos (o banco reordena as chaves do JSON)
+  const sortKeys = v => Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.keys(v).sort().reduce((o, k) => { if (v[k] !== undefined) o[k] = sortKeys(v[k]); return o; }, {}) : v;
+  const sj = v => JSON.stringify(sortKeys(v));
+
   /* ---------- Mapa coleção → tabela ---------- */
   const COLLECTIONS = [
     { key: 'users', table: 'profiles', priv: { table: 'profiles_private', fields: ['capacity', 'weeklyGoal', 'hours', 'roleHistory', 'dismissals', 'dashLayout', 'tourDone', 'profile', 'photoOrig', 'photoCrop'] }, strip: ['password'] },
@@ -91,8 +95,8 @@
   };
   let snap = {}, privSnap = {};
   const remember = (c, rows, privRows) => {
-    snap[c.key] = new Map(rows.map(r => [r.id, JSON.stringify(c.single || c.map ? r.doc : split(c, r.doc).pub)]));
-    if (c.priv) privSnap[c.key] = new Map((privRows || []).map(r => [r.id, JSON.stringify(r.doc)]));
+    snap[c.key] = new Map(rows.map(r => [r.id, sj(c.single || c.map ? r.doc : split(c, r.doc).pub)]));
+    if (c.priv) privSnap[c.key] = new Map((privRows || []).map(r => [r.id, sj(r.doc)]));
   };
   async function loadAll() {
     const db = P.emptyDb();
@@ -118,8 +122,10 @@
   /* ---------- Gravação (somente diferenças) ---------- */
   let timer = null, saving = null, again = false;
   const chunk = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
-  async function writeTable(table, ins, upd, del) {
+  async function writeTable(table, ins, upd, del, ups = []) {
     for (const part of chunk(ins, 500)) { const { error } = await sb.from(table).insert(part); if (error) throw new Error(table + ': ' + error.message); }
+    // registros da própria pessoa que nascem no primeiro uso (leituras do chat, alertas lidos, configurações): criar ou atualizar
+    for (const part of chunk(ups, 500)) { const { error } = await sb.from(table).upsert(part); if (error) throw new Error(table + ': ' + error.message); }
     // Alterações usam UPDATE (não upsert): o upsert também exige permissão de INSERT, que perfis e férias de outras pessoas não têm
     for (const part of chunk(upd, 10)) {
       await Promise.all(part.map(async r => {
@@ -142,11 +148,11 @@
       rows.forEach(r => {
         seen.add(r.id);
         const { pub, priv } = c.single || c.map ? { pub: r.doc, priv: null } : split(c, r.doc);
-        const js = JSON.stringify(pub);
+        const js = sj(pub);
         if (!old.has(r.id)) ins.push({ id: r.id, doc: pub });
         else if (old.get(r.id) !== js) upd.push({ id: r.id, doc: pub });
         if (c.priv) {
-          const pj = JSON.stringify(priv);
+          const pj = sj(priv);
           if (!oldP.has(r.id)) { if (Object.keys(priv).length) insP.push({ id: r.id, doc: priv }); }
           else if (oldP.get(r.id) !== pj) updP.push({ id: r.id, doc: priv });
         }
@@ -154,11 +160,12 @@
       const del = c.appendOnly || c.single ? [] : [...old.keys()].filter(id => !seen.has(id));
       if (!ins.length && !upd.length && !del.length && !insP.length && !updP.length) continue;
       // tabela principal primeiro (a privada referencia o mesmo id)
-      await writeTable(c.table, c.map || c.single ? [] : ins, c.map || c.single ? ins.concat(upd) : upd, del);
+      const own = c.map || c.single;
+      await writeTable(c.table, own ? [] : ins, own ? [] : upd, del, own ? ins.concat(upd) : []);
       if (c.priv) await writeTable(c.priv.table, insP, updP, []);
-      ins.concat(upd).forEach(r => old.set(r.id, JSON.stringify(r.doc)));
+      ins.concat(upd).forEach(r => old.set(r.id, sj(r.doc)));
       del.forEach(id => old.delete(id));
-      insP.concat(updP).forEach(r => oldP.set(r.id, JSON.stringify(r.doc)));
+      insP.concat(updP).forEach(r => oldP.set(r.id, sj(r.doc)));
       snap[c.key] = old; if (c.priv) privSnap[c.key] = oldP;
     }
   }
@@ -211,7 +218,7 @@
       const s = snap[c.key] = snap[c.key] || new Map();
       if (c.map) {
         const obj = P.store.db[c.key] = P.store.db[c.key] || {};
-        ids.forEach(id => { if (got.has(id)) { const d = got.get(id); obj[id] = Array.isArray(d.ids) ? d.ids : d; s.set(id, JSON.stringify(d)); } });
+        ids.forEach(id => { if (got.has(id)) { const d = got.get(id); obj[id] = Array.isArray(d.ids) ? d.ids : d; s.set(id, sj(d)); } });
         continue;
       }
       const list = P.store.db[c.key] = P.store.db[c.key] || [];
@@ -220,15 +227,15 @@
         if (got.has(id)) {
           const doc = got.get(id);
           if (i >= 0) list[i] = doc; else { list.push(doc); if (added[c.key]) added[c.key].push(doc); }
-          s.set(id, JSON.stringify(split(c, doc).pub));
-          if (c.priv) { (privSnap[c.key] = privSnap[c.key] || new Map()).set(id, JSON.stringify(split(c, doc).priv)); }
+          s.set(id, sj(split(c, doc).pub));
+          if (c.priv) { (privSnap[c.key] = privSnap[c.key] || new Map()).set(id, sj(split(c, doc).priv)); }
         } else if (i >= 0) { list.splice(i, 1); s.delete(id); }
       });
     }
     P.reindex(); refreshUser();
     // chegou registro de alguém que este navegador ainda não conhece (ex.: cadastro novo): busca os perfis
     const db = P.store.db, missing = ['vacations', 'entries', 'tasks', 'clientAssignments'].some(k => (db[k] || []).some(x => x.userId && !P.user(x.userId)));
-    if (missing) { const r = await sb.from('profiles').select('id, doc'); if (!r.error) { const have = new Set(db.users.map(x => x.id)); r.data.forEach(row => { if (!have.has(row.id)) { db.users.push(row.doc); (snap.users = snap.users || new Map()).set(row.id, JSON.stringify(row.doc)); } }); P.reindex(); } }
+    if (missing) { const r = await sb.from('profiles').select('id, doc'); if (!r.error) { const have = new Set(db.users.map(x => x.id)); r.data.forEach(row => { if (!have.has(row.id)) { db.users.push(row.doc); (snap.users = snap.users || new Map()).set(row.id, sj(row.doc)); } }); P.reindex(); } }
     window.dispatchEvent(new CustomEvent('prumo:remote', { detail: { added } }));
   }
   // mantém P.state.user apontando para o objeto atualizado da base
