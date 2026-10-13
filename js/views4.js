@@ -354,7 +354,7 @@
       manager: ['Férias da equipe', 'Primeira etapa de aprovação. Depois do seu aval, a solicitação segue para o gerente do escritório.'],
       office: ['Férias · Gerência', 'Segunda etapa: pedidos já aprovados pelos gestores. Depois do seu aval, seguem para a diretoria.'],
       admin: led
-        ? ['Férias · Diretoria e ' + led.name, `Você aprova a 1ª etapa (gestor) da equipe de ${led.name} e a etapa final da diretoria dos demais pedidos. Nos pedidos que você aprovou como gestor, a etapa da diretoria fica com outro diretor.`]
+        ? ['Férias · Diretoria e ' + esc(led.name), `Você aprova a 1ª etapa (gestor) da equipe de ${esc(led.name)} e a etapa final da diretoria dos demais pedidos. Nos pedidos que você aprovou como gestor, a etapa da diretoria fica com outro diretor.`]
         : ['Férias · Diretoria', 'Aprovação final. Basta um diretor aprovar para as datas entrarem no calendário geral.']
     }[u.role];
     return `${V.pageHead(HEAD[0], HEAD[1], V.deptPicker(u) + V.btn('Solicitar minhas férias', { act: 'newVacation', icon: 'palm' }))}

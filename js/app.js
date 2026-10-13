@@ -320,6 +320,8 @@
     if (!scripts[src]) scripts[src] = new Promise((res, rej) => {
       const fail = () => { delete scripts[src]; rej(new Error('Não foi possível carregar a biblioteca de exportação. Verifique a conexão e tente novamente.')); };
       const s = document.createElement('script'); s.src = src; s.async = true; s.onerror = fail;
+      // integridade (SRI): se o arquivo da CDN for adulterado, o navegador não executa
+      if (SRI[src]) { s.integrity = SRI[src]; s.crossOrigin = 'anonymous'; }
       document.head.appendChild(s);
       const t0 = Date.now();
       (function poll() { if (ready()) return res(); if (Date.now() - t0 > 20000) return fail(); setTimeout(poll, 100); })();
@@ -343,6 +345,11 @@
   const XLSX_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
   const JSPDF_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
   const AUTOTABLE_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+  const SRI = {
+    [XLSX_SRC]: 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw',
+    [JSPDF_SRC]: 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk',
+    [AUTOTABLE_SRC]: 'sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3'
+  };
 
   function entryRows(list) {
     return list.map(e => ({
