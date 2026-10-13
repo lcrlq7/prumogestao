@@ -28,7 +28,7 @@
 
   /* ---------- Mapa coleção → tabela ---------- */
   const COLLECTIONS = [
-    { key: 'users', table: 'profiles', priv: { table: 'profiles_private', fields: ['capacity', 'weeklyGoal', 'hours', 'roleHistory', 'dismissals', 'dashLayout', 'tourDone', 'profile'] }, strip: ['password'] },
+    { key: 'users', table: 'profiles', priv: { table: 'profiles_private', fields: ['capacity', 'weeklyGoal', 'hours', 'roleHistory', 'dismissals', 'dashLayout', 'tourDone', 'profile', 'photoOrig', 'photoCrop'] }, strip: ['password'] },
     { key: 'departments', table: 'departments' },
     { key: 'activities', table: 'activities' },
     { key: 'weightHistory', table: 'weight_history' },

@@ -1005,65 +1005,103 @@
       if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return toast('Use uma imagem JPG, PNG ou WEBP.', 'err');
       if (file.size > 15 * 1024 * 1024) return toast('A imagem tem mais de 15 MB. Escolha uma menor.', 'err');
       const url = URL.createObjectURL(file);
-      try { A._photoEditor(await A._loadImg(url)); }
-      catch (e) { toast(e.message, 'err'); }
+      try {
+        const img = await A._loadImg(url);
+        // guarda uma cópia reduzida da original (até 1000 px) para permitir reajustes depois
+        const k = Math.min(1, 1000 / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        const cx = c.getContext('2d'); cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(img, 0, 0, c.width, c.height);
+        let q = 0.85, orig = c.toDataURL('image/jpeg', q);
+        while (orig.length > 850000 && q > 0.4) { q -= 0.15; orig = c.toDataURL('image/jpeg', q); }
+        A._photoEditor(await A._loadImg(orig), orig, null);
+      } catch (e) { toast(e.message, 'err'); }
       finally { setTimeout(() => URL.revokeObjectURL(url), 1000); $('#pf-photo') && ($('#pf-photo').value = ''); }
     },
     async adjustPhoto() {
-      const p = U().photo; if (!p) return;
-      try { A._photoEditor(await A._loadImg(p)); } catch (e) { toast(e.message, 'err'); }
+      const me = U(); if (!me.photo) return;
+      const src = me.photoOrig || me.photo;
+      try { A._photoEditor(await A._loadImg(src), me.photoOrig || null, me.photoOrig ? me.photoCrop : null); } catch (e) { toast(e.message, 'err'); }
     },
     _loadImg(src) {
       return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Não foi possível ler a imagem.')); i.src = src; });
     },
-    /* Editor de foto: arrastar para posicionar, zoom e girar; salva um quadrado de 256×256 px */
-    _photoEditor(img) {
-      const V0 = 260; // tamanho da área de edição (px)
-      const st = { zoom: 1, rot: 0, x: 0, y: 0 };
-      const dims = () => { const r = st.rot % 180 !== 0; return { w: r ? img.naturalHeight : img.naturalWidth, h: r ? img.naturalWidth : img.naturalHeight }; };
-      // escala mínima: a imagem sempre cobre o quadrado inteiro
-      const base = () => { const d = dims(); return V0 / Math.min(d.w, d.h); };
+    /*
+     * Editor de foto: a imagem aparece inteira; zoom de "foto inteira" (1) até 8×, arrastar livremente e girar.
+     * Sobras ficam em branco. Salva um quadrado de 256×256 px, a original reduzida e o enquadramento.
+     */
+    _photoEditor(img, orig, crop) {
+      const V0 = 300; // sistema de coordenadas da área de edição
+      const dims = r => (r % 180 ? { w: img.naturalHeight, h: img.naturalWidth } : { w: img.naturalWidth, h: img.naturalHeight });
+      const fit = r => { const d = dims(r); return V0 / Math.max(d.w, d.h); };          // zoom 1 = foto inteira visível
+      const cover = r => { const d = dims(r); return Math.max(d.w, d.h) / Math.min(d.w, d.h); }; // zoom que preenche o quadrado
+      const st = crop ? { zoom: crop.zoom, rot: crop.rot, x: crop.x, y: crop.y } : { zoom: Math.min(8, cover(0)), rot: 0, x: 0, y: 0 };
       const clamp = () => {
-        const d = dims(), s = base() * st.zoom, mx = Math.max(0, (d.w * s - V0) / 2), my = Math.max(0, (d.h * s - V0) / 2);
+        st.zoom = Math.min(8, Math.max(1, st.zoom));
+        const d = dims(st.rot), s = fit(st.rot) * st.zoom, mx = d.w * s / 2, my = d.h * s / 2; // a borda da foto pode ir até o centro
         st.x = Math.min(mx, Math.max(-mx, st.x)); st.y = Math.min(my, Math.max(-my, st.y));
       };
       const draw = (ctx, size) => {
-        const k = size / V0, s = base() * st.zoom * k;
+        const k = size / V0, s = fit(st.rot) * st.zoom * k;
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size);
         ctx.save(); ctx.translate(size / 2 + st.x * k, size / 2 + st.y * k); ctx.rotate(st.rot * Math.PI / 180);
         ctx.drawImage(img, -img.naturalWidth * s / 2, -img.naturalHeight * s / 2, img.naturalWidth * s, img.naturalHeight * s);
         ctx.restore();
       };
       modal({
-        title: 'Ajustar foto de perfil', submit: 'Salvar foto',
-        body: `<div style="display:flex;flex-direction:column;align-items:center;gap:14px">
-            <div style="position:relative;width:${V0}px;height:${V0}px;max-width:100%;touch-action:none;cursor:grab;border-radius:12px;overflow:hidden" id="ph-box">
-              <canvas id="ph-cv" width="${V0 * 2}" height="${V0 * 2}" style="width:100%;height:100%;display:block"></canvas>
-              <div style="position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.45);outline:2px solid rgba(255,255,255,.85)"></div>
+        title: 'Ajustar foto de perfil', submit: 'Salvar foto', wide: true,
+        body: `<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;justify-content:center">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+              <div id="ph-box" style="position:relative;width:min(${V0}px,72vw);aspect-ratio:1;touch-action:none;cursor:grab;border-radius:12px;overflow:hidden;background:repeating-conic-gradient(#ddd 0 25%,#fff 0 50%) 0 0/16px 16px">
+                <canvas id="ph-cv" width="${V0 * 2}" height="${V0 * 2}" style="width:100%;height:100%;display:block"></canvas>
+                <div style="position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.4);outline:2px solid rgba(255,255,255,.9)"></div>
+              </div>
+              <small class="muted" style="text-align:center;max-width:${V0}px">Arraste para posicionar · role a rodinha ou use o controle para aproximar/afastar</small>
             </div>
-            <small class="muted">Arraste a imagem para posicionar. O círculo mostra como a foto aparece.</small>
-            <div style="display:flex;align-items:center;gap:10px;width:100%;max-width:${V0 + 40}px">
-              <span class="muted" aria-hidden="true">−</span>
-              <input type="range" id="ph-zoom" min="1" max="4" step="0.01" value="1" aria-label="Zoom" style="flex:1">
-              <span class="muted" aria-hidden="true">+</span>
-            </div>
-            <div style="display:flex;gap:8px">
-              <button type="button" class="btn sm ghost" id="ph-rot">${icon('refresh')}<span>Girar 90°</span></button>
-              <button type="button" class="btn sm ghost" id="ph-reset">${icon('x')}<span>Recomeçar</span></button>
+            <div style="display:flex;flex-direction:column;gap:14px;min-width:220px;flex:1;max-width:320px">
+              <label class="field"><span>Zoom <b id="ph-zv"></b></span>
+                <div style="display:flex;align-items:center;gap:8px"><button type="button" class="btn sm ghost" id="ph-zm" aria-label="Afastar">−</button>
+                <input type="range" id="ph-zoom" min="1" max="8" step="0.01" style="flex:1" aria-label="Zoom">
+                <button type="button" class="btn sm ghost" id="ph-zp" aria-label="Aproximar">+</button></div></label>
+              <div class="field"><span>Posição</span>
+                <div style="display:grid;grid-template-columns:repeat(3,40px);gap:4px;justify-content:start">
+                  <span></span><button type="button" class="btn sm ghost" data-mv="0,-1" aria-label="Para cima">↑</button><span></span>
+                  <button type="button" class="btn sm ghost" data-mv="-1,0" aria-label="Para a esquerda">←</button><button type="button" class="btn sm ghost" id="ph-center" title="Centralizar">•</button><button type="button" class="btn sm ghost" data-mv="1,0" aria-label="Para a direita">→</button>
+                  <span></span><button type="button" class="btn sm ghost" data-mv="0,1" aria-label="Para baixo">↓</button><span></span>
+                </div></div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <button type="button" class="btn sm ghost" id="ph-fit">Foto inteira</button>
+                <button type="button" class="btn sm ghost" id="ph-fill">Preencher</button>
+                <button type="button" class="btn sm ghost" id="ph-rot">${icon('refresh')}<span>Girar 90°</span></button>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px"><span class="muted">Prévia:</span>
+                <canvas id="ph-prev" width="128" height="128" style="width:64px;height:64px;border-radius:50%"></canvas>
+                <canvas id="ph-prev2" width="64" height="64" style="width:32px;height:32px;border-radius:50%"></canvas></div>
             </div>
           </div>`,
         onSubmit: () => {
           const out = document.createElement('canvas'); out.width = out.height = 256;
           draw(out.getContext('2d'), 256);
-          api.updateProfile(U(), { photo: out.toDataURL('image/jpeg', 0.85) });
+          const data = { photo: out.toDataURL('image/jpeg', 0.88), photoCrop: { zoom: st.zoom, rot: st.rot, x: st.x, y: st.y } };
+          if (orig) data.photoOrig = orig;
+          api.updateProfile(U(), data);
           toast('Foto de perfil atualizada.'); render();
         }
       });
       const cv = $('#ph-cv'), ctx = cv.getContext('2d'), zoom = $('#ph-zoom'), box = $('#ph-box');
-      const paint = () => { clamp(); draw(ctx, cv.width); };
-      zoom.addEventListener('input', () => { st.zoom = Number(zoom.value); paint(); });
-      $('#ph-rot').addEventListener('click', () => { st.rot = (st.rot + 90) % 360; st.x = st.y = 0; paint(); });
-      $('#ph-reset').addEventListener('click', () => { st.zoom = 1; st.rot = 0; st.x = st.y = 0; zoom.value = 1; paint(); });
+      const pv = [$('#ph-prev'), $('#ph-prev2')];
+      const paint = () => {
+        clamp(); draw(ctx, cv.width); pv.forEach(c => draw(c.getContext('2d'), c.width));
+        zoom.value = st.zoom; $('#ph-zv').textContent = Math.round(st.zoom * 100) + '%';
+      };
+      const setZoom = z => { const r = Math.min(8, Math.max(1, z)) / st.zoom; st.x *= r; st.y *= r; st.zoom *= r; paint(); }; // mantém o ponto central
+      zoom.addEventListener('input', () => setZoom(Number(zoom.value)));
+      $('#ph-zm').addEventListener('click', () => setZoom(st.zoom / 1.15));
+      $('#ph-zp').addEventListener('click', () => setZoom(st.zoom * 1.15));
+      $('#ph-fit').addEventListener('click', () => { st.zoom = 1; st.x = st.y = 0; paint(); });
+      $('#ph-fill').addEventListener('click', () => { st.zoom = Math.min(8, cover(st.rot)); st.x = st.y = 0; paint(); });
+      $('#ph-center').addEventListener('click', () => { st.x = st.y = 0; paint(); });
+      $('#ph-rot').addEventListener('click', () => { st.rot = (st.rot + 90) % 360; const t = st.x; st.x = -st.y; st.y = t; paint(); });
+      document.querySelectorAll('#modal-root [data-mv]').forEach(b => b.addEventListener('click', () => { const [dx, dy] = b.dataset.mv.split(',').map(Number); st.x += dx * 10; st.y += dy * 10; paint(); }));
       let drag = null;
       box.addEventListener('pointerdown', e => { drag = { px: e.clientX, py: e.clientY, x: st.x, y: st.y }; box.setPointerCapture(e.pointerId); box.style.cursor = 'grabbing'; });
       box.addEventListener('pointermove', e => {
@@ -1073,7 +1111,7 @@
       });
       const end = () => { drag = null; box.style.cursor = 'grab'; };
       box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
-      box.addEventListener('wheel', e => { e.preventDefault(); st.zoom = Math.min(4, Math.max(1, st.zoom - e.deltaY * 0.002)); zoom.value = st.zoom; paint(); }, { passive: false });
+      box.addEventListener('wheel', e => { e.preventDefault(); setZoom(st.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08)); }, { passive: false });
       paint();
     },
     /* ---------- Desligamento (demissão) e readmissão: só diretoria ---------- */

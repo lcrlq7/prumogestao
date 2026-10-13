@@ -1456,7 +1456,13 @@ window.P = window.P || {};
           assert(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(data.photo), 'Formato de imagem não aceito. Use JPG, PNG ou WEBP.');
           assert(data.photo.length <= 400000, 'A imagem ficou grande demais. Tente outra foto.');
           me.photo = data.photo; changes.push('foto atualizada');
-        } else if (me.photo) { delete me.photo; changes.push('foto removida'); }
+          // original reduzida + enquadramento: permitem reajustar depois sem enviar a foto de novo
+          if (data.photoOrig) {
+            assert(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(data.photoOrig) && data.photoOrig.length <= 900000, 'A imagem original ficou grande demais.');
+            me.photoOrig = data.photoOrig;
+          }
+          if (data.photoCrop) me.photoCrop = { zoom: +data.photoCrop.zoom || 1, rot: +data.photoCrop.rot || 0, x: +data.photoCrop.x || 0, y: +data.photoCrop.y || 0 };
+        } else if (me.photo) { delete me.photo; delete me.photoOrig; delete me.photoCrop; changes.push('foto removida'); }
       }
       if (!changes.length) return me;
       P.reindex(); audit(u, 'Perfil atualizado', me.id, changes.join('; ')); P.store.save();
