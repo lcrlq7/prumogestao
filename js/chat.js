@@ -114,6 +114,44 @@
   const lastMsg = conv => msgs().reduce((b, m) => m.conv === conv && (!b || m.ts > b.ts) ? m : b, null);
   const linkify = t => esc(t).replace(/\n/g, '<br>');
 
+  /* ---------- Emojis e figurinhas ---------- */
+  const EMOJI = [
+    ['Rostos', 'smile', '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 😉 😊 😇 🥰 😍 🤩 😘 😋 😜 🤪 😎 🤓 🧐 🤔 🤨 😐 😶 🙄 😏 😬 😌 😴 🤤 😷 🤒 🤯 🥳 🥺 😢 😭 😤 😡 🤬 😱 😨 😰 😳 🤗 🤭 🫡 🤫 🙃 🫠 😮‍💨'],
+    ['Gestos', 'hand', '👍 👎 👌 ✌️ 🤞 🤟 🤘 🤙 👋 🙌 👏 🙏 🤝 💪 👊 ✊ 🫶 👀 🧠 ☝️ 👆 👇 👉 👈 ✋ 🤚 🖐️ 🫵'],
+    ['Corações', 'heart', '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💖 💗 💓 💞 💕 💝 ❣️ 💔 ❤️‍🔥 ✨ 🌟 ⭐ 💫 🔥 💯'],
+    ['Trabalho', 'briefcase', '💼 📊 📈 📉 🧾 💰 💵 🪙 🏦 📑 📄 📃 📋 📁 📂 🗂️ 📌 📎 🖇️ ✏️ 📝 🖊️ 📅 📆 🗓️ ⏰ ⏳ ⌛ 🕐 💻 🖥️ 🖨️ ⌨️ 📱 ☎️ 📞 📧 📨 📬 🔍 🔒 🔑 ✅ ☑️ ❌ ⚠️ 🚨 📢 💡 🎯 🏆 🥇 🎖️ 🚀'],
+    ['Comemoração', 'medal', '🎉 🎊 🥳 🎂 🍰 🎁 🎈 🍾 🥂 🍻 ☕ 🍵 🍕 🍔 🍟 🍫 🍩 🍪 🍿 🌮 🥗 🍎 🍉 🏖️ 🌴 ✈️ 🏝️ ⛱️ 🌞 🌈 ☀️ 🌧️ ⛈️ ❄️ 🌙'],
+    ['Símbolos', 'check', '✔️ ➕ ➖ ✖️ ➗ ❓ ❗ ‼️ ⁉️ 💬 💭 🗨️ 🔔 🔕 🆗 🆕 🆙 🔝 ⬆️ ⬇️ ➡️ ⬅️ 🔄 🔁 ▶️ ⏸️ ⏹️ 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪']
+  ];
+  const STICKERS = [
+    ['bom-trabalho', '👏', 'Bom trabalho!', '#2f8f5b'], ['obrigado', '🙏', 'Obrigado(a)!', '#1f6f9c'], ['parabens', '🎉', 'Parabéns!', '#c2410c'],
+    ['prazo', '⏰', 'Prazo cumprido', '#2f8f5b'], ['fechamento', '📊', 'Fechamento OK', '#1f6f9c'], ['missao', '🚀', 'Missão cumprida', '#7c3aed'],
+    ['bom-dia', '☀️', 'Bom dia!', '#d97706'], ['boa-tarde', '🌤️', 'Boa tarde!', '#ea580c'], ['cafe', '☕', 'Café?', '#7c4a2d'],
+    ['reuniao', '📅', 'Reunião?', '#1f6f9c'], ['entendido', '👌', 'Entendido!', '#2f8f5b'], ['ja-volto', '⏳', 'Já volto', '#64748b'],
+    ['urgente', '🚨', 'Urgente!', '#dc2626'], ['ajuda', '🆘', 'Me ajuda?', '#dc2626'], ['forca', '💪', 'Força, equipe!', '#7c3aed'],
+    ['sexta', '🥳', 'Feliz sexta!', '#db2777'], ['top', '🏆', 'Você é top!', '#d97706'], ['haha', '😂', 'Hahaha', '#ca8a04'],
+    ['revisar', '🔍', 'Vou revisar', '#0f766e'], ['feito', '✅', 'Feito!', '#2f8f5b']
+  ];
+  const STK = Object.fromEntries(STICKERS.map(s => [s[0], s]));
+  const stickerOf = t => { const m = /^::fig:([a-z0-9-]+)::$/.exec(String(t || '')); return m && STK[m[1]] ? STK[m[1]] : null; };
+  const stickerHtml = s => `<div class="stk" style="--stk:${s[3]}" role="img" aria-label="Figurinha: ${esc(s[2])}"><span class="stk-e">${s[1]}</span><span class="stk-t">${esc(s[2])}</span></div>`;
+  const previewText = t => stickerOf(t) ? 'Figurinha ' + stickerOf(t)[1] : t;
+  const recent = {
+    get: () => { try { return JSON.parse(localStorage.getItem('prumo.emojiRecent') || '[]'); } catch (e) { return []; } },
+    add: e => { try { const l = [e].concat(recent.get().filter(x => x !== e)).slice(0, 24); localStorage.setItem('prumo.emojiRecent', JSON.stringify(l)); } catch (e2) { } }
+  };
+  const pickerHtml = kind => {
+    if (kind === 'fig') return `<div class="chat-pick" role="dialog" aria-label="Figurinhas"><div class="cp-h"><b>Figurinhas</b>${V.ibtn('x', 'Fechar', { act: 'chatPanel', attrs: 'data-k=""' })}</div>
+      <div class="cp-stk">${STICKERS.map(s => `<button type="button" class="cp-s" data-act="chatSticker" data-id="${s[0]}" title="${esc(s[2])}">${stickerHtml(s)}</button>`).join('')}</div></div>`;
+    const rec = recent.get();
+    const cats = (rec.length ? [['Recentes', 'clock', rec.join(' ')]] : []).concat(EMOJI);
+    return `<div class="chat-pick" role="dialog" aria-label="Emojis"><div class="cp-h"><input type="search" id="cp-q" placeholder="Buscar emoji (ex.: café, ok, festa)" autocomplete="off">${V.ibtn('x', 'Fechar', { act: 'chatPanel', attrs: 'data-k=""' })}</div>
+      <div class="cp-tabs">${cats.map((c, i) => `<button type="button" data-cpt="${i}" title="${c[0]}">${icon(c[1])}</button>`).join('')}</div>
+      <div class="cp-body" id="cp-body">${cats.map((c, i) => `<div class="cp-cat" id="cpc-${i}"><small>${c[0]}</small><div class="cp-grid">${c[2].split(' ').filter(Boolean).map(e => `<button type="button" class="cp-e" data-act="chatEmoji" data-e="${e}">${e}</button>`).join('')}</div></div>`).join('')}</div></div>`;
+  };
+  // palavras para a busca de emojis (português)
+  const EMOJI_WORDS = { 'café': '☕', 'cafe': '☕', 'ok': '👌 ✅ 🆗 👍', 'festa': '🎉 🥳 🎊', 'parabens': '🎉 👏 🥳', 'parabéns': '🎉 👏 🥳', 'obrigado': '🙏 🤝', 'obrigada': '🙏 🤝', 'riso': '😂 🤣 😆', 'rir': '😂 🤣', 'amor': '❤️ 🥰 😍', 'coração': '❤️ 💖', 'triste': '😢 😭 🥺', 'raiva': '😡 🤬', 'fogo': '🔥', 'dinheiro': '💰 💵 🪙', 'prazo': '⏰ ⏳ 📅', 'data': '📅 🗓️', 'relógio': '⏰ 🕐', 'reunião': '📅 💬 🤝', 'documento': '📄 📑 🧾', 'nota': '🧾 📝', 'planilha': '📊 📈', 'gráfico': '📊 📈 📉', 'alerta': '⚠️ 🚨', 'urgente': '🚨 ❗', 'certo': '✅ ✔️ 👍', 'errado': '❌ ✖️', 'ideia': '💡', 'meta': '🎯 🏆', 'troféu': '🏆 🥇', 'foguete': '🚀', 'joinha': '👍', 'palmas': '👏', 'força': '💪', 'sol': '☀️ 🌞', 'chuva': '🌧️ ⛈️', 'férias': '🏖️ 🌴 ✈️', 'comida': '🍕 🍔 🥗', 'bolo': '🎂 🍰', 'pensando': '🤔', 'olhos': '👀', 'oi': '👋', 'tchau': '👋', 'estrela': '⭐ 🌟', 'computador': '💻 🖥️', 'telefone': '📞 ☎️ 📱', 'email': '📧 📨' };
+
   V.comunicacao = u => {
     seedOnce();
     const c = st(), q = (c.q || '').toLowerCase();
@@ -127,7 +165,7 @@
       const un = unreadIn(u, conv), lm = lastMsg(conv);
       return `<button type="button" class="cv ${c.conv === conv ? 'on' : ''} ${un ? 'unread' : ''}" data-act="chatOpen" data-id="${esc(conv)}">
         ${av ? V.avatar(av) : `<span class="cv-ic">${icon(ic)}</span>`}
-        <span class="cv-t"><b>${esc(label)}</b><small>${lm ? (lm.deleted ? 'Mensagem apagada' : esc((lm.from === u.id ? 'Você: ' : P.firstName((P.user(lm.from) || {}).name || '') + ': ') + lm.text.slice(0, 60))) : esc(sub)}</small></span>
+        <span class="cv-t"><b>${esc(label)}</b><small>${lm ? (lm.deleted ? 'Mensagem apagada' : esc((lm.from === u.id ? 'Você: ' : P.firstName((P.user(lm.from) || {}).name || '') + ': ') + previewText(lm.text).slice(0, 60))) : esc(sub)}</small></span>
         ${un ? `<em class="cv-n">${un}</em>` : lm ? `<span class="cv-time">${dayLabel(lm.ts) === 'Hoje' ? hm(lm.ts) : dayLabel(lm.ts)}</span>` : ''}
       </button>`;
     };
@@ -167,7 +205,8 @@
         return `${sep}<div class="msg ${mine ? 'me' : ''} ${cont ? 'cont' : ''} ${geral ? 'notice' : ''}">
           ${mine || cont ? '<span class="msg-av"></span>' : `<span class="msg-av">${V.avatar(who)}</span>`}
           <div class="msg-b">${cont ? '' : `<div class="msg-h"><b>${mine ? 'Você' : esc(who.name)}</b>${!cur.dm ? `<small>${esc(P.ROLES[who.role] || '')}</small>` : ''}<time>${hm(m.ts)}</time></div>`}
-            <div class="msg-txt ${m.deleted ? 'del' : ''}">${m.deleted ? icon('x') + ' Mensagem apagada' : linkify(m.text)}</div>
+            ${!m.deleted && stickerOf(m.text) ? `<div class="msg-stk">${stickerHtml(stickerOf(m.text))}</div>`
+              : `<div class="msg-txt ${m.deleted ? 'del' : ''} ${!m.deleted && /^(\p{Extended_Pictographic}|‍|️|\s){1,8}$/u.test(m.text) ? 'big-emoji' : ''}">${m.deleted ? icon('x') + ' Mensagem apagada' : linkify(m.text)}</div>`}
             ${seen != null ? `<small class="msg-seen">${icon('check')} Visto por ${seen} de ${total - 1}</small>` : ''}
           </div>
           ${mine && !m.deleted ? V.ibtn('trash', 'Apagar mensagem', { act: 'chatDelete', cls: 'msg-del', attrs: `data-id="${m.id}"` }) : ''}
@@ -180,13 +219,14 @@
           <div><b>${esc(cur.name)}</b><small>${esc(cur.dm ? cur.desc : cur.desc + ' · ' + total + ' participante' + (total > 1 ? 's' : ''))}</small></div>
         </header>
         <div class="chat-msgs" id="chat-msgs">${body}</div>
-        ${canPost ? `<div class="chat-in"><textarea id="chat-text" rows="1" placeholder="${geral ? 'Escreva um comunicado para todo o escritório…' : 'Escreva uma mensagem…'}" maxlength="2000">${esc((c.drafts || {})[cur.id] || '')}</textarea>${V.btn('Enviar', { act: 'chatSend', icon: 'right', cls: 'primary' })}</div>
+        ${canPost ? `<div class="chat-in">${c.panel ? pickerHtml(c.panel) : ''}
+          <div class="chat-tools">${V.ibtn('smile', 'Emojis', { act: 'chatPanel', cls: c.panel === 'emoji' ? 'on' : '', attrs: 'data-k="emoji"' })}${V.ibtn('sticker', 'Figurinhas', { act: 'chatPanel', cls: c.panel === 'fig' ? 'on' : '', attrs: 'data-k="fig"' })}</div><textarea id="chat-text" rows="1" placeholder="${geral ? 'Escreva um comunicado para todo o escritório…' : 'Escreva uma mensagem…'}" maxlength="2000">${esc((c.drafts || {})[cur.id] || '')}</textarea>${V.btn('Enviar', { act: 'chatSend', icon: 'right', cls: 'primary' })}</div>
           <p class="chat-hint">Enter envia · Shift+Enter quebra a linha</p>`
         : `<div class="chat-ro">${icon('lock')} ${geral ? 'Somente a diretoria publica no canal Geral.' : 'Pelas regras de comunicação, esta conversa está só para leitura.'}</div>`}
       </section>`;
       markRead(u, cur.id);
     }
-    return `${V.pageHead('Comunicação', 'Canais por departamento e por nível, e conversas diretas seguindo a hierarquia do escritório.')}
+    return `${V.pageHead('Comunicação', 'Canais por departamento e por nível, e conversas privadas com qualquer colega. Use emojis e figurinhas à vontade.')}
       <div class="chat ${cur ? 'has-conv' : ''}">${side}${main}</div>`;
   };
 
@@ -227,11 +267,47 @@
     const c = st(), t = $('#chat-text'); if (!t || !c.conv) return;
     P.ui.guard(() => {
       P.chat.send(S().user, c.conv, t.value);
-      c.drafts[c.conv] = '';
+      c.drafts[c.conv] = ''; c.panel = null;
       P.render();
       requestAnimationFrame(() => { scrollEnd(); const n = $('#chat-text'); if (n) n.focus(); });
     });
   };
+  /* Painel de emojis / figurinhas */
+  A.chatPanel = el => {
+    const c = st(), k = el.dataset.k || null;
+    c.panel = c.panel === k ? null : k;
+    const t = $('#chat-text'); if (t) c.drafts[c.conv] = t.value;
+    P.render();
+    requestAnimationFrame(() => { scrollEnd(); const q = $('#cp-q'); if (q && innerWidth > 1020) q.focus(); });
+  };
+  A.chatEmoji = el => {
+    const t = $('#chat-text'), e = el.dataset.e; if (!t) return;
+    const s = t.selectionStart ?? t.value.length, f = t.selectionEnd ?? s;
+    t.value = t.value.slice(0, s) + e + t.value.slice(f);
+    const pos = s + e.length; t.focus(); t.setSelectionRange(pos, pos);
+    st().drafts[st().conv] = t.value; recent.add(e);
+  };
+  A.chatSticker = el => {
+    const c = st(); if (!c.conv) return;
+    P.ui.guard(() => {
+      P.chat.send(S().user, c.conv, '::fig:' + el.dataset.id + '::');
+      c.panel = null; P.render();
+      requestAnimationFrame(scrollEnd);
+    });
+  };
+  // busca e atalhos de categoria no painel de emojis
+  document.addEventListener('input', ev => {
+    if (ev.target.id !== 'cp-q') return;
+    const q = ev.target.value.trim().toLowerCase();
+    const hit = new Set(Object.entries(EMOJI_WORDS).filter(([w]) => q && w.includes(q)).flatMap(([, v]) => v.split(' ')));
+    document.querySelectorAll('#cp-body .cp-e').forEach(b => { b.hidden = !!q && !hit.has(b.dataset.e); });
+    document.querySelectorAll('#cp-body .cp-cat').forEach(c => { c.hidden = !!q && !c.querySelector('.cp-e:not([hidden])'); });
+  });
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest && ev.target.closest('[data-cpt]');
+    if (b) { const sec = $('#cpc-' + b.dataset.cpt); if (sec) sec.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && st().panel && S().route.page === 'comunicacao') { st().panel = null; P.render(); } });
   A.chatDelete = el => P.ui.guard(() => { P.chat.remove(S().user, el.dataset.id); P.render(); });
   // rascunho por conversa (não se perde se a tela redesenhar) e Enter para enviar
   document.addEventListener('input', ev => {
@@ -258,7 +334,7 @@
       lastSeenTs = Date.now();
       fresh.filter(m => !(S().route.page === 'comunicacao' && st().conv === m.conv)).slice(-2).forEach(m => {
         const c = resolve(u, m.conv), who = P.user(m.from);
-        P.fx.popNotif({ icon: 'message', title: c.dm ? 'Mensagem de ' + who.name : 'Nova mensagem em ' + c.name, text: (c.dm ? '' : P.firstName(who.name) + ': ') + m.text.slice(0, 120) }, { onClick: () => { st().conv = m.conv; P.go('comunicacao'); } });
+        P.fx.popNotif({ icon: 'message', title: c.dm ? 'Mensagem de ' + who.name : 'Nova mensagem em ' + c.name, text: (c.dm ? '' : P.firstName(who.name) + ': ') + previewText(m.text).slice(0, 120) }, { onClick: () => { st().conv = m.conv; P.go('comunicacao'); } });
       });
       if (S().route.page === 'comunicacao') scrollEnd();
     }, 30);

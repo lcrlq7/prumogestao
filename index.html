@@ -1294,7 +1294,38 @@ body.dense .tbl small{font-size:11px}
 .msg:hover .msg-del{opacity:1}
 .msg-empty{margin:auto;text-align:center;color:var(--muted)}
 .msg-empty .ic{width:30px;height:30px;opacity:.6}
-.chat-in{display:flex;gap:10px;align-items:flex-end;padding:12px 16px 4px;border-top:1px solid var(--line)}
+.chat-in{display:flex;gap:10px;align-items:flex-end;padding:12px 16px 4px;border-top:1px solid var(--line);position:relative}
+/* emojis e figurinhas */
+.chat-tools{display:flex;gap:2px;align-self:center}
+.chat-tools .ibtn.on{background:var(--accent-soft);color:var(--accent)}
+.chat-pick{position:absolute;left:12px;bottom:calc(100% + 6px);z-index:20;width:min(360px,calc(100% - 24px));max-height:340px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 44px rgba(8,16,24,.22);overflow:hidden;animation:npIn .18s ease}
+.cp-h{display:flex;align-items:center;gap:8px;padding:8px 8px 6px 12px;border-bottom:1px solid var(--line)}
+.cp-h b{flex:1}
+.cp-h input{flex:1;min-width:0;border:1px solid var(--line-2);border-radius:9px;padding:6px 10px;background:var(--surface-2)}
+.cp-tabs{display:flex;gap:2px;padding:4px 8px;border-bottom:1px solid var(--line)}
+.cp-tabs button{border:0;background:none;padding:5px 7px;border-radius:7px;cursor:pointer;color:var(--ink-2)}
+.cp-tabs button:hover{background:var(--surface-2);color:var(--ink)}
+.cp-tabs .ic{width:17px;height:17px}
+.cp-body{overflow:auto;padding:4px 8px 10px}
+.cp-cat small{display:block;margin:8px 4px 4px;color:var(--ink-3,var(--ink-2));font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.cp-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+.cp-e{border:0;background:none;font-size:22px;line-height:1;padding:6px 0;border-radius:8px;cursor:pointer;transition:transform .12s,background-color .12s}
+.cp-e:hover{background:var(--surface-2);transform:scale(1.2)}
+.cp-stk{overflow:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px}
+.cp-s{border:0;background:none;padding:0;cursor:pointer;border-radius:12px;transition:transform .15s}
+.cp-s:hover{transform:scale(1.06) rotate(-2deg)}
+.cp-s .stk{width:100%;min-height:88px}
+.stk{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:138px;min-height:120px;padding:10px 8px;border-radius:18px;background:color-mix(in srgb,var(--stk) 14%,var(--surface));border:2px solid color-mix(in srgb,var(--stk) 45%,transparent);box-shadow:0 4px 0 color-mix(in srgb,var(--stk) 30%,transparent)}
+.stk-e{font-size:44px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.18))}
+.cp-s .stk-e{font-size:30px}
+.stk-t{font:800 12.5px/1.15 var(--f-display);color:var(--stk);text-align:center;text-transform:uppercase;letter-spacing:.02em}
+.cp-s .stk-t{font-size:10.5px}
+.msg-stk{padding:2px 0}
+.msg.me .msg-stk{display:flex;justify-content:flex-end}
+.msg-stk .stk{animation:stkIn .4s cubic-bezier(.3,1.5,.5,1)}
+@keyframes stkIn{from{opacity:0;transform:scale(.6) rotate(-6deg)}}
+.msg-txt.big-emoji{font-size:34px;line-height:1.2;background:none!important;padding-left:0;padding-right:0}
+@media (prefers-reduced-motion:reduce){.msg-stk .stk,.chat-pick{animation:none}}
 .chat-in textarea{flex:1;resize:none;border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;background:var(--surface);max-height:160px;line-height:1.4}
 .chat-in textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .chat-hint{margin:0;padding:0 16px 10px;font-size:11px;color:var(--muted)}
