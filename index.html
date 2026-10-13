@@ -1127,6 +1127,65 @@ body.dense .tbl small{font-size:11px}
   .app.present .view{padding:16px}
 }
 @media (prefers-reduced-motion:reduce){.view.anim,.view.anim *{animation:none!important}.sk{animation:none}}
+/* ---------- Movimentos extras (desligados para quem pede menos movimento no sistema) ---------- */
+@media (prefers-reduced-motion:no-preference){
+  /* janelas (modais): fundo esmaece e a janela sobe com leve escala */
+  .modal-back{animation:fadeIn .2s ease}
+  .modal{animation:mIn .28s cubic-bezier(.2,.9,.25,1.05)}
+  @keyframes mIn{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+  .modal .field,.modal .fgrid>*,.modal .prose{animation:mItem .35s cubic-bezier(.2,.7,.2,1) both}
+  .modal .fgrid>*:nth-child(2){animation-delay:.03s}.modal .fgrid>*:nth-child(3){animation-delay:.06s}.modal .fgrid>*:nth-child(4){animation-delay:.09s}.modal .fgrid>*:nth-child(n+5){animation-delay:.12s}
+  @keyframes mItem{from{opacity:0;transform:translateY(6px)}}
+  /* avisos (toasts) entram deslizando */
+  .toast{animation:tIn .35s cubic-bezier(.2,.9,.25,1.1)}
+  @keyframes tIn{from{opacity:0;transform:translateX(24px) scale(.96)}}
+  /* botões: elevação, clique "afunda" e brilho que percorre o botão principal */
+  .btn{transition:transform .15s ease,box-shadow .2s ease,background-color .2s,border-color .2s,color .2s}
+  .btn:not(:disabled):hover{transform:translateY(-1px)}
+  .btn:not(:disabled):active{transform:translateY(0) scale(.97);transition-duration:.06s}
+  .btn.primary{position:relative;overflow:hidden}
+  .btn.primary::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.28) 50%,transparent 70%);transform:translateX(-120%);pointer-events:none}
+  .btn.primary:not(:disabled):hover::after{transform:translateX(120%);transition:transform .7s ease}
+  .btn:not(:disabled):hover>.ic{animation:bIc .45s ease}
+  @keyframes bIc{40%{transform:scale(1.18) rotate(-6deg)}}
+  /* cartões e indicadores levantam ao passar o mouse */
+  .card,.kpi{transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s ease,border-color .25s}
+  .card:hover{box-shadow:0 10px 28px rgba(15,30,44,.09)}
+  /* linhas de tabela entram em cascata quando a página abre */
+  .view.anim tbody tr{animation:rowIn .4s cubic-bezier(.2,.7,.2,1) both}
+  .view.anim tbody tr:nth-child(1){animation-delay:.12s}.view.anim tbody tr:nth-child(2){animation-delay:.15s}.view.anim tbody tr:nth-child(3){animation-delay:.18s}
+  .view.anim tbody tr:nth-child(4){animation-delay:.21s}.view.anim tbody tr:nth-child(5){animation-delay:.24s}.view.anim tbody tr:nth-child(6){animation-delay:.27s}
+  .view.anim tbody tr:nth-child(7){animation-delay:.3s}.view.anim tbody tr:nth-child(8){animation-delay:.33s}.view.anim tbody tr:nth-child(n+9){animation-delay:.36s}
+  @keyframes rowIn{from{opacity:0;transform:translateX(-8px)}}
+  tbody tr{transition:background-color .18s ease}
+  /* selos, avisos, abas e faixa de números */
+  .view.anim .badge{animation:bdg .4s cubic-bezier(.3,1.4,.5,1) .25s both}
+  @keyframes bdg{from{opacity:0;transform:scale(.6)}}
+  .view.anim .banner{animation:bnr .45s cubic-bezier(.2,.7,.2,1) .1s both}
+  @keyframes bnr{from{opacity:0;transform:translateY(-8px)}}
+  .tabs button{transition:color .2s,border-color .25s,background-color .2s}
+  .tabs button:hover{background:var(--surface-2)}
+  .tabs button.on{animation:tabOn .3s ease}
+  @keyframes tabOn{from{border-bottom-color:transparent}}
+  .strip>div{transition:background-color .2s}
+  .strip>div:hover{background:var(--surface-2)}
+  .view.anim .page-head h1{animation:hIn .5s cubic-bezier(.2,.7,.2,1) both}
+  .view.anim .page-head .lede{animation:hIn .5s cubic-bezier(.2,.7,.2,1) .06s both}
+  .view.anim .head-actions>*{animation:hIn .45s cubic-bezier(.2,.7,.2,1) both}
+  .view.anim .head-actions>*:nth-child(2){animation-delay:.05s}.view.anim .head-actions>*:nth-child(3){animation-delay:.1s}.view.anim .head-actions>*:nth-child(n+4){animation-delay:.15s}
+  @keyframes hIn{from{opacity:0;transform:translateY(8px)}}
+  /* campos: brilho suave ao focar */
+  input,select,textarea{transition:border-color .2s ease,box-shadow .25s ease}
+  input:focus,select:focus,textarea:focus{box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 18%,transparent)}
+  /* avatares e itens de notificação */
+  .avatar{transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+  tr:hover .avatar,.person:hover .avatar{transform:scale(1.08)}
+  .np-item{transition:background-color .18s}
+  .np-item:hover{background:var(--surface-2)}
+  /* revelar ao rolar: cartões abaixo da dobra aparecem quando entram na tela */
+  .rv{opacity:0;transform:translateY(18px)}
+  .rv.in{opacity:1;transform:none;transition:opacity .55s ease,transform .6s cubic-bezier(.2,.7,.2,1)}
+}
 
 /* Título da barra superior encurta com reticências quando falta espaço */
 .top-title{min-width:0;overflow:hidden;flex:1}

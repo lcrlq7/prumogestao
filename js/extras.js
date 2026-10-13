@@ -276,12 +276,24 @@
       node.nodeValue = fmt(0); requestAnimationFrame(step);
     });
   };
+  // Cartões que estão abaixo da dobra aparecem suavemente quando entram na tela
+  let revealObs = null;
+  fx.revealOnScroll = root => {
+    if (!('IntersectionObserver' in window)) return;
+    if (revealObs) revealObs.disconnect();
+    revealObs = new IntersectionObserver(list => list.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); revealObs.unobserve(e.target); } }), { rootMargin: '0px 0px -40px 0px' });
+    const fold = innerHeight;
+    root.querySelectorAll('.card, .dblock').forEach(el => {
+      if (el.closest('.rv') || el.getBoundingClientRect().top < fold) return;
+      el.classList.add('rv'); revealObs.observe(el);
+    });
+  };
   let lastUnread = null;
   fx.afterRender = routeChanged => {
     const u = S().user, view = $('#view');
     document.body.classList.toggle('dense', ui().ls.get('prumo.dense') === '1');
     if (!u || !view) return;
-    if (routeChanged && !reduceMotion()) { view.classList.add('anim'); fx.countUp(view); setTimeout(() => view.classList.remove('anim'), 1300); }
+    if (routeChanged && !reduceMotion()) { view.classList.add('anim'); fx.countUp(view); setTimeout(() => view.classList.remove('anim'), 1300); fx.revealOnScroll(view); }
     const unread = fx.unreadNotifs(u) + P.alerts(u).filter(a => !a.read).length;
     if (lastUnread != null && unread > lastUnread) fx.shakeBell();
     lastUnread = unread;
