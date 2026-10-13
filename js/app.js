@@ -859,7 +859,7 @@
         body: `<p class="prose">Envie a planilha com as empresas pelas quais a pessoa é responsável. Cada linha é localizada no cadastro de empresas pelo <b>código</b> (ou CNPJ, ou nome) e entra na carteira dela.</p>
           <div class="fgrid">
             <label class="field span2"><span>Responsável</span><select id="cart-user" ${people.length === 1 ? 'disabled' : ''}>${people.map(x => { const d = P.dept(x.deptId); return `<option value="${x.id}">${esc(x.name)}${x.id === u.id ? ' (você)' : ''}${d ? ' · ' + esc(d.name) : ''}</option>`; }).join('')}</select></label>
-            <div class="field"><span>Modelo</span><button type="button" class="btn ghost" data-act="portfolioTemplate">${icon('download')}<span>Baixar planilha padrão</span></button></div>
+            <div class="field"><span>Modelo</span><a class="btn ghost" href="modelos/Modelo_importacao_carteira.xlsx" download>${icon('download')}<span>Baixar planilha padrão</span></a></div>
           </div>
           <label class="drop" for="cart-file">${icon('file')}<span><b>Escolher planilha</b><small>.xlsx ou .csv com as colunas Código, Nome da empresa e CNPJ</small></span><input type="file" id="cart-file" accept=".xlsx,.xls,.csv" hidden></label>
           <div id="cart-preview"></div>`,
