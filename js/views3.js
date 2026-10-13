@@ -217,14 +217,15 @@
     let list = api.allEmployees(u);
     if (f.dept) list = list.filter(e => e.deptId === f.dept);
     if (f.q) { const q = f.q.toLowerCase(); list = list.filter(e => e.name.toLowerCase().includes(q) || e.email.includes(q)); }
-    if (f.status) list = list.filter(e => f.status === 'ativo' ? e.active !== false : e.active === false);
+    // Desligados ficam fora da lista; só aparecem se escolher "Desligados" em Situação (para readmitir)
+    list = list.filter(e => f.status === 'inativo' ? e.active === false : e.active !== false);
     list.sort((a, b) => a.name.localeCompare(b.name));
     const global = P.isGlobal(u);
     return `${V.pageHead('Funcionários', global ? 'Cadastro, departamento, capacidade e situação de cada colaborador.' : 'Funcionários do seu departamento. Você pode cadastrar e editar os dados deles.', V.btn('Códigos de convite', { act: 'inviteCodes', icon: 'key', cls: 'ghost' }) + V.btn('Novo funcionário', { act: 'editUser', icon: 'plus', cls: 'primary', attrs: 'data-role="employee"' }))}
       <section class="card"><div class="card-b"><div class="filters">
         <label class="field"><span>Buscar</span><input type="search" id="ef-q" value="${esc(f.q)}" data-set="empFilter.q" data-live placeholder="Nome ou e-mail"></label>
         ${global ? `<label class="field"><span>Departamento</span><select id="ef-dept" data-set="empFilter.dept"><option value="">Todos</option>${api.departments(u).map(d => `<option value="${d.id}" ${f.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}
-        <label class="field"><span>Situação</span><select id="ef-st" data-set="empFilter.status"><option value="">Todas</option><option value="ativo" ${f.status === 'ativo' ? 'selected' : ''}>Ativos</option><option value="inativo" ${f.status === 'inativo' ? 'selected' : ''}>Inativos</option></select></label>
+        <label class="field"><span>Situação</span><select id="ef-st" data-set="empFilter.status"><option value="">Ativos</option><option value="inativo" ${f.status === 'inativo' ? 'selected' : ''}>Desligados</option></select></label>
       </div></div></section>
       ${V.card('', `<div class="table-wrap"><table class="tbl"><thead><tr><th>Funcionário</th><th>E-mail</th><th>Departamento</th><th>Gestor(a)</th><th class="num">Jornada</th><th class="num">Capacidade</th><th>Situação</th><th class="actions-col"></th></tr></thead>
         <tbody>${list.map(e => { const d = P.dept(e.deptId); return `<tr class="${e.active === false ? 'inactive' : ''}"><td>${V.person(e)}</td><td>${esc(e.email)}</td><td>${d ? esc(d.name) : '—'}</td><td>${d && P.user(d.managerId) ? esc(P.user(d.managerId).name) : '—'}</td><td class="num">${e.hours || 40}h</td><td class="num">${F.n(e.capacity)} pts</td><td>${V.userStatus(e)}</td>
@@ -241,7 +242,6 @@
         <tbody>${P.store.db.users.filter(x => P.isGlobal(x) && x.active !== false).sort((a, b) => P.LEVEL[b.role] - P.LEVEL[a.role] || a.name.localeCompare(b.name)).map(a => `<tr><td>${V.person(a)}${a.id === u.id ? ' <small class="muted">(você)</small>' : ''}</td><td>${V.roleBadge(a.role)}${P.ledDept(a) ? `<small class="muted role-extra">e gestor(a) de ${esc(P.ledDept(a).name)}</small>` : ''}</td><td>${esc(a.email)}</td><td><span class="badge es-aprovado">${icon('shield')}Todos os departamentos</span></td>
           <td class="actions-col"><div class="row-actions">${P.canManageUser(u, a) ? V.ibtn('edit', 'Editar', { act: 'editUser', attrs: `data-id="${a.id}"` }) : ''}${P.canChangeRole(u, a) ? V.ibtn('shield', 'Promover ou rebaixar', { act: 'changeRole', attrs: `data-id="${a.id}"` }) : ''}${V.dismissBtns(u, a)}</div></td></tr>`).join('')}</tbody></table></div>`,
         { cls: 'flush', sub: 'Cada nível altera somente quem está abaixo dele.', actions: u.role === 'admin' ? V.btn('Novo diretor', { act: 'editUser', icon: 'plus', cls: 'sm', attrs: 'data-role="admin"' }) + V.btn('Novo gerente', { act: 'editUser', icon: 'plus', cls: 'sm', attrs: 'data-role="office"' }) : '' })}
-      ${V.dismissedCard(u)}
       ${V.card('Como o acesso é aplicado', `<div class="prose"><p>O escopo vem do vínculo do usuário autenticado, não de parâmetros da página. Se um gestor tentar abrir o endereço de um colaborador de outro departamento, a consulta é bloqueada na camada de dados e a tentativa fica registrada na auditoria.</p><p>Na versão com banco de dados, a mesma regra é garantida por políticas de segurança por linha (RLS) no PostgreSQL. O script está no arquivo <code>supabase/schema.sql</code>.</p></div>`)}`;
   };
 
