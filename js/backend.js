@@ -271,6 +271,34 @@
       if (error) { let msg = error.message; try { const b = await error.context.json(); msg = b.error || msg; } catch (e) { } throw new Error(msg); }
       return res;
     },
+    // Cadastro com código de convite: o banco valida o código, cria o perfil com a função/departamento e consome o código
+    async signUpWithCode({ code, name, email, password }) {
+      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { invite_code: code.trim().toUpperCase(), name }, emailRedirectTo: site + '/' } });
+      if (error) {
+        const m = error.message || '';
+        throw new Error(/already registered|already exists/i.test(m) ? 'Este e-mail já tem acesso. Use "Entrar" ou "Esqueci minha senha".'
+          : /convite|invite|403/i.test(m) ? 'Código de convite inválido, vencido ou já utilizado.'
+          : /password/i.test(m) ? 'A senha precisa ter pelo menos 8 caracteres, com letras e números.'
+          : /signups not allowed|disabled/i.test(m) ? 'O cadastro está desativado no Supabase (Authentication → Sign In / Providers → Allow new users to sign up).' : m);
+      }
+      session = data.session;
+      if (!session) return null; // confirmação de e-mail ligada: a pessoa entra depois de confirmar
+      return toUser();
+    },
+    async createInviteCode(role, deptId, days) {
+      const { data, error } = await sb.rpc('create_invite_code', { p_role: role, p_dept: deptId || null, p_days: Number(days) || 7 });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    async listInviteCodes() {
+      const { data, error } = await sb.from('invite_codes').select('id, hint, role, dept_id, created_by, created_at, expires_at, used_at, used_name').order('created_at', { ascending: false }).limit(100);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    async revokeInviteCode(id) {
+      const { error } = await sb.from('invite_codes').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+    },
     async setAccess(userId, enabled) {
       const { error } = await sb.functions.invoke('admin-users', { body: { action: enabled ? 'enable' : 'disable', userId } });
       if (error) throw new Error(error.message);

@@ -146,6 +146,23 @@
           ${err ? `<div class="auth-msg err shake" role="alert">${icon('alert')}<span>${esc(err)}</span></div>` : ''}
           ${r(4, `<button type="submit" class="btn primary block lg" ${S.authBusy ? 'disabled' : ''}>${icon('check')}<span>${S.authBusy ? 'Salvando…' : 'Salvar senha e entrar'}</span></button>`)}
         </form>`;
+    } else if (mode === 'code' || mode === 'confirm') {
+      // Primeiro acesso com código de convite: o código define função e departamento
+      card = mode === 'confirm'
+        ? `${logo}${r(1, `<h2>Confirme seu e-mail</h2><p class="lede">Enviamos um link para <b>${esc(S.forgotEmail || '')}</b>. Abra o link para ativar o acesso e depois entre com seu e-mail e senha.</p>`)}
+           ${r(2, `<div class="auth-msg ok">${icon('check')}<span>Cadastro criado. Confira também a caixa de spam.</span></div>`)}
+           ${r(3, `<button type="button" class="btn primary block lg" data-act="authMode" data-mode="login">${icon('left')}<span>Ir para o login</span></button>`)}`
+        : `${logo}${r(1, `<h2>Primeiro acesso</h2><p class="lede">Use o código de convite que você recebeu da diretoria ou do seu gestor.</p>`)}
+           <form class="auth-form" id="code-form" novalidate>
+             ${r(2, `<label class="field"><span>Código de convite</span><span class="in-ic">${icon('key')}<input name="code" id="code-code" autocomplete="off" placeholder="XXXX-XXXX-XXXX" style="text-transform:uppercase;letter-spacing:.08em" value="${esc(S.codeDraft || '')}" required></span></label>`)}
+             ${r(2, `<label class="field"><span>Nome completo</span><span class="in-ic">${icon('user')}<input name="name" autocomplete="name" required></span></label>`)}
+             ${r(3, `<label class="field"><span>E-mail</span><span class="in-ic">${icon('mail')}<input type="email" name="email" autocomplete="username" placeholder="nome@empresa.com.br" required></span></label>`)}
+             ${r(3, `<label class="field"><span>Senha</span><span class="in-ic pass">${icon('lock')}<input type="password" name="password" autocomplete="new-password" placeholder="Mínimo de 8 caracteres, letras e números" required></span></label>`)}
+             ${r(3, `<label class="field"><span>Confirme a senha</span><span class="in-ic pass">${icon('lock')}<input type="password" name="confirm" autocomplete="new-password" required></span></label>`)}
+             ${err ? `<div class="auth-msg err shake" role="alert">${icon('alert')}<span>${esc(err)}</span></div>` : ''}
+             ${r(4, `<button type="submit" class="btn primary block lg" ${S.authBusy ? 'disabled' : ''}>${icon('check')}<span>${S.authBusy ? 'Criando acesso…' : 'Criar meu acesso'}</span></button>`)}
+           </form>
+           ${r(5, `<div class="auth-back"><button type="button" class="link" data-act="authMode" data-mode="login">${icon('left')} Já tenho acesso</button></div>`)}`;
     } else if (mode === 'forgot' || mode === 'sent') {
       card = mode === 'sent'
         ? `${logo}${r(1, `<h2>Verifique seu e-mail</h2><p class="lede">Se houver uma conta com <b>${esc(S.forgotEmail || '')}</b>, você vai receber um link para criar uma nova senha em alguns minutos.</p>`)}
@@ -169,6 +186,7 @@
           ${err ? `<div class="auth-msg err shake" role="alert">${icon('alert')}<span>${esc(err)}</span></div>` : ''}
           ${r(5, `<button type="submit" class="btn primary block lg" ${S.authBusy ? 'disabled' : ''}>${icon('right')}<span>${S.authBusy ? 'Entrando…' : 'Entrar'}</span></button>`)}
         </form>
+        ${P.isLive ? r(6, `<div class="auth-back"><button type="button" class="link" data-act="authMode" data-mode="code">${icon('key')} Tenho um código de convite</button></div>`) : ''}
         ${QUICK_ACCESS ? r(6, `<div class="auth-or">ou</div><button type="button" class="btn quick-btn" data-act="quickAccess">${icon('zap')}<span>Acesso rápido</span><span class="quick-tag">temporário</span></button>`) : ''}`;
     }
     return `
@@ -964,6 +982,61 @@
         onSubmit: () => { const r = api.readmitUser(U(), x.id); toast(`${x.name} foi readmitido(a)${r.notes.length ? '. ' + r.notes.join('; ') : ''}.`); render(); }
       });
     },
+    /* ---------- Códigos de convite (produção) ---------- */
+    inviteCodes() {
+      const me = U();
+      if (!P.isLive || !P.backend) return toast('Os códigos de convite funcionam no site em produção (com o Supabase).', 'err');
+      const roles = me.role === 'admin' ? ['admin', 'office', 'manager', 'employee'] : me.role === 'office' ? ['manager', 'employee'] : me.role === 'manager' ? ['employee'] : [];
+      if (!roles.length) return toast('Seu perfil não pode gerar códigos de convite.', 'err');
+      const depts = P.store.db.departments.filter(d => me.role !== 'manager' || d.id === me.deptId);
+      modal({
+        title: 'Códigos de convite', wide: true, cancel: 'Fechar',
+        body: `<p class="prose">Gere um código para cada pessoa. Ela entra no site, clica em <b>Tenho um código de convite</b> e cria o próprio acesso com nome, e-mail e senha. Cada código vale para <b>um único cadastro</b> e já define a função e o departamento.</p>
+          <div class="fgrid">
+            <label class="field"><span>Função</span><select id="ic-role">${roles.map(r => `<option value="${r}" ${r === 'employee' ? 'selected' : ''}>${esc(P.ROLES[r])}</option>`).join('')}</select></label>
+            <label class="field"><span>Departamento</span><select id="ic-dept">${me.role !== 'manager' ? '<option value="">— Sem departamento (diretoria/escritório) —</option>' : ''}${depts.map(d => `<option value="${d.id}" ${d.id === me.deptId ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
+            <label class="field"><span>Validade</span><select id="ic-days">${[1, 3, 7, 15, 30].map(n => `<option value="${n}" ${n === 7 ? 'selected' : ''}>${n} dia${n > 1 ? 's' : ''}</option>`).join('')}</select></label>
+          </div>
+          <button type="button" class="btn primary" data-act="icGen">${icon('key')}<span>Gerar código</span></button>
+          <div id="ic-new"></div>
+          <h3 style="margin:18px 0 8px">Códigos gerados</h3>
+          <div id="ic-list"><p class="muted">Carregando…</p></div>`
+      });
+      A._icLoad();
+    },
+    async _icLoad() {
+      const box = $('#ic-list'); if (!box) return;
+      try {
+        const rows = await P.backend.listInviteCodes();
+        const now = new Date();
+        if (!rows.length) { box.innerHTML = '<p class="muted">Nenhum código gerado ainda.</p>'; return; }
+        box.innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Código</th><th>Função</th><th>Departamento</th><th>Situação</th><th></th></tr></thead><tbody>${rows.map(c => {
+          const used = !!c.used_at, exp = new Date(c.expires_at) < now, dept = P.dept(c.dept_id);
+          const st = used ? `Usado por <b>${esc(c.used_name || '—')}</b> em ${new Date(c.used_at).toLocaleDateString('pt-BR')}` : exp ? '<span class="muted">Vencido</span>' : `Válido até ${new Date(c.expires_at).toLocaleDateString('pt-BR')}`;
+          return `<tr><td><code>••••-••••-${esc(c.hint)}</code></td><td>${esc(P.ROLES[c.role] || c.role)}</td><td>${dept ? esc(dept.name) : '—'}</td><td>${st}</td><td>${used ? '' : `<button type="button" class="btn ghost sm" data-act="icRevoke" data-id="${esc(c.id)}">${icon('trash')}<span>Revogar</span></button>`}</td></tr>`;
+        }).join('')}</tbody></table></div>`;
+      } catch (e) { box.innerHTML = `<p class="form-err">Não foi possível carregar: ${esc(e.message)}</p>`; }
+    },
+    async icGen(el) {
+      el.disabled = true;
+      try {
+        const code = await P.backend.createInviteCode($('#ic-role').value, $('#ic-dept').value, $('#ic-days').value);
+        $('#ic-new').innerHTML = `<div class="auth-msg ok" style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${icon('check')}<span>Código gerado — copie agora, ele não será mostrado de novo:</span>
+          <code style="font-size:18px;letter-spacing:.1em;font-weight:700" id="ic-code">${esc(code)}</code>
+          <button type="button" class="btn sm" data-act="icCopy">${icon('copy')}<span>Copiar</span></button></div>`;
+        A._icLoad();
+      } catch (e) { modalErr(e.message); }
+      el.disabled = false;
+    },
+    icCopy() {
+      const c = $('#ic-code'); if (!c) return;
+      const txt = `Seu código de convite do Prumo: ${c.textContent}\nAcesse ${location.origin + location.pathname} e clique em "Tenho um código de convite".`;
+      (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast('Código e instruções copiados.'), () => toast('Copie o código manualmente.', 'err'));
+    },
+    async icRevoke(el) {
+      if (!confirm('Revogar este código? Ele deixará de funcionar.')) return;
+      try { await P.backend.revokeInviteCode(el.dataset.id); toast('Código revogado.'); A._icLoad(); } catch (e) { modalErr(e.message); }
+    },
     /* ---------- Empresas: seleção e ações em lote ---------- */
     compSel(el) { const s = S.compSel = S.compSel || new Set(); if (el.checked) s.add(el.dataset.id); else s.delete(el.dataset.id); render(); },
     compPage(el) { S.compPage = (S.compPage || 1) + Number(el.dataset.d); render(); },
@@ -1266,6 +1339,23 @@
         return;
       }
       S.forgotEmail = email; S.loginErr = null; S.authMode = 'sent'; render();
+    }
+    if (ev.target.id === 'code-form') {
+      const f = ev.target, code = f.code.value.trim().toUpperCase(), name = f.name.value.trim(), email = f.email.value.trim().toLowerCase(), pw = f.password.value;
+      S.codeDraft = code;
+      const fail = m => { S.loginErr = m; render(); };
+      if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) return fail('Digite o código no formato XXXX-XXXX-XXXX.');
+      if (name.length < 3) return fail('Informe o seu nome completo.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Informe um e-mail válido.');
+      if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/\d/.test(pw)) return fail('A senha precisa ter pelo menos 8 caracteres, com letras e números.');
+      if (pw !== f.confirm.value) return fail('As senhas não conferem.');
+      if (!P.backend) return fail(P.backendError || 'Sistema indisponível.');
+      S.authBusy = true; S.loginErr = null; render();
+      P.backend.signUpWithCode({ code, name, email, password: pw }).then(user => {
+        S.authBusy = false; S.codeDraft = '';
+        if (user) { toast('Acesso criado. Bem-vindo(a)!'); login(user); }
+        else { S.forgotEmail = email; S.authMode = 'confirm'; render(); }
+      }).catch(err => { S.authBusy = false; fail(err.message); });
     }
     if (ev.target.id === 'newpass-form') {
       const pw = ev.target.password.value, cf = ev.target.confirm.value;
