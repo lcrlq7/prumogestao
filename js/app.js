@@ -462,16 +462,19 @@
     toggleRecAll() { S.recAll = !S.recAll; render(); },
     /* Registrar reconhecimento: o número sugere, o gestor decide e justifica */
     recognize(el) {
-      const people = api.workers(U()).filter(x => api.canRecognize(U(), x)).sort((a, b) => a.name.localeCompare(b.name));
-      if (!people.length) return toast('Não há ninguém abaixo de você para reconhecer.', 'err');
+      const me = U(), emp = me.role === 'employee';
+      // todos podem reconhecer: colegas do próprio departamento aparecem primeiro
+      const people = P.store.db.users.filter(x => api.canRecognize(me, x))
+        .sort((a, b) => (b.deptId === me.deptId) - (a.deptId === me.deptId) || a.name.localeCompare(b.name));
+      if (!people.length) return toast('Não há colegas ativos para reconhecer.', 'err');
       const pre = el.dataset.id || '', cat = P.REC_CATEGORIES[el.dataset.cat] ? el.dataset.cat : 'outro';
       modal({
         title: 'Registrar reconhecimento', submit: 'Registrar',
         body: `<form id="rec-form" class="form" novalidate><div class="fgrid">
-          <label class="field span2"><span>Colaborador(a)</span><select id="rc-user">${people.map(x => `<option value="${x.id}" ${x.id === pre ? 'selected' : ''}>${esc(x.name)} · ${esc(P.dept(x.deptId) ? P.dept(x.deptId).name : '')}</option>`).join('')}</select></label>
+          <label class="field span2"><span>Colega</span><select id="rc-user">${people.map(x => `<option value="${x.id}" ${x.id === pre ? 'selected' : ''}>${esc(x.name)} · ${esc(P.dept(x.deptId) ? P.dept(x.deptId).name : P.ROLES[x.role])}</option>`).join('')}</select></label>
           <label class="field"><span>Categoria</span><select id="rc-cat">${Object.entries(P.REC_CATEGORIES).map(([k, l]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="field span3"><span>Justificativa <small>(o que a pessoa fez e por que importa)</small></span><textarea id="rc-text" rows="4" maxlength="600" placeholder="Ex.: assumiu o fechamento de dois clientes durante as férias da colega, sem atrasos e sem retrabalho.">${esc(el.dataset.text || '')}</textarea></label>
-          <label class="field check span3"><input type="checkbox" id="rc-visible" checked><span>Mostrar ao colaborador (ele vê a mensagem no próprio painel e recebe um alerta)</span></label>
+          ${emp ? '<input type="checkbox" id="rc-visible" checked hidden>' : '<label class="field check span3"><input type="checkbox" id="rc-visible" checked><span>Mostrar ao colaborador (ele vê a mensagem no próprio painel e recebe um alerta)</span></label>'}
           <label class="field check span3"><input type="checkbox" id="rc-shared"><span>Compartilhar com a equipe (aparece no Mural do departamento, sem notas nem números)</span></label>
         </div><p class="fine">Os números servem de apoio. Colaboração, iniciativa e atendimento ao cliente só aparecem nos destaques por meio destas indicações.</p></form>`,
         onSubmit: m => {

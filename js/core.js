@@ -1609,8 +1609,8 @@ window.P = window.P || {};
   /* Indicações de reconhecimento: o número sugere, o gestor decide e justifica */
   Object.assign(api, {
     canRecognize(u, x) {
-      return !!u && !!x && x.active !== false && x.id !== u.id && (x.role === 'employee' || x.role === 'manager') &&
-        (P.isGlobal(u) || (u.role === 'manager' && x.role === 'employee' && x.deptId === u.deptId));
+      // qualquer pessoa ativa reconhece qualquer colega ativo (menos a si mesma)
+      return !!u && !!x && u.active !== false && x.active !== false && x.id !== u.id;
     },
     recognitions(u, f = {}) {
       let list = (db().recognitions || []).slice();
@@ -1622,12 +1622,14 @@ window.P = window.P || {};
     },
     addRecognition(u, data) {
       const x = P.user(data.userId);
-      assert(api.canRecognize(u, x), 'Você só registra reconhecimento de quem está abaixo de você na hierarquia.');
+      assert(api.canRecognize(u, x), 'Escolha um colega ativo (não é possível reconhecer a si mesmo).');
       assert(P.REC_CATEGORIES[data.category], 'Escolha a categoria do reconhecimento.');
       const text = String(data.text || '').trim();
       assert(text.length >= 15, 'Escreva uma justificativa com pelo menos 15 caracteres: o que a pessoa fez e por que importa.');
       // Compartilhar com a equipe implica mostrar também ao próprio colaborador
       const shared = !!data.shared;
+      // reconhecimento entre colegas é sempre mostrado a quem recebe
+      if (u.role === 'employee') data.visible = true;
       const r = { id: P.uid('rc'), userId: x.id, deptId: x.deptId, by: u.id, at: D.stamp(), date: D.iso(P.today()), category: data.category, text, visible: shared || data.visible !== false, shared, source: data.source || 'manual' };
       (db().recognitions = db().recognitions || []).push(r);
       audit(u, 'Reconhecimento registrado', x.id, x.name + ' · ' + P.REC_CATEGORIES[r.category] + (shared ? ' · compartilhado no mural' : '')); P.store.save();

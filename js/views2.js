@@ -285,7 +285,7 @@
     const global = P.isGlobal(u), scope = global ? (P.state.dept || '') : u.deptId;
     const list = api.teamWall(u, scope || undefined);
     const d = P.dept(u.deptId);
-    return `${V.pageHead('Mural de reconhecimentos', global ? 'Reconhecimentos que os gestores compartilharam com as equipes.' : `Reconhecimentos compartilhados com a equipe${d ? ' de ' + esc(d.name) : ''}. Aqui não aparecem notas, ranking nem números de desempenho.`, (global ? V.deptPicker(u) : '') + (u.role !== 'employee' ? V.btn('Registrar reconhecimento', { act: 'recognize', icon: 'medal', cls: 'primary' }) : ''))}
+    return `${V.pageHead('Mural de reconhecimentos', global ? 'Reconhecimentos que os gestores compartilharam com as equipes.' : `Reconhecimentos compartilhados com a equipe${d ? ' de ' + esc(d.name) : ''}. Aqui não aparecem notas, ranking nem números de desempenho.`, (global ? V.deptPicker(u) : '') + V.btn('Reconhecer um colega', { act: 'recognize', icon: 'medal', cls: 'primary' }))}
       ${V.card('', list.length ? V.wallItems(list, { dept: global && !scope }) : V.empty(u.role === 'employee' ? 'Ainda não há reconhecimentos compartilhados com a sua equipe.' : 'Nenhum reconhecimento compartilhado ainda. Ao registrar um reconhecimento, marque "Compartilhar com a equipe" para ele aparecer aqui.', 'medal'), { cls: 'flush' })}`;
   };
   V.recognitionsCard = (u, scope) => {
