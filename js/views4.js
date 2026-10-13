@@ -21,6 +21,12 @@
     const all = api.companies(u);
     let list = all;
     if (f.q) { const q = f.q.toLowerCase(), qd = P.cnpj.digits(f.q); list = list.filter(c => c.name.toLowerCase().includes(q) || (c.code || '').toLowerCase() === q || (c.tradeName || '').toLowerCase().includes(q) || (qd.length >= 3 && P.cnpj.digits(c.cnpj).includes(qd))); }
+    // Busca por código: o código exato aparece primeiro, depois os que começam com o que foi digitado
+    if (f.code) {
+      const k = String(f.code).trim().toLowerCase();
+      list = list.filter(c => (c.code || '').toLowerCase().startsWith(k))
+        .sort((a, b) => ((b.code || '').toLowerCase() === k) - ((a.code || '').toLowerCase() === k) || (a.code || '').localeCompare(b.code || '', 'pt-BR', { numeric: true }));
+    }
     if (f.regime) list = list.filter(c => f.regime === 'nao' ? !P.REGIMES[c.regime] : c.regime === f.regime);
     if (f.dept) list = list.filter(c => deptsOf(c).includes(f.dept));
     if (f.status) list = list.filter(c => f.status === 'ativas' ? c.active : f.status === 'incompletas' ? c.active && incomplete(c) : f.status === 'semcodigo' ? !c.code : !c.active);
@@ -31,7 +37,7 @@
     // Quantidade exibida por página (10, 50, 100 ou todas); volta à 1ª página quando os filtros mudam
     const LIMITS = [['10', 'Até 10'], ['50', 'Até 50'], ['100', 'Até 100'], ['all', 'Todas']];
     const limit = LIMITS.some(([k]) => k === f.limit) ? f.limit : '50';
-    const sig = [f.q, f.regime, f.dept, f.status, limit].join('|');
+    const sig = [f.q, f.code, f.regime, f.dept, f.status, limit].join('|');
     if (S.compSig !== sig) { S.compSig = sig; S.compPage = 1; }
     const size = limit === 'all' ? Math.max(list.length, 1) : Number(limit);
     const pages = Math.max(1, Math.ceil(list.length / size));
@@ -47,7 +53,7 @@
     const regFilters = Object.entries(P.REGIMES).map(([k, r]) => [k, r.label, REG_CLS[k]]).concat([['nao', 'Não informado', 'sw-empty']]);
     const job = S.receitaJob;
     const withCnpj = active.filter(c => c.cnpj).length;
-    return `${V.pageHead('Empresas', 'Clientes atendidos, com regime tributário, departamentos e responsáveis pela carteira.', canEdit ? ((P.store.db.importLogs || []).length ? V.btn('Importações', { act: 'importHistory', icon: 'history', cls: 'ghost' }) : '') + V.btn('Importar planilha', { act: 'importCompanies', icon: 'file' }) + V.btn('Atualizar pela Receita', { act: 'bulkReceita', icon: 'refresh', attrs: job && job.running ? 'disabled' : '' }) + V.btn('Nova empresa', { act: 'editCompany', icon: 'plus', cls: 'primary' }) : '')}
+    return `${V.pageHead('Empresas', 'Clientes atendidos, com regime tributário, departamentos e responsáveis pela carteira.', V.btn('Importar carteira', { act: 'importPortfolio', icon: 'briefcase', cls: canEdit ? 'ghost' : 'primary' }) + (canEdit ? ((P.store.db.importLogs || []).length ? V.btn('Importações', { act: 'importHistory', icon: 'history', cls: 'ghost' }) : '') + V.btn('Importar planilha', { act: 'importCompanies', icon: 'file' }) + V.btn('Atualizar pela Receita', { act: 'bulkReceita', icon: 'refresh', attrs: job && job.running ? 'disabled' : '' }) + V.btn('Nova empresa', { act: 'editCompany', icon: 'plus', cls: 'primary' }) : ''))}
       ${job ? `<div class="banner ${job.running ? 'info' : job.errors.length ? 'warn' : 'info'}">${icon(job.running ? 'clock' : 'check')}<div>
         ${job.running ? `<b>Consultando a Receita: ${job.done} de ${job.total}.</b> As consultas são feitas uma por vez para respeitar o limite da API. ${V.btn('Interromper', { act: 'stopReceita', cls: 'sm ghost' })}`
         : `<b>Atualização concluída: ${job.ok} de ${job.total} empresa${job.total > 1 ? 's' : ''} atualizada${job.total > 1 ? 's' : ''}${job.changed ? ', ' + job.changed + ' com regime ou nome fantasia preenchido' : ''}.</b>${job.pendingRegime ? ` ${job.pendingRegime} ficaram com o regime pendente porque a BrasilAPI e o Minha Receita estavam instáveis; rode a atualização de novo mais tarde.` : ''}${job.errors.length ? ` ${job.errors.length} não puderam ser consultadas: ${job.errors.slice(0, 4).map(x => esc(x)).join('; ')}${job.errors.length > 4 ? '…' : ''}` : ''} <button type="button" class="link" data-act="clearReceitaJob">Fechar</button>`}
@@ -59,6 +65,7 @@
         ${regFilters.map(([k, l, cls]) => `<div class="clickable-strip ${f.regime === k ? 'on' : ''}" data-act="setComp" data-key="regime" data-val="${f.regime === k ? '' : k}" role="button" tabindex="0"><span><i class="sw ${cls}"></i> ${l}</span><b>${counts[k] || 0}</b></div>`).join('')}
       </div>
       <section class="card"><div class="card-b"><div class="filters">
+        <label class="field"><span>Código</span><input type="search" id="cp-code" value="${esc(f.code || '')}" data-set="comp.code" data-live placeholder="Ex.: 120" inputmode="search" style="max-width:140px"></label>
         <label class="field"><span>Buscar</span><input type="search" id="cp-q" value="${esc(f.q)}" data-set="comp.q" data-live placeholder="Razão social ou CNPJ"></label>
         <label class="field"><span>Regime tributário</span><select id="cp-reg" data-set="comp.regime"><option value="">Todos</option>${regFilters.map(([k, l]) => `<option value="${k}" ${f.regime === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="field"><span>Departamento</span><select id="cp-dept" data-set="comp.dept"><option value="">Todos</option>${depts.map(d => `<option value="${d.id}" ${f.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>

@@ -19,7 +19,7 @@
     cal: { month: D.monthStart(today), userId: '', sel: D.iso(today) },
     rep: { type: 'departamento', deptId: '', userId: '', period: 'mes_ant', custom: { start: D.iso(D.add(today, -29)), end: D.iso(today) } },
     insFilter: 'all', hlPeriod: 'mes_ant', hlAll: false, recAll: false, rankPeriod: 'semana', pesoDept: 'd1', empFilter: { q: '', dept: '', status: '' }, alertFilter: 'all',
-    comp: { q: '', regime: '', dept: '', status: 'ativas', limit: '50' }, compPage: 1, vac: { month: D.monthStart(today), sel: null, tab: 'fila' },
+    comp: { q: '', code: '', regime: '', dept: '', status: 'ativas', limit: '50' }, compPage: 1, vac: { month: D.monthStart(today), sel: null, tab: 'fila' },
     theme: ls.get('prumo.theme') || 'system', navOpen: false, navCollapsed: ls.get('prumo.nav') === 'min'
   };
 
@@ -841,6 +841,77 @@
       });
       A._setImportButton();
     },
+    /* ---------- Importar carteira (empresas pelas quais a pessoa é responsável) ---------- */
+    importPortfolio() {
+      const u = U();
+      const people = P.store.db.users.filter(x => api.canImportPortfolio(u, x)).sort((a, b) => (b.id === u.id) - (a.id === u.id) || a.name.localeCompare(b.name));
+      if (!people.length) return toast('Seu perfil não tem carteira de empresas para importar.', 'err');
+      A._cart = null;
+      modal({
+        title: 'Importar carteira por planilha', wide: true, submit: 'Importar',
+        body: `<p class="prose">Envie a planilha com as empresas pelas quais a pessoa é responsável. Cada linha é localizada no cadastro de empresas pelo <b>código</b> (ou CNPJ, ou nome) e entra na carteira dela.</p>
+          <div class="fgrid">
+            <label class="field span2"><span>Responsável</span><select id="cart-user" ${people.length === 1 ? 'disabled' : ''}>${people.map(x => { const d = P.dept(x.deptId); return `<option value="${x.id}">${esc(x.name)}${x.id === u.id ? ' (você)' : ''}${d ? ' · ' + esc(d.name) : ''}</option>`; }).join('')}</select></label>
+            <div class="field"><span>Modelo</span><button type="button" class="btn ghost" data-act="portfolioTemplate">${icon('download')}<span>Baixar planilha padrão</span></button></div>
+          </div>
+          <label class="drop" for="cart-file">${icon('file')}<span><b>Escolher planilha</b><small>.xlsx ou .csv com as colunas Código, Nome da empresa e CNPJ</small></span><input type="file" id="cart-file" accept=".xlsx,.xls,.csv" hidden></label>
+          <div id="cart-preview"></div>`,
+        onSubmit: () => {
+          const c = A._cart;
+          if (!c) throw new Error('Escolha a planilha para ver a prévia antes de importar.');
+          if (!(c.plan.novas + c.plan.transferir)) throw new Error('Nada a importar: confira as linhas com erro na prévia.');
+          const n = api.applyPortfolioImport(U(), c.plan, c.name);
+          A._cart = null; render();
+          toast(`${n} empresa${n > 1 ? 's' : ''} incluída${n > 1 ? 's' : ''} na carteira de ${(P.user(c.plan.personId) || {}).name}.`);
+        }
+      });
+      A._setCartButton();
+    },
+    _setCartButton() {
+      const b = $('#modal-root [data-act=modalSubmit]'); if (!b) return;
+      const n = A._cart ? A._cart.plan.novas + A._cart.plan.transferir : 0;
+      b.disabled = !n; b.querySelector('span').textContent = n ? `Importar ${n} empresa${n > 1 ? 's' : ''}` : 'Importar';
+    },
+    portfolioTemplate() {
+      toXlsx([
+        ['Carteira', [['Código', 'Nome da empresa', 'CNPJ']]],
+        ['Instruções', [['Como preencher a planilha de carteira'], [''],
+          ['1. Use a aba "Carteira". Mantenha o cabeçalho na linha 1 e preencha uma empresa por linha a partir da linha 2.'],
+          ['2. Código: o código da empresa no Prumo (coluna Código da aba Empresas). É o jeito mais seguro de localizar.'],
+          ['3. Nome da empresa e CNPJ: opcionais se o código estiver preenchido; são usados quando o código não for encontrado.'],
+          ['4. A empresa precisa já estar cadastrada e ativa na aba Empresas.'],
+          ['5. No Prumo: Empresas > Importar carteira > escolha o responsável e envie o arquivo. Confira a prévia antes de importar.'],
+          ['6. Empresa que já é de outra pessoa só pode ser transferida pelo gestor do departamento, gerente ou diretoria.']]]
+      ], 'modelo-importacao-carteira');
+    },
+    async readPortfolioFile(file) {
+      const box = $('#cart-preview'); if (!box) return;
+      box.innerHTML = `<p class="fine rec-loading">${icon('clock')}Lendo ${esc(file.name)}…</p>`;
+      try {
+        let table;
+        if (/\.csv$/i.test(file.name)) table = await A._readSheet(file);
+        else {
+          try { await loadScript(XLSX_SRC, () => window.XLSX && window.XLSX.utils); }
+          catch (e) { throw new Error('Para ler arquivos .xlsx o sistema precisa de internet. Sem internet, salve a planilha como CSV.'); }
+          const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+          const name = wb.SheetNames.find(n => /^carteira$/i.test(n.trim())) || wb.SheetNames[0];
+          table = window.XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' });
+        }
+        const rows = A._mapImportRows(table);
+        if (!rows.length) throw new Error('Não encontrei linhas preenchidas. Use a planilha padrão: cabeçalho na linha 1 e empresas a partir da linha 2.');
+        const plan = api.planPortfolioImport(U(), $('#cart-user').value, rows);
+        A._cart = { plan, name: file.name };
+        const tag = { nova: ['es-aprovado', 'Incluir'], transferir: ['es-pendente', 'Transferir'], igual: ['st-sem', 'Sem alteração'], erro: ['es-recusado', 'Erro'] };
+        box.innerHTML = `<div class="strip" style="margin:12px 0"><div><span>Incluir</span><b>${plan.novas}</b></div><div><span>Transferir</span><b>${plan.transferir}</b></div><div><span>Já na carteira</span><b>${plan.iguais}</b></div><div><span>Com erro</span><b>${plan.erros}</b></div></div>
+          <div class="table-wrap" style="max-height:320px;overflow:auto"><table class="tbl compact"><thead><tr><th>Linha</th><th>Código</th><th>Empresa</th><th>Resultado</th><th>Detalhe</th></tr></thead><tbody>
+          ${plan.lines.map(l => `<tr><td class="num">${l.row}</td><td class="mono">${esc(l.companyCode || l.code || '—')}</td><td>${esc(l.company || l.name || '—')}</td><td><span class="badge ${tag[l.status][0]}">${tag[l.status][1]}</span></td><td>${esc(l.detail)}</td></tr>`).join('')}
+          </tbody></table></div>`;
+      } catch (e) {
+        A._cart = null;
+        box.innerHTML = `<div class="banner crit sm">${icon('alert')}<div>${esc(e.message)}</div></div>`;
+      }
+      A._setCartButton();
+    },
     /* ---------- Alterar a função (perfil de acesso) de uma pessoa ---------- */
     changeRole(el) {
       const x = P.user(el.dataset.id);
@@ -1400,6 +1471,8 @@
     if (t.closest && t.closest('#role-form')) { A._roleUpdate(); return; }
     if (t.id === 'pf-photo') { if (t.files && t.files[0]) A.uploadPhoto(t.files[0]); return; }
     if (t.id === 'imp-file') { if (t.files && t.files[0]) A.readImportFile(t.files[0]); return; }
+    if (t.id === 'cart-file') { if (t.files && t.files[0]) A.readPortfolioFile(t.files[0]); return; }
+    if (t.id === 'cart-user') { const f = $('#cart-file'); A._cart = null; $('#cart-preview').innerHTML = ''; if (f && f.files[0]) A.readPortfolioFile(f.files[0]); else A._setCartButton(); return; }
     const form = t.closest('[data-entry-form]');
     if (form && t.dataset.ef === 'dept') {
       const holder = document.createElement('div');
@@ -1419,7 +1492,7 @@
     if (!z) return;
     ev.preventDefault(); z.classList.remove('over');
     const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
-    if (f) A.readImportFile(f);
+    if (f) { if ($('#cart-file')) A.readPortfolioFile(f); else A.readImportFile(f); }
   });
 
   /* Dica flutuante */

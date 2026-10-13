@@ -837,6 +837,59 @@ window.P = window.P || {};
       audit(u, 'Empresa atribuída à carteira', person.id, client);
       P.store.save();
     },
+    /*
+     * Importação de carteira por responsável: cada linha da planilha (Código, Nome da empresa, CNPJ) é localizada
+     * no cadastro de empresas e vinculada à pessoa. O funcionário importa só a própria carteira e não toma
+     * empresa de colega; gestor (do departamento), gerente e diretoria podem transferir.
+     */
+    canImportPortfolio(u, person) {
+      if (!person || person.active === false || !(person.role === 'employee' || person.role === 'manager') || !person.deptId) return false;
+      return P.isGlobal(u) || person.id === u.id || (u.role === 'manager' && person.deptId === u.deptId && person.role === 'employee');
+    },
+    planPortfolioImport(u, personId, rows) {
+      const person = P.user(personId);
+      assert(api.canImportPortfolio(u, person), 'Você não pode importar a carteira desta pessoa.');
+      const canTransfer = P.isGlobal(u) || (u.role === 'manager' && person.deptId === u.deptId);
+      const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const comps = db().companies;
+      const byCode = new Map(), byCnpj = new Map(), byName = new Map();
+      comps.forEach(c => { if (c.code) byCode.set(norm(c.code), c); if (c.cnpj) byCnpj.set(P.cnpj.digits(c.cnpj), c); byName.set(norm(c.name), c); });
+      const owner = new Map(db().clientAssignments.filter(a => a.deptId === person.deptId).map(a => [a.client, a]));
+      const seen = new Set();
+      const lines = rows.map(r => {
+        const l = { row: r.row, code: r.code, name: r.name, cnpj: r.cnpj };
+        const d = P.cnpj.digits(r.cnpj);
+        const c = (r.code && byCode.get(norm(r.code))) || (d.length === 14 && byCnpj.get(d)) || (r.name && byName.get(norm(r.name))) || null;
+        if (!c) return Object.assign(l, { status: 'erro', detail: 'Empresa não encontrada no cadastro (confira código, CNPJ ou nome)' });
+        l.company = c.name; l.companyCode = c.code || '';
+        if (!c.active) return Object.assign(l, { status: 'erro', detail: 'Empresa inativa no cadastro' });
+        if (seen.has(c.id)) return Object.assign(l, { status: 'igual', detail: 'Repetida na planilha' });
+        seen.add(c.id);
+        const a = owner.get(c.name);
+        if (!a) return Object.assign(l, { status: 'nova', detail: 'Será incluída na carteira' });
+        if (a.userId === person.id) return Object.assign(l, { status: 'igual', detail: 'Já está na carteira' });
+        const other = (P.user(a.userId) || {}).name || 'outra pessoa';
+        if (!canTransfer) return Object.assign(l, { status: 'erro', detail: 'Já é da carteira de ' + other + '. Peça ao gestor para transferir' });
+        return Object.assign(l, { status: 'transferir', detail: 'Será transferida de ' + other });
+      });
+      const n = s => lines.filter(l => l.status === s).length;
+      return { personId, lines, novas: n('nova'), transferir: n('transferir'), iguais: n('igual'), erros: n('erro') };
+    },
+    applyPortfolioImport(u, plan, fileName) {
+      const person = P.user(plan.personId);
+      assert(api.canImportPortfolio(u, person), 'Você não pode importar a carteira desta pessoa.');
+      let count = 0;
+      plan.lines.forEach(l => {
+        if (l.status !== 'nova' && l.status !== 'transferir') return;
+        const ex = db().clientAssignments.find(x => x.deptId === person.deptId && x.client === l.company);
+        if (ex) { if (l.status !== 'transferir') return; ex.userId = person.id; ex.assignedBy = u.id; ex.updatedAt = D.stamp(); }
+        else db().clientAssignments.push({ id: P.uid('ca'), deptId: person.deptId, userId: person.id, client: l.company, assignedBy: u.id, assignedAt: D.stamp() });
+        count++;
+      });
+      audit(u, 'Carteira importada por planilha', person.id, `${count} empresa(s) vinculada(s) a ${person.name}${fileName ? ' · arquivo ' + fileName : ''}`);
+      P.store.save();
+      return count;
+    },
     removeClientAssignment(u, assignmentId) {
       const assignment = db().clientAssignments.find(x => x.id === assignmentId);
       assert(assignment, 'Vínculo de empresa não encontrado.');
