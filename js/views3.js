@@ -134,6 +134,7 @@
             <div class="profile-photo-actions">
               <label class="btn sm" for="pf-photo">${icon('edit')}<span>${u.photo ? 'Trocar foto' : 'Adicionar foto'}</span></label>
               <input type="file" id="pf-photo" accept="image/jpeg,image/png,image/webp" hidden>
+              ${u.photo ? V.btn('Ajustar foto', { act: 'adjustPhoto', cls: 'sm ghost', icon: 'image' }) : ''}
               ${u.photo ? V.btn('Remover foto', { act: 'removePhoto', cls: 'sm ghost', icon: 'trash' }) : ''}
               <small class="muted">JPG, PNG ou WEBP. A imagem é recortada em quadrado e reduzida automaticamente.</small>
             </div>

@@ -335,7 +335,7 @@
     if (u.role === 'manager') data.deptId = u.deptId;
     const email = String(data.email || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new P.AccessError('Informe um e-mail válido.');
-    if (P.store.db.users.some(x => x.email === email)) throw new P.AccessError('Já existe um usuário com este e-mail.');
+    if (P.store.db.users.some(x => x.email === email && x.active !== false)) throw new P.AccessError('Já existe um usuário ativo com este e-mail.');
     const worker = data.role === 'employee' || data.role === 'manager';
     const cap = Number(data.capacity) || P.store.db.settings.defaultCapacity;
     P.backend.invite({ email, name: data.name, role: data.role, deptId: data.deptId || null, title: data.title || '', capacity: worker ? cap : null, weeklyGoal: worker ? Math.round(cap * 0.94) : null, hours: worker ? Number(data.hours) || 40 : null })

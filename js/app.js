@@ -999,23 +999,82 @@
       modal({ title: 'Remover foto de perfil', submit: 'Remover', danger: true, body: '<p class="prose">A foto será substituída pelas iniciais do seu nome.</p>',
         onSubmit: () => { api.updateProfile(U(), { photo: '' }); toast('Foto removida.'); render(); } });
     },
-    /* Recorta a imagem em quadrado (centro) e reduz para 256×256 px antes de salvar */
+    /* Escolheu uma imagem: abre o editor para enquadrar antes de salvar */
     async uploadPhoto(file) {
       if (!file) return;
       if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return toast('Use uma imagem JPG, PNG ou WEBP.', 'err');
       if (file.size > 15 * 1024 * 1024) return toast('A imagem tem mais de 15 MB. Escolha uma menor.', 'err');
-      try {
-        const url = URL.createObjectURL(file);
-        const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Não foi possível ler a imagem.')); i.src = url; });
-        const side = Math.min(img.naturalWidth, img.naturalHeight), size = 256;
-        const cv = document.createElement('canvas'); cv.width = size; cv.height = size;
-        const ctx = cv.getContext('2d');
+      const url = URL.createObjectURL(file);
+      try { A._photoEditor(await A._loadImg(url)); }
+      catch (e) { toast(e.message, 'err'); }
+      finally { setTimeout(() => URL.revokeObjectURL(url), 1000); $('#pf-photo') && ($('#pf-photo').value = ''); }
+    },
+    async adjustPhoto() {
+      const p = U().photo; if (!p) return;
+      try { A._photoEditor(await A._loadImg(p)); } catch (e) { toast(e.message, 'err'); }
+    },
+    _loadImg(src) {
+      return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Não foi possível ler a imagem.')); i.src = src; });
+    },
+    /* Editor de foto: arrastar para posicionar, zoom e girar; salva um quadrado de 256×256 px */
+    _photoEditor(img) {
+      const V0 = 260; // tamanho da área de edição (px)
+      const st = { zoom: 1, rot: 0, x: 0, y: 0 };
+      const dims = () => { const r = st.rot % 180 !== 0; return { w: r ? img.naturalHeight : img.naturalWidth, h: r ? img.naturalWidth : img.naturalHeight }; };
+      // escala mínima: a imagem sempre cobre o quadrado inteiro
+      const base = () => { const d = dims(); return V0 / Math.min(d.w, d.h); };
+      const clamp = () => {
+        const d = dims(), s = base() * st.zoom, mx = Math.max(0, (d.w * s - V0) / 2), my = Math.max(0, (d.h * s - V0) / 2);
+        st.x = Math.min(mx, Math.max(-mx, st.x)); st.y = Math.min(my, Math.max(-my, st.y));
+      };
+      const draw = (ctx, size) => {
+        const k = size / V0, s = base() * st.zoom * k;
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size);
-        ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
-        URL.revokeObjectURL(url);
-        api.updateProfile(U(), { photo: cv.toDataURL('image/jpeg', 0.85) });
-        toast('Foto de perfil atualizada.'); render();
-      } catch (e) { toast(e.message, 'err'); }
+        ctx.save(); ctx.translate(size / 2 + st.x * k, size / 2 + st.y * k); ctx.rotate(st.rot * Math.PI / 180);
+        ctx.drawImage(img, -img.naturalWidth * s / 2, -img.naturalHeight * s / 2, img.naturalWidth * s, img.naturalHeight * s);
+        ctx.restore();
+      };
+      modal({
+        title: 'Ajustar foto de perfil', submit: 'Salvar foto',
+        body: `<div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+            <div style="position:relative;width:${V0}px;height:${V0}px;max-width:100%;touch-action:none;cursor:grab;border-radius:12px;overflow:hidden" id="ph-box">
+              <canvas id="ph-cv" width="${V0 * 2}" height="${V0 * 2}" style="width:100%;height:100%;display:block"></canvas>
+              <div style="position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.45);outline:2px solid rgba(255,255,255,.85)"></div>
+            </div>
+            <small class="muted">Arraste a imagem para posicionar. O círculo mostra como a foto aparece.</small>
+            <div style="display:flex;align-items:center;gap:10px;width:100%;max-width:${V0 + 40}px">
+              <span class="muted" aria-hidden="true">−</span>
+              <input type="range" id="ph-zoom" min="1" max="4" step="0.01" value="1" aria-label="Zoom" style="flex:1">
+              <span class="muted" aria-hidden="true">+</span>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn sm ghost" id="ph-rot">${icon('refresh')}<span>Girar 90°</span></button>
+              <button type="button" class="btn sm ghost" id="ph-reset">${icon('x')}<span>Recomeçar</span></button>
+            </div>
+          </div>`,
+        onSubmit: () => {
+          const out = document.createElement('canvas'); out.width = out.height = 256;
+          draw(out.getContext('2d'), 256);
+          api.updateProfile(U(), { photo: out.toDataURL('image/jpeg', 0.85) });
+          toast('Foto de perfil atualizada.'); render();
+        }
+      });
+      const cv = $('#ph-cv'), ctx = cv.getContext('2d'), zoom = $('#ph-zoom'), box = $('#ph-box');
+      const paint = () => { clamp(); draw(ctx, cv.width); };
+      zoom.addEventListener('input', () => { st.zoom = Number(zoom.value); paint(); });
+      $('#ph-rot').addEventListener('click', () => { st.rot = (st.rot + 90) % 360; st.x = st.y = 0; paint(); });
+      $('#ph-reset').addEventListener('click', () => { st.zoom = 1; st.rot = 0; st.x = st.y = 0; zoom.value = 1; paint(); });
+      let drag = null;
+      box.addEventListener('pointerdown', e => { drag = { px: e.clientX, py: e.clientY, x: st.x, y: st.y }; box.setPointerCapture(e.pointerId); box.style.cursor = 'grabbing'; });
+      box.addEventListener('pointermove', e => {
+        if (!drag) return;
+        const k = V0 / box.getBoundingClientRect().width; // compensa quando a área encolhe no celular
+        st.x = drag.x + (e.clientX - drag.px) * k; st.y = drag.y + (e.clientY - drag.py) * k; paint();
+      });
+      const end = () => { drag = null; box.style.cursor = 'grab'; };
+      box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+      box.addEventListener('wheel', e => { e.preventDefault(); st.zoom = Math.min(4, Math.max(1, st.zoom - e.deltaY * 0.002)); zoom.value = st.zoom; paint(); }, { passive: false });
+      paint();
     },
     /* ---------- Desligamento (demissão) e readmissão: só diretoria ---------- */
     dismissUser(el) {

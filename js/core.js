@@ -1477,7 +1477,8 @@ window.P = window.P || {};
     saveUser(u, data) {
       assert(P.isGlobal(u) || u.role === 'manager', 'Você não tem permissão para gerenciar usuários.');
       const email = String(data.email || '').trim().toLowerCase();
-      assert(email && !db().users.some(x => x.email === email && x.id !== data.id), 'Já existe um usuário com este e-mail.');
+      // perfis desligados não bloqueiam o e-mail (a pessoa pode voltar com um acesso novo)
+      assert(email && !db().users.some(x => x.email === email && x.id !== data.id && x.active !== false), 'Já existe um usuário ativo com este e-mail.');
       let x = data.id && P.user(data.id);
       const isNew = !x;
       if (isNew) {
