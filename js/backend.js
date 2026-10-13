@@ -120,7 +120,15 @@
   const chunk = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
   async function writeTable(table, ins, upd, del) {
     for (const part of chunk(ins, 500)) { const { error } = await sb.from(table).insert(part); if (error) throw new Error(table + ': ' + error.message); }
-    for (const part of chunk(upd, 500)) { const { error } = await sb.from(table).upsert(part); if (error) throw new Error(table + ': ' + error.message); }
+    // Alterações usam UPDATE (não upsert): o upsert também exige permissão de INSERT, que perfis e férias de outras pessoas não têm
+    for (const part of chunk(upd, 10)) {
+      await Promise.all(part.map(async r => {
+        const { id, ...fields } = r;
+        const { data, error } = await sb.from(table).update(fields).eq('id', id).select('id');
+        if (error) throw new Error(table + ': ' + error.message);
+        if (!data || !data.length) throw new Error(table + ': sem permissão para alterar este registro.');
+      }));
+    }
     for (const part of chunk(del, 200)) { const { error } = await sb.from(table).delete().in('id', part); if (error) throw new Error(table + ': ' + error.message); }
   }
   async function flush() {
