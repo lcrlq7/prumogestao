@@ -586,16 +586,23 @@
     newTask() {
       const u = U(), team = V.team(u);
       if (!team.length) return toast('Selecione um departamento com colaboradores.', 'err');
-      const deptId = P.isGlobal(u) ? (S.dept || team[0].deptId) : u.deptId;
-      const emps = team.filter(person => person.deptId === deptId);
+      // "Todos os departamentos": lista todas as pessoas (agrupadas por departamento); as atividades seguem o departamento do responsável
+      const allDepts = P.isGlobal(u) && !S.dept;
+      const emps = (allDepts ? team.slice() : team.filter(person => person.deptId === (P.isGlobal(u) ? S.dept : u.deptId)))
+        .filter(person => person.deptId && P.dept(person.deptId))
+        .sort((a, b) => (P.dept(a.deptId).name || '').localeCompare(P.dept(b.deptId).name || '') || a.name.localeCompare(b.name));
+      if (!emps.length) return toast('Selecione um departamento com colaboradores.', 'err');
+      const deptId = emps[0].deptId;
       const acts = api.activities(u, deptId);
       const taskOwnerId = emps[0].id;
       const clients = api.clientsFor(u, taskOwnerId);
       modal({
         title: 'Atribuir tarefa',
         body: `<div class="fgrid">
-          <label class="field span3"><span>Responsável</span><select id="nt-user">${emps.map(e => `<option value="${e.id}">${esc(e.name)}${P.isGlobal(u) && !S.dept ? ' · ' + esc(P.dept(e.deptId).name) : ''}</option>`).join('')}</select></label>
-          <label class="field span3"><span>Atividade</span><select id="nt-act">${acts.map(a => `<option value="${a.id}" data-dept="${a.deptId}">${esc(a.name)} · ${F.n(a.weight, 2)} pt</option>`).join('')}</select></label>
+          <label class="field span3"><span>Responsável</span><select id="nt-user">${allDepts
+            ? [...new Set(emps.map(e => e.deptId))].map(d => `<optgroup label="${esc(P.dept(d).name)}">${emps.filter(e => e.deptId === d).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</optgroup>`).join('')
+            : emps.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
+          <label class="field span3"><span>Atividade</span><select id="nt-act" data-dept="${deptId}">${acts.map(a => `<option value="${a.id}" data-dept="${a.deptId}">${esc(a.name)} · ${F.n(a.weight, 2)} pt</option>`).join('')}</select></label>
           <label class="field span2"><span>Empresa da carteira</span><select id="nt-client"><option value="">${clients.length ? 'Sem empresa vinculada' : 'Nenhuma empresa vinculada'}</option>${clients.map(client => `<option value="${esc(client)}">${esc(client)}</option>`).join('')}</select></label>
           <div class="field"><span>&nbsp;</span><button type="button" class="link" data-act="manageClientAssignments">Gerenciar carteira</button></div>
           <p class="fine span3" id="nt-client-help">${clients.length ? `${clients.length} empresa(s) vinculada(s) a ${esc(emps[0].name)}.` : `Nenhuma empresa vinculada a ${esc(emps[0].name)}. A tarefa pode ser geral ou você pode cadastrar uma empresa na carteira.`}</p>
@@ -604,6 +611,7 @@
         onSubmit: m => {
           const userId = $('#nt-user', m).value, a = P.act($('#nt-act', m).value), client = $('#nt-client', m).value.trim(), due = $('#nt-due', m).value;
           if (!due) throw new Error('Informe o prazo.');
+          if (!a) throw new Error('Escolha uma atividade. O departamento deste responsável ainda não tem atividades cadastradas.');
           if (a.deptId !== P.user(userId).deptId) throw new Error('A atividade escolhida é de outro departamento.');
           api.saveTask(U(), { userId, activityId: a.id, client, due, title: $('#nt-title', m).value.trim() || a.name + (client ? ' — ' + client : '') });
           toast('Tarefa atribuída a ' + P.user(userId).name + '.'); render();
@@ -611,6 +619,12 @@
       });
     },
     updateTaskClients(el) {
+      // trocou o responsável: se mudou de departamento, troca também a lista de atividades
+      const person = P.user(el.value), actSel = $('#nt-act');
+      if (person && actSel && actSel.dataset.dept !== person.deptId) {
+        actSel.dataset.dept = person.deptId;
+        actSel.innerHTML = api.activities(U(), person.deptId).map(a => `<option value="${a.id}" data-dept="${a.deptId}">${esc(a.name)} · ${F.n(a.weight, 2)} pt</option>`).join('') || '<option value="">Nenhuma atividade cadastrada neste departamento</option>';
+      }
       const clients = api.clientsFor(U(), el.value), select = $('#nt-client'), help = $('#nt-client-help');
       select.innerHTML = `<option value="">${clients.length ? 'Sem empresa vinculada' : 'Nenhuma empresa vinculada'}</option>` + clients.map(client => `<option value="${esc(client)}">${esc(client)}</option>`).join('');
       help.textContent = clients.length ? `${clients.length} empresa(s) vinculada(s) a ${P.user(el.value).name}.` : `Nenhuma empresa vinculada a ${P.user(el.value).name}. A tarefa pode ser geral ou você pode cadastrar uma empresa na carteira.`;
