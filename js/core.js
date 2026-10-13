@@ -1255,7 +1255,7 @@ window.P = window.P || {};
         v.status = action === 'aprovar' ? 'aprovada' : 'recusada';
         v.history.push({ at: D.stamp(), by: u.id, action: action === 'aprovar' ? 'Aprovada pela diretoria' : 'Recusada pela diretoria', note });
       } else throw new Error('Esta solicitação já foi finalizada.');
-      P.reindex(); audit(u, 'Férias: ' + v.history[v.history.length - 1].action.toLowerCase(), v.id, P.user(v.userId).name + ' · ' + D.fmt(v.start) + ' a ' + D.fmt(v.end)); P.store.save();
+      P.reindex(); audit(u, 'Férias: ' + v.history[v.history.length - 1].action.toLowerCase(), v.id, (P.user(v.userId) || {}).name + ' · ' + D.fmt(v.start) + ' a ' + D.fmt(v.end)); P.store.save();
       return v;
     },
     cancelVacation(u, id) {
@@ -1345,7 +1345,7 @@ window.P = window.P || {};
       // Se o escritório ficou sem gerente, pedidos que o aguardavam seguem para a diretoria
       if (from === 'office' && !api._stageExists('gerente')) (db().vacations || []).filter(v => v.status === 'gerente').forEach(v => {
         v.status = 'diretoria'; v.history.push({ at: D.stamp(), by: u.id, action: 'Encaminhada à diretoria', note: 'O escritório ficou sem gerente' });
-        notes.push('pedido de férias de ' + P.user(v.userId).name + ' encaminhado à diretoria');
+        notes.push('pedido de férias de ' + (P.user(v.userId) || {}).name + ' encaminhado à diretoria');
       });
       const TITLES = { admin: 'Diretoria', office: 'Gerência do escritório', employee: 'Colaborador(a)' };
       if (keep) x.title = 'Diretoria · Gestão de ' + led.name;

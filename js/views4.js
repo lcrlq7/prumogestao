@@ -247,8 +247,14 @@
   const workdaysOf = v => D.workdays(D.parse(v.start), D.parse(v.end));
   const returnDay = v => { let d = D.add(D.parse(v.end), 1); while (!D.isWorkday(d)) d = D.add(d, 1); return D.iso(d); };
 
+  // Pessoa ainda não carregada neste navegador (ex.: acabou de se cadastrar): mostra um marcador e pede nova carga
+  const whoOf = id => {
+    const x = P.user(id); if (x) return x;
+    if (P.backend && P.backend.reload && !whoOf.pending) { whoOf.pending = true; P.backend.reload().catch(() => {}).finally(() => { whoOf.pending = false; P.render && P.render(); }); }
+    return { id, name: 'Carregando…', role: 'employee', email: '' };
+  };
   V.vacItem = (u, v, o = {}) => {
-    const who = P.user(v.userId);
+    const who = whoOf(v.userId);
     const conflicts = o.conflicts ? api.vacationConflicts(v) : [];
     const notes = (v.history || []).filter(h => h.note);
     return `<li class="vac">
@@ -260,7 +266,7 @@
       ${o.comment && v.comment ? `<blockquote class="vac-comment">${icon('message')}<span>${esc(v.comment)}</span></blockquote>` : ''}
       ${V.vacSteps(v)}
       ${notes.length && o.history !== false ? `<ul class="vac-notes">${notes.map(h => `<li><b>${esc(h.action)}</b> · ${esc((P.user(h.by) || {}).name || '—')}: ${esc(h.note)}</li>`).join('')}</ul>` : ''}
-      ${conflicts.length ? `<div class="banner warn sm">${icon('users')}<div><b>${conflicts.length} colega${conflicts.length > 1 ? 's' : ''} do departamento fora no mesmo período:</b> ${conflicts.map(c => `${esc(P.user(c.userId).name)} (${D.short(c.start)}–${D.short(c.end)}, ${P.VAC[c.status].short.toLowerCase()})`).join(', ')}</div></div>` : ''}
+      ${conflicts.length ? `<div class="banner warn sm">${icon('users')}<div><b>${conflicts.length} colega${conflicts.length > 1 ? 's' : ''} do departamento fora no mesmo período:</b> ${conflicts.map(c => `${esc(whoOf(c.userId).name)} (${D.short(c.start)}–${D.short(c.end)}, ${P.VAC[c.status].short.toLowerCase()})`).join(', ')}</div></div>` : ''}
       ${o.actions ? `<div class="vac-actions">${o.actions}</div>` : ''}
     </li>`;
   };
@@ -301,7 +307,7 @@
       const dm = V.dayMark(d);
       cells += `<button type="button" class="cal-cell vac-cell ${inM ? '' : 'out'} ${iso === today ? 'today' : ''} ${S.vac.sel === iso ? 'sel' : ''} ${D.isWorkday(d) ? '' : 'off'} ${dm.cls}" data-act="vacSel" data-date="${iso}" aria-label="${D.fmt(iso)}${dm.label ? ', ' + esc(dm.label) : ''}${on.length ? ', ' + on.length + ' pessoa(s) de férias' : ''}">
         <span class="cal-d">${d.getDate()}</span>
-        <span class="cal-tags">${dm.tag}${on.slice(0, 3).map(v => `<i class="tag vac ${v.status === 'aprovada' ? '' : 'pend'} ${v.userId === u.id ? 'me' : ''}">${V.avatar(P.user(v.userId), 'xs')}${esc(P.firstName(P.user(v.userId).name))}</i>`).join('')}${on.length > 3 ? `<i class="tag more">+${on.length - 3}</i>` : ''}</span>
+        <span class="cal-tags">${dm.tag}${on.slice(0, 3).map(v => `<i class="tag vac ${v.status === 'aprovada' ? '' : 'pend'} ${v.userId === u.id ? 'me' : ''}">${V.avatar(whoOf(v.userId), 'xs')}${esc(P.firstName(whoOf(v.userId).name))}</i>`).join('')}${on.length > 3 ? `<i class="tag more">+${on.length - 3}</i>` : ''}</span>
       </button>`;
     }
     const sel = S.vac.sel;

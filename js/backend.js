@@ -226,6 +226,9 @@
       });
     }
     P.reindex(); refreshUser();
+    // chegou registro de alguém que este navegador ainda não conhece (ex.: cadastro novo): busca os perfis
+    const db = P.store.db, missing = ['vacations', 'entries', 'tasks', 'clientAssignments'].some(k => (db[k] || []).some(x => x.userId && !P.user(x.userId)));
+    if (missing) { const r = await sb.from('profiles').select('id, doc'); if (!r.error) { const have = new Set(db.users.map(x => x.id)); r.data.forEach(row => { if (!have.has(row.id)) { db.users.push(row.doc); (snap.users = snap.users || new Map()).set(row.id, JSON.stringify(row.doc)); } }); P.reindex(); } }
     window.dispatchEvent(new CustomEvent('prumo:remote', { detail: { added } }));
   }
   // mantém P.state.user apontando para o objeto atualizado da base
