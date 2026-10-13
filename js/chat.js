@@ -1,15 +1,13 @@
 /*
  * Prumo — Comunicação interna (canais e conversas diretas)
  *
- * Quem fala com quem:
- *  - Gestor ↔ funcionários do próprio departamento (canal do departamento e conversa direta)
- *  - Gestores ↔ gestores e gerente do escritório (canal "Gestores e gerência" e conversa direta)
- *  - Diretoria ↔ diretoria (canal "Diretoria")
- *  - Diretoria ↔ gerente (canal "Diretoria e gerência")
- *  - Diretoria ↔ gestores (canal "Diretoria e gestores")
- *  - Diretoria → todos (canal "Geral": só a diretoria publica; todos leem)
- * Funcionários não conversam diretamente entre si nem com gerência ou diretoria.
- * Um diretor que também é gestor de um departamento (P.ledDept) fala com a equipe dele como gestor.
+ * Conversas privadas: quaisquer duas pessoas ativas.
+ * Canais (seguem a hierarquia):
+ *  - Departamento: gestor(a) e a equipe
+ *  - "Gestores e gerência", "Diretoria", "Diretoria e gerência", "Diretoria e gestores"
+ *  - "Geral": só a diretoria publica; todos leem
+ * Um diretor que também é gestor de um departamento (P.ledDept) participa do canal da equipe dele.
+ * Mensagens podem ter emojis; figurinhas são enviadas como "::fig:<id>::".
  * Carregado antes do app.js: a página é V.comunicacao e as ações entram por P.ext.actions.
  */
 'use strict';
@@ -62,7 +60,22 @@
     }
     return channelsFor(u).find(c => c.id === conv) || null;
   };
-  const lastRead = (u, conv) => (reads()[u.id] || {})[conv] || 0;
+  // Em produção cada pessoa só lê as próprias marcações; para o "Visto por" do Geral a diretoria consulta o servidor
+  let geralReads = null, geralAsked = 0;
+  const loadGeralReads = () => {
+    if (!P.isLive || !P.backend || Date.now() - geralAsked < 15000) return;
+    geralAsked = Date.now();
+    P.backend.client.rpc('geral_reads').then(({ data, error }) => {
+      if (error || !data) return;
+      const changed = JSON.stringify(data) !== JSON.stringify(geralReads);
+      geralReads = data;
+      if (changed && S().route.page === 'comunicacao' && st().conv === 'geral') P.render();
+    });
+  };
+  const lastRead = (u, conv) => {
+    if (P.isLive && conv === 'geral' && geralReads && u.id !== (S().user || {}).id) return Number(geralReads[u.id]) || 0;
+    return (reads()[u.id] || {})[conv] || 0;
+  };
   const markRead = (u, conv) => {
     const ts = msgs().reduce((mx, m) => m.conv === conv && m.ts > mx ? m.ts : mx, 0);
     const r = reads()[u.id] = reads()[u.id] || {};
@@ -70,7 +83,8 @@
   };
   const convsFor = u => {
     const ch = channelsFor(u).map(c => c.id);
-    const dms = [...new Set(msgs().filter(m => m.conv.startsWith('dm:') && m.conv.slice(3).split('|').includes(u.id)).map(m => m.conv))];
+    // só conversas que a pessoa consegue abrir (ex.: com alguém que foi removido do sistema não contam como "não lidas")
+    const dms = [...new Set(msgs().filter(m => m.conv.startsWith('dm:') && m.conv.slice(3).split('|').includes(u.id)).map(m => m.conv))].filter(id => resolve(u, id));
     return ch.concat(dms);
   };
   const unreadIn = (u, conv) => { const lr = lastRead(u, conv); return msgs().filter(m => m.conv === conv && m.ts > lr && m.from !== u.id && !m.deleted).length; };
@@ -195,13 +209,14 @@
       const canPost = cur.canPost(u);
       let lastDay = '', lastFrom = '', lastTs = 0;
       const geral = cur.id === 'geral';
+      if (geral && u.role === 'admin') loadGeralReads();
       const total = members.length;
       const body = list.length ? list.map(m => {
         const who = P.user(m.from) || { name: '—', id: 'x' }, mine = m.from === u.id, dl = dayLabel(m.ts);
         const sep = dl !== lastDay ? `<div class="msg-day"><span>${dl}</span></div>` : '';
         const cont = !sep && lastFrom === m.from && m.ts - lastTs < 5 * 60000;
         lastDay = dl; lastFrom = m.from; lastTs = m.ts;
-        const seen = geral && u.role === 'admin' ? members.filter(x => x.id !== m.from && lastRead(x, cur.id) >= m.ts).length : null;
+        const seen = geral && u.role === 'admin' && (!P.isLive || geralReads) ? members.filter(x => x.id !== m.from && lastRead(x, cur.id) >= m.ts).length : null;
         return `${sep}<div class="msg ${mine ? 'me' : ''} ${cont ? 'cont' : ''} ${geral ? 'notice' : ''}">
           ${mine || cont ? '<span class="msg-av"></span>' : `<span class="msg-av">${V.avatar(who)}</span>`}
           <div class="msg-b">${cont ? '' : `<div class="msg-h"><b>${mine ? 'Você' : esc(who.name)}</b>${!cur.dm ? `<small>${esc(P.ROLES[who.role] || '')}</small>` : ''}<time>${hm(m.ts)}</time></div>`}
@@ -231,7 +246,21 @@
   };
 
   /* ---------- Ações ---------- */
-  const scrollEnd = () => { const box = $('#chat-msgs'); if (box) box.scrollTop = box.scrollHeight; };
+  const scrollEnd = () => { const box = $('#chat-msgs'); if (box) { box.scrollTop = box.scrollHeight; st().atBottom = true; } };
+  // guarda se a pessoa está no fim da conversa ou lendo mensagens antigas (para não "pular" quando chega mensagem)
+  document.addEventListener('scroll', ev => {
+    if (ev.target.id !== 'chat-msgs') return;
+    const b = ev.target; st().atBottom = b.scrollHeight - b.scrollTop - b.clientHeight < 80; st().scrollTop = b.scrollTop;
+  }, true);
+  const keepScroll = () => {
+    const box = $('#chat-msgs'); if (!box) return;
+    if (st().atBottom === false && st().scrollTop != null) box.scrollTop = st().scrollTop; else scrollEnd();
+  };
+  // após redesenhar: devolve a altura do campo de texto e o texto da busca de emojis
+  const restoreComposer = () => {
+    const t = $('#chat-text'); if (t && t.value) { t.style.height = 'auto'; t.style.height = Math.min(160, t.scrollHeight) + 'px'; }
+    const q = $('#cp-q'); if (q && st().emojiQ) { q.value = st().emojiQ; q.dispatchEvent(new Event('input', { bubbles: true })); }
+  };
   /* Escolher qualquer pessoa para uma conversa privada */
   A.chatNewDm = () => {
     const u = S().user;
@@ -260,7 +289,7 @@
   A.chatOpen = el => {
     const c = st(), id = el.dataset.id || null;
     if (id && !resolve(S().user, id)) return P.toast('Você não participa desta conversa.', 'err');
-    c.conv = id; P.render();
+    c.conv = id; c.panel = null; c.emojiQ = ''; c.atBottom = true; c.scrollTop = null; P.render();
     requestAnimationFrame(() => { scrollEnd(); const t = $('#chat-text'); if (t && innerWidth > 1020) t.focus(); });
   };
   A.chatSend = () => {
@@ -275,10 +304,10 @@
   /* Painel de emojis / figurinhas */
   A.chatPanel = el => {
     const c = st(), k = el.dataset.k || null;
-    c.panel = c.panel === k ? null : k;
+    c.panel = c.panel === k ? null : k; c.emojiQ = '';
     const t = $('#chat-text'); if (t) c.drafts[c.conv] = t.value;
     P.render();
-    requestAnimationFrame(() => { scrollEnd(); const q = $('#cp-q'); if (q && innerWidth > 1020) q.focus(); });
+    requestAnimationFrame(() => { const q = $('#cp-q'); if (q && innerWidth > 1020) q.focus(); });
   };
   A.chatEmoji = el => {
     const t = $('#chat-text'), e = el.dataset.e; if (!t) return;
@@ -298,6 +327,7 @@
   // busca e atalhos de categoria no painel de emojis
   document.addEventListener('input', ev => {
     if (ev.target.id !== 'cp-q') return;
+    st().emojiQ = ev.target.value;
     const q = ev.target.value.trim().toLowerCase();
     const hit = new Set(Object.entries(EMOJI_WORDS).filter(([w]) => q && w.includes(q)).flatMap(([, v]) => v.split(' ')));
     document.querySelectorAll('#cp-body .cp-e').forEach(b => { b.hidden = !!q && !hit.has(b.dataset.e); });
@@ -306,6 +336,9 @@
   document.addEventListener('click', ev => {
     const b = ev.target.closest && ev.target.closest('[data-cpt]');
     if (b) { const sec = $('#cpc-' + b.dataset.cpt); if (sec) sec.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    // clicar fora do painel de emojis/figurinhas fecha o painel
+    const c = st();
+    if (c.panel && S().route.page === 'comunicacao' && ev.target.isConnected && !ev.target.closest('.chat-pick, .chat-tools')) { c.panel = null; c.emojiQ = ''; const p = $('.chat-pick'); if (p) p.remove(); document.querySelectorAll('.chat-tools .ibtn.on').forEach(x => x.classList.remove('on')); }
   });
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && st().panel && S().route.page === 'comunicacao') { st().panel = null; P.render(); } });
   A.chatDelete = el => P.ui.guard(() => { P.chat.remove(S().user, el.dataset.id); P.render(); });
@@ -321,7 +354,10 @@
   });
   // Ao abrir a página, a conversa já aparece no fim
   const origAfter = P.fx.afterRender;
-  P.fx.afterRender = routeChanged => { origAfter(routeChanged); if (S().user && S().route.page === 'comunicacao') scrollEnd(); };
+  P.fx.afterRender = routeChanged => {
+    origAfter(routeChanged);
+    if (S().user && S().route.page === 'comunicacao') { if (routeChanged) scrollEnd(); else keepScroll(); restoreComposer(); }
+  };
 
   // Mensagens que chegam de outra aba: aviso no canto (se a conversa não estiver aberta)
   let lastSeenTs = Date.now();
@@ -333,10 +369,12 @@
       const fresh = msgs().filter(m => m.ts > lastSeenTs && m.from !== u.id && mine.has(m.conv) && !m.deleted);
       lastSeenTs = Date.now();
       fresh.filter(m => !(S().route.page === 'comunicacao' && st().conv === m.conv)).slice(-2).forEach(m => {
-        const c = resolve(u, m.conv), who = P.user(m.from);
+        // remetente ou conversa ainda não carregados (ex.: pessoa recém-cadastrada): não quebra a tela
+        const c = resolve(u, m.conv), who = P.user(m.from) || { name: 'Alguém' };
+        if (!c) return;
         P.fx.popNotif({ icon: 'message', title: c.dm ? 'Mensagem de ' + who.name : 'Nova mensagem em ' + c.name, text: (c.dm ? '' : P.firstName(who.name) + ': ') + previewText(m.text).slice(0, 120) }, { onClick: () => { st().conv = m.conv; P.go('comunicacao'); } });
       });
-      if (S().route.page === 'comunicacao') scrollEnd();
+      if (S().route.page === 'comunicacao') keepScroll();
     }, 30);
   };
   window.addEventListener('storage', ev => { if (!P.isLive && ev.key === 'prumo.db.v3') onExternal(); });
