@@ -82,7 +82,9 @@
     const emps = u.role === 'employee' ? [u] : api.workers(u, scopeDept);
     if (h.userId && !emps.some(e => e.id === h.userId)) h.userId = '';
     const acts = u.role === 'employee' ? api.activities(u, u.deptId, true) : api.activities(u, P.isGlobal(u) ? scopeDept : u.deptId, true);
-    const list = api.entries(u, { deptId: scopeDept, userId: h.userId || undefined, activityId: h.activityId || undefined, client: h.client || undefined, status: h.status || undefined, s: h.s || undefined, e: h.e || undefined }).slice().reverse();
+    const list = api.entries(u, { deptId: scopeDept, userId: h.userId || undefined, activityId: h.activityId || undefined, client: h.client || undefined, status: h.status || undefined, s: h.s || undefined, e: h.e || undefined })
+      .filter(e => (P.user(e.userId) || {}).active !== false) // desligados não aparecem no histórico (os dados continuam guardados)
+      .slice().reverse();
     const per = 40, pages = Math.max(1, Math.ceil(list.length / per));
     if (h.page > pages) h.page = pages;
     const slice = list.slice((h.page - 1) * per, h.page * per);

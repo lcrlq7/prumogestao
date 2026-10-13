@@ -1286,7 +1286,7 @@
     },
     exportHist() {
       const u = U(), h = S.hist;
-      const list = api.entries(u, { deptId: P.isGlobal(u) ? (h.deptId || undefined) : undefined, userId: h.userId || undefined, activityId: h.activityId || undefined, client: h.client || undefined, status: h.status || undefined, s: h.s || undefined, e: h.e || undefined });
+      const list = api.entries(u, { deptId: P.isGlobal(u) ? (h.deptId || undefined) : undefined, userId: h.userId || undefined, activityId: h.activityId || undefined, client: h.client || undefined, status: h.status || undefined, s: h.s || undefined, e: h.e || undefined }).filter(e => (P.user(e.userId) || {}).active !== false);
       toXlsx([['Histórico', entryRows(list)]], 'historico-atividades-' + D.iso(P.today()));
     }
   };
