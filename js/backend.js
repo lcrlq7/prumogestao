@@ -290,7 +290,12 @@
           : /signups not allowed|disabled/i.test(m) ? 'O cadastro está desativado no Supabase (Authentication → Sign In / Providers → Allow new users to sign up).' : m);
       }
       session = data.session;
-      if (!session) return null; // confirmação de e-mail ligada: a pessoa entra depois de confirmar
+      if (!session) {
+        // sem sessão: tenta entrar direto (o banco já confirma o e-mail de quem usou código válido)
+        const r = await sb.auth.signInWithPassword({ email, password });
+        if (r.error) return null;
+        session = r.data.session;
+      }
       return toUser();
     },
     async createInviteCode(role, deptId, days) {
