@@ -81,13 +81,19 @@
   const done = msg => { P.store.save(); P.toast(msg); P.render(); };
   A.osNew = () => {
     const u = U(); if (!canOpen(u)) return P.toast('Você não está habilitado a abrir OS.', 'err');
-    const comps = P.api.companies(u).filter(c => c.active !== false).map(c => c.name).sort((a, b) => a.localeCompare(b));
+    const compList = P.api.companies(u).filter(c => c.active !== false).sort((a, b) => a.name.localeCompare(b.name));
+    const comps = compList.map(c => c.name);
     const depts = P.api.departments(u, false);
     const defDept = u.deptId && depts.some(d => d.id === u.deptId) ? u.deptId : '';
     P.ui.modal({
       title: 'Nova ordem de serviço', submit: 'Abrir OS', wide: true,
       body: `<div class="fgrid">
-        <label class="field span2"><span>Empresa</span><input id="os-co" list="os-co-list" placeholder="Digite para buscar no cadastro de empresas" autocomplete="off"><datalist id="os-co-list">${comps.map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
+        <div class="field span2"><span>Empresa</span>
+          <div class="combo" id="os-co-box">
+            <input id="os-co" placeholder="Digite o nome ou o código da empresa" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="os-co-list">
+            <button type="button" class="combo-x" id="os-co-x" title="Limpar e escolher outra" aria-label="Limpar empresa" hidden>×</button>
+            <ul class="combo-list" id="os-co-list" role="listbox" hidden></ul>
+          </div></div>
         <label class="field"><span>Departamento responsável</span><select id="os-dp"><option value="">Escolha…</option>${depts.map(d => `<option value="${d.id}" ${d.id === defDept ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
         <label class="field span3"><span>Demanda</span><textarea id="os-dm" rows="3" maxlength="1000" placeholder="O que precisa ser feito"></textarea></label>
         <label class="field span2"><span>Tipo de solicitação <small>(comentário breve)</small></span><input id="os-tp" maxlength="80" placeholder="Ex.: alteração contratual, retificação de declaração"></label>
@@ -107,7 +113,41 @@
         st().tab = 'abertas'; done('OS ' + code + ' aberta.');
       }
     });
+    companyPicker(compList);
   };
+  /*
+   * Seletor de empresa com busca: mostra a lista inteira ao clicar, filtra por nome, código ou CNPJ,
+   * aceita teclado (↑ ↓ Enter Esc) e deixa trocar a escolha a qualquer momento (botão × ou digitando de novo).
+   */
+  function companyPicker(list) {
+    const box = $('#os-co-box'), inp = $('#os-co'), ul = $('#os-co-list'), x = $('#os-co-x');
+    if (!box) return;
+    const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    let shown = [], hi = -1;
+    const draw = q => {
+      const t = norm(q), d = String(q || '').replace(/\D/g, '');
+      shown = (t ? list.filter(c => norm(c.name).includes(t) || norm(c.tradeName).includes(t) || (c.code && norm(c.code).startsWith(t)) || (d.length >= 3 && String(c.cnpj || '').replace(/\D/g, '').includes(d))) : list).slice(0, 60);
+      hi = shown.length ? 0 : -1;
+      ul.innerHTML = shown.length ? shown.map((c, i) => `<li role="option" data-i="${i}" class="${i === hi ? 'on' : ''}"><b>${esc(c.name)}</b>${c.code ? `<small>cód. ${esc(c.code)}</small>` : ''}</li>`).join('')
+        + (!t && list.length > 60 ? `<li class="combo-more">Mostrando 60 de ${list.length}. Digite para buscar.</li>` : '') : '<li class="combo-more">Nenhuma empresa encontrada.</li>';
+      ul.hidden = false; inp.setAttribute('aria-expanded', 'true');
+    };
+    const close = () => { ul.hidden = true; inp.setAttribute('aria-expanded', 'false'); };
+    const pick = c => { inp.value = c.name; x.hidden = false; close(); };
+    const mark = () => ul.querySelectorAll('li[data-i]').forEach(li => li.classList.toggle('on', Number(li.dataset.i) === hi));
+    // clicar ou focar: lista completa (mesmo com uma empresa já escolhida, para poder trocar)
+    inp.addEventListener('focus', () => { inp.select(); draw(''); });
+    inp.addEventListener('click', () => { if (ul.hidden) draw(''); });
+    inp.addEventListener('input', () => { x.hidden = !inp.value; draw(inp.value); });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (ul.hidden) draw(inp.value); hi = Math.max(0, Math.min(shown.length - 1, hi + (e.key === 'ArrowDown' ? 1 : -1))); mark(); const el = ul.querySelector('li.on'); if (el) el.scrollIntoView({ block: 'nearest' }); }
+      else if (e.key === 'Enter' && !ul.hidden && shown[hi]) { e.preventDefault(); pick(shown[hi]); }
+      else if (e.key === 'Escape' && !ul.hidden) { e.stopPropagation(); close(); }
+    });
+    ul.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); pick(shown[Number(li.dataset.i)]); } });
+    x.addEventListener('click', () => { inp.value = ''; x.hidden = true; inp.focus(); });
+    inp.addEventListener('blur', () => setTimeout(close, 120));
+  }
   A.osStatus = el => {
     const o = get(el.dataset.id), u = U(); if (!o || !canAct(u, o)) return;
     P.ui.modal({
