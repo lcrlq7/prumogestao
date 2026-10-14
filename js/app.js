@@ -35,7 +35,7 @@
   const PAGE_LABEL = {
     dashboard: 'Dashboard', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
-    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra'
+    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço'
   };
   function parse(path) {
     path = String(path || '').replace(/^#?\/?/, '');
@@ -66,6 +66,7 @@
       ['comunicacao', 'Comunicação', 'message', P.chat ? P.chat.unread(u) : 0],
       ['equipe', 'Minha Equipe', 'users'],
       ['atividades', emp ? 'Minhas tarefas' : 'Atividades', 'clipboard'],
+      ['os', P.os ? P.os.label(u) : 'OS', 'file', P.os ? P.os.badge(u) : 0],
       ['lancamentos', 'Lançamentos', 'inbox', pendCount],
       ['metas', 'Metas', 'target'],
       ['insights', 'Insights', 'bulb'],
@@ -81,7 +82,7 @@
       ['configuracoes', 'Configurações', 'cog']
     ].filter(([k]) => P.PAGES[k] && P.PAGES[k].includes(u.role))
       // departamento de apoio: sem as páginas de produção (pontos, metas, ranking…)
-      .filter(([k]) => !P.isSupport(u) || !['equipe', 'atividades', 'lancamentos', 'metas', 'insights', 'ranking', 'relatorios', 'historico', 'empresas'].includes(k))
+      .filter(([k]) => !P.isSupport(u) || !['equipe', 'atividades', 'lancamentos', 'metas', 'insights', 'ranking', 'relatorios', 'historico', 'empresas', 'os'].includes(k))
       .filter(([k]) => k !== 'solicitacoes' || (P.purchases && P.purchases.canSee(u)));
     // Administração conforme o nível: gerente e diretoria veem tudo; o gestor cuida dos funcionários e dos pesos do departamento
     const admin = P.isGlobal(u) ? [
@@ -736,13 +737,14 @@
           ${global ? '<span></span>' : `<label class="field"><span>Departamento</span><select id="us-dept" ${deptLocked ? 'disabled' : ''}><option value="">—</option>${depts.map(d => `<option value="${d.id}" ${(x.deptId || (deptLocked ? U().deptId : '')) === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>`}
           ${isWorker ? `<label class="field"><span>Jornada semanal (h)</span><input type="number" id="us-hours" value="${x.hours || 40}" min="4" max="44"></label>
           <label class="field"><span>Capacidade (pts/semana)</span><input type="number" id="us-cap" value="${x.capacity || P.store.db.settings.defaultCapacity}" min="1" step="0.5"></label>
-          ${isEmp ? `<label class="field check"><input type="checkbox" id="us-active" ${x.active !== false ? 'checked' : ''}><span>Ativo</span></label>` : ''}` : ''}
+          ${isEmp ? `<label class="field check"><input type="checkbox" id="us-active" ${x.active !== false ? 'checked' : ''}><span>Ativo</span></label>` : ''}
+          ${isEmp ? `<label class="field check span3"><input type="checkbox" id="us-os" ${x.canOS ? 'checked' : ''}><span><b>Pode abrir OS</b> <small class="muted">(no menu aparece “Solicitar OS” e a pessoa pode abrir e concluir ordens de serviço)</small></span></label>` : ''}` : ''}
         </div>${!el.dataset.id ? '<p class="fine">A senha inicial de demonstração é <code>demo123</code>. Na versão com banco de dados, o convite é enviado por e-mail.</p>' : ''}`,
         onSubmit: m => {
           const data = { id: el.dataset.id, role: x.role, name: $('#us-name', m).value.trim(), title: $('#us-title', m).value.trim(), email: $('#us-email', m).value.trim(), deptId: global ? null : $('#us-dept', m).value };
           if (!data.name) throw new Error('Informe o nome.');
           if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) throw new Error('Informe um e-mail válido.');
-          if (isWorker) { if (isEmp && !data.deptId) throw new Error('Selecione o departamento.'); data.hours = $('#us-hours', m).value; data.capacity = $('#us-cap', m).value; if (isEmp) data.active = $('#us-active', m).checked; }
+          if (isWorker) { if (isEmp && !data.deptId) throw new Error('Selecione o departamento.'); data.hours = $('#us-hours', m).value; data.capacity = $('#us-cap', m).value; if (isEmp) { data.active = $('#us-active', m).checked; data.canOS = $('#us-os', m).checked; } }
           const r = api.saveUser(U(), data); toast(label[0].toUpperCase() + label.slice(1) + ' salvo: ' + r.name + '.'); render();
         }
       });

@@ -1516,6 +1516,8 @@ window.P = window.P || {};
         // Quem foi desligado só volta pela readmissão (diretoria), não pela caixa "Ativo" do cadastro
         const dismissed = x.active === false && (x.dismissals || []).length && !x.dismissals[0].readmittedAt;
         if (x.role === 'employee' && !dismissed) x.active = data.active !== false;
+        // permissão de abrir OS: só diretoria, gerência ou o gestor do departamento (mesma regra do cadastro)
+        if (x.role === 'employee' && data.canOS !== undefined && !!data.canOS !== !!x.canOS) { x.canOS = !!data.canOS; audit(u, x.canOS ? 'Abertura de OS habilitada' : 'Abertura de OS desabilitada', x.id, x.name); }
         if (isNew) {
           db().goals.push({ id: P.uid('g'), scope: 'employee', refId: x.id, period: 'semanal', target: x.weeklyGoal });
           db().goals.push({ id: P.uid('g'), scope: 'employee', refId: x.id, period: 'mensal', target: x.capacity * 4 });
