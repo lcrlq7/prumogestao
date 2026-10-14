@@ -51,6 +51,10 @@
     { key: 'messages', table: 'messages' },
     { key: 'reportSchedules', table: 'report_schedules' },
     { key: 'importLogs', table: 'import_logs' },
+    { key: 'finProfiles', table: 'fin_profiles' },
+    { key: 'finRecurrences', table: 'fin_recurrences' },
+    { key: 'finEntries', table: 'fin_entries' },
+    { key: 'finClosings', table: 'fin_closings' },
     { key: 'alertsRead', table: 'alerts_read', map: true },
     { key: 'chatReads', table: 'chat_reads', map: true },
     { key: 'settings', table: 'app_settings', single: true }

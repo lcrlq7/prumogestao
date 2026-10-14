@@ -35,7 +35,7 @@
   const PAGE_LABEL = {
     dashboard: 'Dashboard', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
-    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas'
+    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro'
   };
   function parse(path) {
     path = String(path || '').replace(/^#?\/?/, '');
@@ -74,6 +74,7 @@
       ['ferias', 'Férias', 'palm', vacCount],
       ['mural', 'Mural', 'medal'],
       ['empresas', 'Empresas', 'briefcase'],
+      ['financeiro', 'Financeiro', 'wallet'],
       ['relatorios', 'Relatórios', 'file'],
       ['historico', 'Histórico', 'history'],
       ['configuracoes', 'Configurações', 'cog']
@@ -268,7 +269,7 @@
   }
   P.toast = toast;
   // Utilitários de interface usados pelo js/extras.js
-  P.ui = { modal: o => modal(o), closeModal: () => closeModal(), modalErr: m => modalErr(m), guard: fn => guard(fn), login: u => login(u), ls };
+  P.ui = { xlsx: (s, n) => toXlsx(s, n), modal: o => modal(o), closeModal: () => closeModal(), modalErr: m => modalErr(m), guard: fn => guard(fn), login: u => login(u), ls };
   let modalHandler = null;
   function modal({ title, body, submit = 'Salvar', danger = false, wide = false, onSubmit, cancel = 'Cancelar' }) {
     const m = $('#modal-root');
