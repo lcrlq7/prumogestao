@@ -83,7 +83,10 @@
     const u = U(); if (!canOpen(u)) return P.toast('Você não está habilitado a abrir OS.', 'err');
     const compList = P.api.companies(u).filter(c => c.active !== false).sort((a, b) => a.name.localeCompare(b.name));
     const comps = compList.map(c => c.name);
-    const depts = P.api.departments(u, false);
+    // diretoria, gerência e gestores abrem OS para qualquer departamento; funcionário habilitado, para o próprio
+    const depts = ['admin', 'office', 'manager'].includes(u.role)
+      ? db().departments.filter(d => d.active !== false && !d.support)
+      : P.api.departments(u, false);
     const defDept = u.deptId && depts.some(d => d.id === u.deptId) ? u.deptId : '';
     P.ui.modal({
       title: 'Nova ordem de serviço', submit: 'Abrir OS', wide: true,
