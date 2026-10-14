@@ -35,7 +35,7 @@
   const PAGE_LABEL = {
     dashboard: 'Dashboard', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
-    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro'
+    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra'
   };
   function parse(path) {
     path = String(path || '').replace(/^#?\/?/, '');
@@ -62,7 +62,7 @@
     const vacs = P.store.db.vacations || [];
     const vacCount = vacs.filter(v => api.canReviewVacation(u, v)).length;
     const main = [
-      ['dashboard', emp ? 'Meu desempenho' : 'Dashboard', 'grid'],
+      ['dashboard', P.isSupport(u) ? 'Início' : emp ? 'Meu desempenho' : 'Dashboard', 'grid'],
       ['comunicacao', 'Comunicação', 'message', P.chat ? P.chat.unread(u) : 0],
       ['equipe', 'Minha Equipe', 'users'],
       ['atividades', emp ? 'Minhas tarefas' : 'Atividades', 'clipboard'],
@@ -74,11 +74,15 @@
       ['ferias', 'Férias', 'palm', vacCount],
       ['mural', 'Mural', 'medal'],
       ['empresas', 'Empresas', 'briefcase'],
+      ['solicitacoes', 'Solicitações', 'cart', P.purchases ? P.purchases.badge(u) : 0],
       ['financeiro', 'Financeiro', 'wallet'],
       ['relatorios', 'Relatórios', 'file'],
       ['historico', 'Histórico', 'history'],
       ['configuracoes', 'Configurações', 'cog']
-    ].filter(([k]) => P.PAGES[k].includes(u.role));
+    ].filter(([k]) => P.PAGES[k] && P.PAGES[k].includes(u.role))
+      // departamento de apoio: sem as páginas de produção (pontos, metas, ranking…)
+      .filter(([k]) => !P.isSupport(u) || !['equipe', 'atividades', 'lancamentos', 'metas', 'insights', 'ranking', 'relatorios', 'historico', 'empresas'].includes(k))
+      .filter(([k]) => k !== 'solicitacoes' || (P.purchases && P.purchases.canSee(u)));
     // Administração conforme o nível: gerente e diretoria veem tudo; o gestor cuida dos funcionários e dos pesos do departamento
     const admin = P.isGlobal(u) ? [
       ['departamentos', 'Departamentos', 'building'], ['funcionarios', 'Funcionários', 'userplus'], ['gestores', 'Gestores e diretoria', 'shield'],
@@ -720,7 +724,7 @@
       const isEmp = x.role === 'employee';
       const isWorker = isEmp || x.role === 'manager';
       const global = x.role === 'admin' || x.role === 'office'; // diretoria e gerência não têm departamento
-      const depts = api.departments(U());
+      const depts = api.departments(U(), true);
       const deptLocked = U().role === 'manager'; // o gestor só cadastra no próprio departamento
       const label = { employee: 'funcionário', manager: 'gestor', office: 'gerente do escritório', admin: 'diretor' }[x.role];
       modal({

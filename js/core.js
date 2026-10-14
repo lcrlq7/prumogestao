@@ -630,6 +630,8 @@ window.P = window.P || {};
   /* Capacidade, utilização e status de carga (sobrecarga, baixa utilização) só para gestores, gerente e diretoria */
   P.seesLoad = u => !!u && u.role !== 'employee';
   /* Departamento do qual a pessoa é a gestora responsável (gestor ou diretor que também gere um departamento) */
+  // Departamento de apoio (ex.: Apoio ao Escritório): fora dos indicadores de produção
+  P.isSupport = u => !!u && !!u.deptId && !!(P.store.db.departments.find(d => d.id === u.deptId) || {}).support;
   P.ledDept = u => (!!u && P.store.db.departments.find(d => d.managerId === u.id && d.active !== false)) || null;
   /* Quem o usuário pode gerenciar (dados cadastrais): só níveis abaixo; o gestor, só funcionários do seu departamento */
   P.canManageUser = (u, x) => !!u && !!x && u.id !== x.id && P.LEVEL[u.role] > P.LEVEL[x.role] && (P.isGlobal(u) || (u.role === 'manager' && x.role === 'employee' && x.deptId === u.deptId));
@@ -684,20 +686,22 @@ window.P = window.P || {};
     },
     canManageDept(u, deptId) { return P.isGlobal(u) || (u.role === 'manager' && u.deptId === deptId); },
 
-    departments(u) {
-      const all = db().departments.filter(d => d.active !== false);
+    // withSupport: inclui departamentos de apoio (cadastros e filtros); sem ele, só os que entram nos indicadores
+    departments(u, withSupport) {
+      const all = db().departments.filter(d => d.active !== false && (withSupport || !d.support));
       return P.isGlobal(u) ? all : all.filter(d => d.id === u.deptId);
     },
     department(u, id) { const d = P.dept(id); assert(d && api.canSeeDept(u, id), 'Este departamento não pertence ao seu escopo de acesso.'); return d; },
     employees(u, deptId) {
-      const all = db().users.filter(x => x.role === 'employee' && x.active !== false);
+      // quem é de departamento de apoio não entra nos indicadores (só aparece se o próprio departamento for pedido)
+      const all = db().users.filter(x => x.role === 'employee' && x.active !== false && (deptId || x.id === u.id || !P.isSupport(x)));
       if (P.isGlobal(u)) return deptId ? all.filter(x => x.deptId === deptId) : all;
       if (u.role === 'manager') { assert(!deptId || deptId === u.deptId, 'Gestores visualizam apenas o próprio departamento.'); return all.filter(x => x.deptId === u.deptId); }
       assert(!deptId || deptId === u.deptId, 'Acesso restrito.');
       return all.filter(x => x.id === u.id);
     },
     workers(u, deptId) {
-      const all = db().users.filter(x => (x.role === 'employee' || x.role === 'manager') && x.active !== false);
+      const all = db().users.filter(x => (x.role === 'employee' || x.role === 'manager') && x.active !== false && (deptId || x.id === u.id || !P.isSupport(x)));
       if (P.isGlobal(u)) return deptId ? all.filter(x => x.deptId === deptId) : all;
       if (u.role === 'manager') {
         assert(!deptId || deptId === u.deptId, 'Gestores visualizam apenas o próprio departamento.');

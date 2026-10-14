@@ -225,7 +225,7 @@
     return `${V.pageHead('Funcionários', global ? 'Cadastro, departamento, capacidade e situação de cada colaborador.' : 'Funcionários do seu departamento. Você pode cadastrar e editar os dados deles.', V.btn('Códigos de convite', { act: 'inviteCodes', icon: 'key', cls: 'ghost' }) + V.btn('Novo funcionário', { act: 'editUser', icon: 'plus', cls: 'primary', attrs: 'data-role="employee"' }))}
       <section class="card"><div class="card-b"><div class="filters">
         <label class="field"><span>Buscar</span><input type="search" id="ef-q" value="${esc(f.q)}" data-set="empFilter.q" data-live placeholder="Nome ou e-mail"></label>
-        ${global ? `<label class="field"><span>Departamento</span><select id="ef-dept" data-set="empFilter.dept"><option value="">Todos</option>${api.departments(u).map(d => `<option value="${d.id}" ${f.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}
+        ${global ? `<label class="field"><span>Departamento</span><select id="ef-dept" data-set="empFilter.dept"><option value="">Todos</option>${api.departments(u, true).map(d => `<option value="${d.id}" ${f.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}
         <label class="field"><span>Situação</span><select id="ef-st" data-set="empFilter.status"><option value="">Ativos</option><option value="inativo" ${f.status === 'inativo' ? 'selected' : ''}>Desligados</option></select></label>
       </div></div></section>
       ${V.card('', `<div class="table-wrap"><table class="tbl"><thead><tr><th>Funcionário</th><th>E-mail</th><th>Departamento</th><th>Gestor(a)</th><th class="num">Jornada</th><th class="num">Capacidade</th><th>Situação</th><th class="actions-col"></th></tr></thead>

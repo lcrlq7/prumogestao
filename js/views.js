@@ -43,6 +43,7 @@
     info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
     trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
     wallet: '<path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v4h-4a2 2 0 0 0 0 4h4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5"/>',
+    cart: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
     smile: '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>',
     sticker: '<path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9.5L21 14.5V5a2 2 0 0 0-2-2z"/><path d="M15 21v-4a2 2 0 0 1 2-2h4"/><path d="M8 13s1 1.5 3 1.5 3-1.5 3-1.5M9 9h.01M14 9h.01"/>',
     hand: '<path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
@@ -231,7 +232,7 @@
   };
 
   /* ---------- Dashboard ---------- */
-  V.dashboard = u => P.isGlobal(u) ? V.dashAdmin(u) : u.role === 'manager' ? V.dashManager(u) : V.dashEmployee(u, u, true);
+  V.dashboard = u => P.isSupport(u) && V.supportHome ? V.supportHome(u) : P.isGlobal(u) ? V.dashAdmin(u) : u.role === 'manager' ? V.dashManager(u) : V.dashEmployee(u, u, true);
 
   /*
    * Dashboards em blocos: cada bloco tem id, título, tamanho (full, wide, half, third) e o HTML (calculado só se

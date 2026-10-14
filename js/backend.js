@@ -55,6 +55,7 @@
     { key: 'finRecurrences', table: 'fin_recurrences' },
     { key: 'finEntries', table: 'fin_entries' },
     { key: 'finClosings', table: 'fin_closings' },
+    { key: 'purchases', table: 'purchase_requests' },
     { key: 'alertsRead', table: 'alerts_read', map: true },
     { key: 'chatReads', table: 'chat_reads', map: true },
     { key: 'settings', table: 'app_settings', single: true }
