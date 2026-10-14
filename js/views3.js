@@ -171,6 +171,8 @@
   V.departamentos = u => {
     const p = V.curPeriod();
     const rows = api.departments(u).map(d => ({ d, emps: api.workers(u, d.id) })).map(r => Object.assign(r, { tm: M.team(r.emps, p) }));
+    // departamentos de apoio aparecem no cadastro, mas sem números de produção
+    const support = api.departments(u, true).filter(d => d.support);
     return `${V.pageHead('Departamentos', 'Estrutura da empresa, gestores responsáveis e comparação entre áreas.', V.periodBar(['semana', 'mes', 'mes_ant', 'custom']) + V.btn('Novo departamento', { act: 'editDept', icon: 'plus', cls: 'primary' }))}
       <div class="dept-cards">${rows.map(r => {
         const m = P.user(r.d.managerId);
@@ -181,6 +183,16 @@
           <div class="dc-nums"><div><b>${r.emps.length}</b><span>pessoas</span></div><div><b>${F.n(r.tm.points, 0)}</b><span>pontos</span></div><div><b>${F.pct0(r.tm.util)}</b><span>utilização</span></div></div>
           ${V.progress(r.tm.util, { status: M.classify(r.tm.util) })}
           ${V.btn('Ver equipe', { go: 'equipe?dept=' + r.d.id, cls: 'ghost sm', icon: 'right' })}
+        </section>`;
+      }).join('')}${support.map(d => {
+        const people = P.store.db.users.filter(x => x.deptId === d.id && x.active !== false);
+        return `<section class="card dept-card">
+          <header><span class="code">${esc(d.code)}</span><h3>${esc(d.name)}</h3>${V.ibtn('edit', 'Editar departamento', { act: 'editDept', attrs: `data-id="${d.id}"` })}</header>
+          <p class="muted">${esc(d.description || '')}</p>
+          <div class="dc-mgr"><span class="badge st-sem">${icon('info')}Departamento de apoio · fora dos indicadores</span></div>
+          <div class="dc-nums"><div><b>${people.length}</b><span>pessoa${people.length === 1 ? '' : 's'}</span></div></div>
+          ${people.length ? `<p class="prose">${people.map(x => esc(x.name)).join(', ')}</p>` : '<p class="muted">Ninguém neste departamento ainda. Use um código de convite com este departamento.</p>'}
+          ${V.btn('Ver funcionários', { go: 'funcionarios', cls: 'ghost sm', icon: 'right' })}
         </section>`;
       }).join('')}</div>
       ${V.card('Comparação entre departamentos', V.deptCompareTable(rows), { sub: p.label })}
