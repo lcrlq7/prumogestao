@@ -1448,11 +1448,12 @@
     },
     reviewVacation(el) {
       const v = (P.store.db.vacations || []).find(x => x.id === el.dataset.id), op = el.dataset.op, who = P.user(v.userId);
-      const stage = v.status;
+      const stage = v.status, direct = api.canOverrideVacation(U(), v);
       const conflicts = api.vacationConflicts(v);
       modal({
-        title: (op === 'aprovar' ? 'Aprovar' : 'Recusar') + ' férias de ' + esc(who.name), danger: op === 'recusar', submit: op === 'aprovar' ? (stage === 'diretoria' ? 'Aprovar e publicar no calendário' : 'Aprovar e enviar à próxima etapa') : 'Recusar',
-        body: `<p class="prose"><b>${D.fmt(v.start)} a ${D.fmt(v.end)}</b> · ${v.days} dias corridos${v.abono ? ' · abono pecuniário' : ''}${v.adiant13 ? ' · adiantamento do 13º' : ''}</p>
+        title: (op === 'aprovar' ? 'Aprovar' : 'Recusar') + ' férias de ' + esc(who.name), danger: op === 'recusar', submit: op === 'aprovar' ? (stage === 'diretoria' || direct ? 'Aprovar e publicar no calendário' : 'Aprovar e enviar à próxima etapa') : 'Recusar',
+        body: `${direct ? `<div class="banner info sm">${icon('shield')}<div>Este pedido ainda está na etapa do <b>${stage === 'gestor' ? 'gestor' : 'gerente'}</b>. Como diretoria, sua decisão é final: ${op === 'aprovar' ? 'as férias entram direto no calendário' : 'o pedido é recusado'} e o histórico registra que as etapas anteriores foram puladas.</div></div>` : ''}
+          <p class="prose"><b>${D.fmt(v.start)} a ${D.fmt(v.end)}</b> · ${v.days} dias corridos${v.abono ? ' · abono pecuniário' : ''}${v.adiant13 ? ' · adiantamento do 13º' : ''}</p>
           ${v.comment ? `<blockquote class="vac-comment">${icon('message')}<span>${esc(v.comment)}</span></blockquote>` : ''}
           ${conflicts.length ? `<div class="banner warn sm">${icon('users')}<div>No mesmo período: ${conflicts.map(c => esc(P.user(c.userId).name) + ' (' + P.VAC[c.status].short.toLowerCase() + ')').join(', ')}.</div></div>` : ''}
           <label class="field"><span>${op === 'aprovar' ? 'Observação (opcional)' : 'Motivo da recusa'}</span><textarea id="vr-note" rows="3" placeholder="${op === 'aprovar' ? 'Ex.: carteira fica com a Amanda durante o período' : 'Ex.: período coincide com o fechamento anual; sugerir outra data'}"></textarea></label>`,

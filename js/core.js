@@ -1233,13 +1233,21 @@ window.P = window.P || {};
       if (v.status === 'diretoria') return u.role === 'admin' && !api._approvedBy(v, u.id);
       return false;
     },
+    /* A diretoria pode decidir direto um pedido que ainda está com o gestor ou com o gerente (pula as etapas) */
+    canOverrideVacation(u, v) {
+      return !!u && !!v && u.role === 'admin' && u.active !== false && v.userId !== u.id && ['gestor', 'gerente'].includes(v.status) && !api.canReviewVacation(u, v);
+    },
     reviewVacation(u, id, action, note) {
       const v = db().vacations.find(x => x.id === id);
       assert(v, 'Solicitação não encontrada.');
       note = String(note || '').trim();
       if (action === 'recusar' && note.length < 3) throw new Error('Explique o motivo da recusa para o colaborador.');
       assert(v.userId !== u.id, 'Ninguém aprova as próprias férias.');
-      if (v.status === 'gestor') {
+      if (api.canOverrideVacation(u, v)) {
+        const skipped = v.status === 'gestor' ? 'gestor' + (api._stageExists('gerente') ? ' e gerente' : '') : 'gerente';
+        v.status = action === 'aprovar' ? 'aprovada' : 'recusada';
+        v.history.push({ at: D.stamp(), by: u.id, action: (action === 'aprovar' ? 'Aprovada' : 'Recusada') + ' direto pela diretoria (sem a etapa do ' + skipped + ')', note });
+      } else if (v.status === 'gestor') {
         const d = P.dept(v.deptId);
         assert(d && d.managerId === u.id && (u.role === 'manager' || u.role === 'admin'), 'Esta solicitação aguarda a aprovação do gestor do departamento.');
         v.status = action === 'aprovar' ? api._nextStage(P.LEVEL.manager, v.deptId) : 'recusada';

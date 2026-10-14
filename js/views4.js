@@ -354,7 +354,9 @@
     const history = scoped.filter(v => ['aprovada', 'recusada', 'cancelada'].includes(v.status)).sort((a, b) => a.start < b.start ? 1 : -1).slice(0, 40);
     const tab = S.vac.tab;
     const led = P.ledDept(u);
-    const actions = v => mine(v) ? `${V.btn('Aprovar', { act: 'reviewVacation', cls: 'sm primary', icon: 'check', attrs: `data-id="${v.id}" data-op="aprovar"` })}${V.btn('Recusar', { act: 'reviewVacation', cls: 'sm ghost', icon: 'x', attrs: `data-id="${v.id}" data-op="recusar"` })}` : '';
+    const actions = v => api.canOverrideVacation(u, v)
+      ? `${V.btn('Aprovar direto', { act: 'reviewVacation', cls: 'sm primary', icon: 'check', attrs: `data-id="${v.id}" data-op="aprovar" title="Aprovar sem esperar as etapas anteriores"` })}${V.btn('Recusar', { act: 'reviewVacation', cls: 'sm ghost', icon: 'x', attrs: `data-id="${v.id}" data-op="recusar"` })}`
+      : mine(v) ? `${V.btn('Aprovar', { act: 'reviewVacation', cls: 'sm primary', icon: 'check', attrs: `data-id="${v.id}" data-op="aprovar"` })}${V.btn('Recusar', { act: 'reviewVacation', cls: 'sm ghost', icon: 'x', attrs: `data-id="${v.id}" data-op="recusar"` })}` : '';
     const shown = tab === 'fila' ? waitingMe : tab === 'outra' ? other : history;
     const myPending = all.filter(v => v.userId === u.id && inFlow.concat('aprovada').includes(v.status));
     const HEAD = {
@@ -362,7 +364,7 @@
       office: ['Férias · Gerência', 'Segunda etapa: pedidos já aprovados pelos gestores. Depois do seu aval, seguem para a diretoria.'],
       admin: led
         ? ['Férias · Diretoria e ' + esc(led.name), `Você aprova a 1ª etapa (gestor) da equipe de ${esc(led.name)} e a etapa final da diretoria dos demais pedidos. Nos pedidos que você aprovou como gestor, a etapa da diretoria fica com outro diretor.`]
-        : ['Férias · Diretoria', 'Aprovação final. Basta um diretor aprovar para as datas entrarem no calendário geral.']
+        : ['Férias · Diretoria', 'Aprovação final. Basta um diretor aprovar para as datas entrarem no calendário geral. Em "Nas outras etapas" você também pode aprovar direto, sem esperar gestor e gerente.']
     }[u.role];
     return `${V.pageHead(HEAD[0], HEAD[1], V.deptPicker(u) + V.btn('Solicitar minhas férias', { act: 'newVacation', icon: 'palm' }))}
       <div class="strip">
