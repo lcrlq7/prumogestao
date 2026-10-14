@@ -66,19 +66,47 @@
   wrap('reviewEntry', (r, u, id, action, opts = {}) => {
     const e = P.idx.byId.get(id); if (!e || e.userId === u.id) return;
     const lbl = { aprovar: 'aprovado', recusar: 'recusado', correcao: 'precisa de correção', editar: 'ajustado e aprovado' }[action];
-    P.notify([e.userId], { type: 'lancamento', icon: action === 'recusar' ? 'x' : action === 'correcao' ? 'undo' : 'check', title: 'Lançamento ' + lbl, text: `${P.act(e.activityId).name} de ${D.fmt(e.date)}${e.client ? ' · ' + e.client : ''}${opts.note ? ': ' + opts.note : ''}`, link: 'lancamentos' });
+    P.notify([e.userId], { type: 'lancamento', icon: action === 'recusar' ? 'x' : action === 'correcao' ? 'undo' : 'check', title: 'Lançamento ' + lbl, text: `${(P.act(e.activityId) || { name: '—' }).name} de ${D.fmt(e.date)}${e.client ? ' · ' + e.client : ''}${opts.note ? ': ' + opts.note : ''}`, link: 'lancamentos' });
     if (action === 'aprovar' || action === 'editar') fx.success();
   });
   wrap('addRecognition', (r, u) => {
     if (r.visible) P.notify([r.userId], { type: 'reconhecimento', icon: 'medal', title: 'Você recebeu um reconhecimento', text: `${u.name}: ${r.text}`, link: 'dashboard' });
-    if (r.shared) P.notify(teamOf(r.deptId).filter(id => id !== r.userId && id !== u.id), { type: 'mural', icon: 'medal', title: 'Novo reconhecimento no mural', text: `${P.user(r.userId).name} foi reconhecido(a) em ${P.REC_CATEGORIES[r.category]}.`, link: 'mural' });
+    if (r.shared) P.notify(teamOf(r.deptId).filter(id => id !== r.userId && id !== u.id), { type: 'mural', icon: 'medal', title: 'Novo reconhecimento no mural', text: `${(P.user(r.userId) || { name: '—' }).name} foi reconhecido(a) em ${P.REC_CATEGORIES[r.category]}.`, link: 'mural' });
   });
-  wrap('shareRecognition', (r, u) => { if (r.shared) P.notify(teamOf(r.deptId).filter(id => id !== r.userId && id !== u.id), { type: 'mural', icon: 'medal', title: 'Novo reconhecimento no mural', text: `${P.user(r.userId).name} foi reconhecido(a) em ${P.REC_CATEGORIES[r.category]}.`, link: 'mural' }); });
+  wrap('shareRecognition', (r, u) => { if (r.shared) P.notify(teamOf(r.deptId).filter(id => id !== r.userId && id !== u.id), { type: 'mural', icon: 'medal', title: 'Novo reconhecimento no mural', text: `${(P.user(r.userId) || { name: '—' }).name} foi reconhecido(a) em ${P.REC_CATEGORIES[r.category]}.`, link: 'mural' }); });
   wrap('saveTask', (t, u) => { if (t.userId !== u.id) P.notify([t.userId], { type: 'tarefa', icon: 'clipboard', title: 'Nova tarefa para você', text: `${t.title} · prazo ${D.fmt(t.due)} (atribuída por ${u.name}).`, link: 'atividades' }); });
 
   // Pop-up de notificação (canto da tela) e sino que balança
   const popBox = () => { let b = $('#notif-pop'); if (!b) { b = document.createElement('div'); b.id = 'notif-pop'; b.setAttribute('aria-live', 'polite'); document.body.appendChild(b); } return b; };
+  /*
+   * Notificações no computador (Windows/macOS) pelo navegador: aparecem no canto da tela mesmo com o site
+   * minimizado ou em outra aba, enquanto o Prumo estiver aberto. A preferência fica neste navegador.
+   */
+  const DESK_KEY = 'prumo.desktopNotif';
+  P.desktop = {
+    supported: () => 'Notification' in window && window.isSecureContext !== false,
+    permission: () => ('Notification' in window ? Notification.permission : 'unsupported'),
+    enabled: () => P.desktop.supported() && Notification.permission === 'granted' && ui().ls.get(DESK_KEY) === '1',
+    async enable() {
+      if (!P.desktop.supported()) throw new Error('Este navegador não permite notificações no computador.');
+      const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      if (perm !== 'granted') throw new Error(perm === 'denied' ? 'As notificações estão bloqueadas para este site. Libere no cadeado ao lado do endereço do site e tente de novo.' : 'Permissão não concedida.');
+      ui().ls.set(DESK_KEY, '1');
+      P.desktop.show({ title: 'Notificações ativadas', text: 'Você vai receber os avisos do Prumo neste computador.' }, true);
+    },
+    disable() { ui().ls.set(DESK_KEY, null); },
+    show(n, force) {
+      if (!(force || P.desktop.enabled())) return;
+      // só quando o site não está na frente (evita aviso duplicado com o pop-up da tela)
+      if (!force && document.visibilityState === 'visible' && document.hasFocus()) return;
+      try {
+        const note = new Notification(n.title || 'Prumo', { body: n.text || '', tag: n.id || (n.title + '|' + (n.text || '')), icon: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0f2233"/><path d="M32 10v14M32 24l12 15-12 15-12-15z" fill="none" stroke="#e0a63a" stroke-width="5" stroke-linejoin="round"/></svg>') });
+        note.onclick = () => { window.focus(); if (n.id) openNotif(n.id); else if (n.onClick) n.onClick(); note.close(); };
+      } catch (e) { /* alguns navegadores só permitem notificação via service worker */ }
+    }
+  };
   fx.popNotif = (n, opts = {}) => {
+    P.desktop.show(Object.assign({}, n, { onClick: opts.onClick }));
     const el = document.createElement('button');
     el.type = 'button'; el.className = 'npop';
     el.innerHTML = `<span class="npop-ic">${icon(n.icon || 'bell')}</span><span class="npop-t"><b>${esc(n.title)}</b><small>${esc(n.text || '')}</small></span>`;
@@ -125,11 +153,16 @@
     const pw = Math.min(380, innerWidth - 16);
     p.style.left = 'auto';
     p.style.right = Math.max(8, Math.min(Math.round(innerWidth - r.right - 8), innerWidth - pw - 8)) + 'px';
+    const deskOff = P.desktop.supported() && !P.desktop.enabled();
     p.innerHTML = `<header><b>Notificações</b>${list.length ? '<button type="button" class="link" data-act="notifClear">Limpar todas</button>' : ''}</header>
+      ${deskOff ? `<div class="np-desk">${icon('monitor')}<span>Receba os avisos no canto da tela do computador.</span><button type="button" class="btn sm" data-act="deskOn">Ativar</button></div>` : ''}
       <div class="np-list">${list.length ? list.map(n => `<button type="button" class="np-item ${n.read ? '' : 'unread'}" data-act="notifOpen" data-id="${n.id}"><span class="np-ic t-${n.type}">${icon(n.icon || 'bell')}</span><span class="np-t"><b>${esc(n.title)}</b><small>${esc(n.text)}</small><em>${relTime(n.ts)}</em></span></button>`).join('') : `<div class="np-empty">${icon('check')}<p>Você está em dia.<br>Aprovações, férias, tarefas e reconhecimentos aparecem aqui.</p></div>`}</div>
       ${list.length ? '<p class="np-hint">As notificações somem depois de vistas.</p>' : ''}
       <footer><button type="button" class="link" data-act="notifAlerts">${icon('alert')} Central de alertas${alertsUnread ? ' (' + alertsUnread + ' não lidos)' : ''}</button></footer>`;
   };
+  A.deskOn = () => P.desktop.enable().then(() => { P.toast('Notificações no computador ativadas.'); if ($('#notif-panel')) renderNotifPanel(); P.render(); }, e => P.toast(e.message, 'err'));
+  A.deskOff = () => { P.desktop.disable(); P.toast('Notificações no computador desativadas neste navegador.'); P.render(); };
+  A.deskTest = () => P.desktop.show({ title: 'Teste do Prumo', text: 'É assim que os avisos vão aparecer.' }, true);
   A.toggleNotif = () => { if ($('#notif-panel')) closeNotif(); else renderNotifPanel(); };
   A.notifOpen = el => openNotif(el.dataset.id);
   A.notifClear = () => { const u = S().user; myNotifs(u).forEach(n => seen.add(n.id)); const p = $('#notif-panel'); if (p) p.remove(); dropNotifs(seen); P.render(); renderNotifPanel(); };
@@ -190,7 +223,7 @@
         .map(c => ({ label: c.name, icon: 'briefcase', sub: [c.code ? 'Cód. ' + c.code : '', c.cnpj, P.REGIMES[c.regime] ? P.REGIMES[c.regime].short : ''].filter(Boolean).join(' · '), run: () => { S().comp.q = c.name; S().comp.status = ''; P.go('empresas'); }, s: score(c.name) }))
         .sort((a, b) => b.s - a.s).slice(0, 6);
       if (u.role !== 'employee') {
-        const people = api.workers(u).filter(x => match(x.name) || match(x.email)).map(x => ({ label: x.name, icon: 'user', avatar: x, sub: (P.dept(x.deptId) ? P.dept(x.deptId).name + ' · ' : '') + (x.title || ''), run: () => P.go('funcionario/' + x.id), s: score(x.name) })).sort((a, b) => b.s - a.s).slice(0, 6);
+        const people = api.workers(u).filter(x => match(x.name) || match(x.email)).map(x => ({ label: x.name, icon: 'user', avatar: x, sub: (P.dept(x.deptId) ? (P.dept(x.deptId) || { name: '—' }).name + ' · ' : '') + (x.title || ''), run: () => P.go('funcionario/' + x.id), s: score(x.name) })).sort((a, b) => b.s - a.s).slice(0, 6);
         if (people.length) groups.push(['Pessoas', people]);
       }
       if (comps.length) groups.push(['Empresas', comps]);
@@ -483,7 +516,7 @@
   V.obligationsCard = (u, m, deptId) => {
     const list = P.obligationsFor(u, m.getFullYear(), m.getMonth(), deptId).sort((a, b) => a.date < b.date ? -1 : 1);
     const today = D.iso(P.today());
-    return V.card('Obrigações fiscais do mês', list.length ? `<ul class="obr-list">${list.map(o => `<li class="${o.date < today ? 'past' : o.date <= D.iso(D.add(P.today(), 5)) ? 'soon' : ''}"><button type="button" class="link" data-act="calSel" data-date="${o.date}">${D.fmt(o.date)}</button><span><b>${esc(o.name)}</b><small>${esc(P.dept(o.dept) ? P.dept(o.dept).name : '')} · ${o.total ? o.total + ' empresa' + (o.total > 1 ? 's' : '') : 'nenhuma empresa com esse regime cadastrado'}${o.mine ? ' · ' + o.mine + ' na sua carteira' : ''}</small></span></li>`).join('')}</ul><p class="fine obr-note">Datas de referência, ajustadas para dia útil. Confira prorrogações e mudanças na legislação.</p>` : V.empty('Nenhuma obrigação para o seu departamento neste mês.', 'calendar'), { cls: 'flush-b' });
+    return V.card('Obrigações fiscais do mês', list.length ? `<ul class="obr-list">${list.map(o => `<li class="${o.date < today ? 'past' : o.date <= D.iso(D.add(P.today(), 5)) ? 'soon' : ''}"><button type="button" class="link" data-act="calSel" data-date="${o.date}">${D.fmt(o.date)}</button><span><b>${esc(o.name)}</b><small>${esc(P.dept(o.dept) ? (P.dept(o.dept) || { name: '—' }).name : '')} · ${o.total ? o.total + ' empresa' + (o.total > 1 ? 's' : '') : 'nenhuma empresa com esse regime cadastrado'}${o.mine ? ' · ' + o.mine + ' na sua carteira' : ''}</small></span></li>`).join('')}</ul><p class="fine obr-note">Datas de referência, ajustadas para dia útil. Confira prorrogações e mudanças na legislação.</p>` : V.empty('Nenhuma obrigação para o seu departamento neste mês.', 'calendar'), { cls: 'flush-b' });
   };
   V.obligationTags = (u, iso, deptId) => {
     const d = D.parse(iso);
@@ -559,7 +592,7 @@
       stars.length ? ['medal', `Destaque${stars.length > 1 ? 's' : ''}: ${names(stars)} ${stars.length > 1 ? 'fecharam' : 'fechou'} a semana passada com mais entregas e sem sobrecarga.`, 'insights'] : null,
       over.length ? ['alert', `Atenção: ${over.length} pessoa${over.length > 1 ? 's estão' : ' está'} acima da capacidade nesta semana (${names(over.slice(0, 4))}${over.length > 4 ? '…' : ''})${recurring.length ? `; ${recurring.length} há ${s.recurringWeeks} semanas ou mais` : ''}.`, 'equipe', 'crit']
         : ['check', 'Ninguém está acima da capacidade nesta semana.', null, 'ok'],
-      ['palm', vacs.length ? `De férias nesta semana: ${vacs.map(v => esc(first(P.user(v.userId).name)) + ' (até ' + D.short(v.end) + ')').join(', ')}.` : 'Ninguém da equipe está de férias nesta semana.', 'ferias'],
+      ['palm', vacs.length ? `De férias nesta semana: ${vacs.map(v => esc(first((P.user(v.userId) || { name: '—' }).name)) + ' (até ' + D.short(v.end) + ')').join(', ')}.` : 'Ninguém da equipe está de férias nesta semana.', 'ferias'],
       ['inbox', pendEntries || vacWaiting || late ? `Pendências: ${[pendEntries ? `<b class="ws-num">${pendEntries}</b> lançamento${pendEntries > 1 ? 's' : ''} para aprovar` : '', vacWaiting ? `${vacWaiting} pedido${vacWaiting > 1 ? 's' : ''} de férias aguardando você` : '', late ? `${late} tarefa${late > 1 ? 's' : ''} em atraso` : ''].filter(Boolean).join(', ')}.` : 'Sem pendências de aprovação nem tarefas atrasadas. 👏', pendEntries ? 'lancamentos' : vacWaiting ? 'ferias' : 'atividades', pendEntries || vacWaiting || late ? 'warn' : 'ok'],
       obr.length ? ['calendar', `Obrigações da semana: ${obr.map(o => esc(o.short) + ' (' + D.short(o.date) + ')').join(', ')}.`, 'calendario'] : null
     ].filter(Boolean);
@@ -690,7 +723,7 @@
     const col = tDrag && ev.target.closest && ev.target.closest('[data-col]'); if (!col) return;
     ev.preventDefault();
     const id = tDrag; tDrag = null;
-    ui().guard(() => { const t = api.reassignTask(S().user, id, col.dataset.col); P.toast('Tarefa reatribuída para ' + P.user(t.userId).name + '.'); P.render(); });
+    ui().guard(() => { const t = api.reassignTask(S().user, id, col.dataset.col); P.toast('Tarefa reatribuída para ' + (P.user(t.userId) || { name: '—' }).name + '.'); P.render(); });
   });
   document.addEventListener('dragend', () => { tDrag = null; document.querySelectorAll('.dragging, .bcol.over').forEach(x => x.classList.remove('dragging', 'over')); });
 

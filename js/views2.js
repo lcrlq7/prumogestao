@@ -72,7 +72,7 @@
   V.taskList = (u, tasks, today, showWho) => {
     if (!tasks.length) return V.empty('Nenhuma tarefa nesta lista.', 'check');
     return `<ul class="tasks">${tasks.map(t => {
-      const a = t.activityId ? P.act(t.activityId) : null, who = P.user(t.userId);
+      const a = t.activityId ? P.act(t.activityId) : null, who = P.user(t.userId) || { name: 'Pessoa removida' };
       const late = t.status === 'pendente' && t.due < today;
       const soon = t.status === 'pendente' && !late && t.due <= D.iso(D.add(P.today(), 2));
       return `<li class="task ${late ? 'late' : ''}">
@@ -191,7 +191,7 @@
     const n = l => l.length ? l.map(r => esc(P.firstName(r.user.name)) + ' (' + F.pct0(r.util) + ')').join(', ') : 'ninguém no momento';
     const counts = { all: all.length, crit: 0, warn: 0, info: 0, pos: 0, rec: 0 };
     all.forEach(i => counts[i.level]++);
-    const recNames = [...new Set(all.filter(i => i.level === 'rec' && i.emp).map(i => P.firstName(P.user(i.emp).name)))];
+    const recNames = [...new Set(all.filter(i => i.level === 'rec' && i.emp).map(i => P.firstName((P.user(i.emp) || { name: '—' }).name)))];
     const q = [
       ['Quem merece reconhecimento?', recNames.length ? recNames.map(esc).join(', ') + '. Veja os motivos na aba Reconhecimento.' : 'Nenhuma sugestão no momento.'],
       ['Quem está sobrecarregado?', n(over)],
@@ -270,7 +270,7 @@
       ${!o.self && (r.by === u.id || P.isGlobal(u)) ? `<div class="rec-acts">${V.ibtn('users', r.shared ? 'Retirar do mural da equipe' : 'Compartilhar no mural da equipe', { act: 'shareRecognition', cls: r.shared ? 'on' : '', attrs: `data-id="${r.id}" data-on="${r.shared ? 0 : 1}"` })}${V.ibtn('trash', 'Remover reconhecimento', { act: 'removeRecognition', attrs: `data-id="${r.id}"` })}</div>` : ''}
     </li>`; }).join('')}</ul>` : V.empty(o.empty || 'Nenhum reconhecimento registrado ainda.', 'medal');
   /* Mural da equipe: pessoa, categoria e mensagem (sem notas, ranking ou números de desempenho) */
-  V.wallItems = (list, o = {}) => `<ul class="wall">${list.map(r => { const x = P.user(r.userId), by = P.user(r.by), d = P.dept(r.deptId); return `<li class="wall-item">
+  V.wallItems = (list, o = {}) => `<ul class="wall">${list.map(r => { const x = P.user(r.userId) || { id: '?', name: 'Pessoa removida' }, by = P.user(r.by), d = P.dept(r.deptId); return `<li class="wall-item">
       ${V.avatar(x, 'lg')}
       <div class="wall-b">
         <div class="wall-h"><b>${esc(x.name)}</b>${o.dept && d ? `<small class="muted">${esc(d.name)}</small>` : ''}<span class="chip-s">${icon('medal')}${esc(P.REC_CATEGORIES[r.category] || r.category)}</span></div>
@@ -349,7 +349,7 @@
       const iso = D.iso(d), inM = d.getMonth() === m.getMonth();
       const dm = V.dayMark(d), vo = vacOn(iso);
       const tags = [dm.tag]
-        .concat(vo.length ? [`<i class="tag vac">${vo.length === 1 ? V.avatar(P.user(vo[0].userId), 'xs') + 'Férias: ' + esc(P.firstName(P.user(vo[0].userId).name)) : vo.length + ' de férias'}</i>`] : [])
+        .concat(vo.length ? [`<i class="tag vac">${vo.length === 1 ? V.avatar(P.user(vo[0].userId), 'xs') + 'Férias: ' + esc(P.firstName((P.user(vo[0].userId) || { name: '—' }).name)) : vo.length + ' de férias'}</i>`] : [])
         .concat(V.agendaTags(evByDay[iso] || [])).filter(Boolean);
       const shown = tags.slice(0, 3), extra = tags.length - shown.length;
       cells += `<button type="button" class="cal-cell ${inM ? '' : 'out'} ${iso === today ? 'today' : ''} ${S.cal.sel === iso ? 'sel' : ''} ${D.isWorkday(d) ? '' : 'off'} ${dm.cls}" data-act="calSel" data-date="${iso}" aria-label="${D.fmt(iso)}${dm.label ? ', ' + esc(dm.label) : ''}">
@@ -372,11 +372,11 @@
         <div class="stack">
           ${V.card(sel ? D.fmt(sel) + ' · ' + D.WEEKDAYS_L[D.parse(sel).getDay()] : 'Selecione um dia', sel ? `
             ${V.dayInfo(D.parse(sel))}
-            ${vacOn(sel).map(v => `<div class="evt vac">${icon('palm')}<span><b>Férias · ${esc(P.user(v.userId).name)}</b><small>${D.fmt(v.start)} a ${D.fmt(v.end)} · ${v.days} dias</small>${showVacComment && !v.restricted && v.comment ? `<em class="evt-comment">“${esc(v.comment)}”</em>` : ''}</span></div>`).join('')}
+            ${vacOn(sel).map(v => `<div class="evt vac">${icon('palm')}<span><b>Férias · ${esc((P.user(v.userId) || { name: '—' }).name)}</b><small>${D.fmt(v.start)} a ${D.fmt(v.end)} · ${v.days} dias</small>${showVacComment && !v.restricted && v.comment ? `<em class="evt-comment">“${esc(v.comment)}”</em>` : ''}</span></div>`).join('')}
             ${selEv.map(e => V.agendaItem(u, e)).join('')}
-            ${selObr.map(o => `<div class="evt obr">${icon('file')}<span><b>${esc(o.name)}</b><small>Obrigação fiscal · ${esc(P.dept(o.dept) ? P.dept(o.dept).name : '')} · ${o.total ? o.total + ' empresa' + (o.total > 1 ? 's' : '') : 'nenhuma empresa com esse regime'}${o.mine ? ' · ' + o.mine + ' na sua carteira' : ''}</small></span></div>`).join('')}
+            ${selObr.map(o => `<div class="evt obr">${icon('file')}<span><b>${esc(o.name)}</b><small>Obrigação fiscal · ${esc(P.dept(o.dept) ? (P.dept(o.dept) || { name: '—' }).name : '')} · ${o.total ? o.total + ' empresa' + (o.total > 1 ? 's' : '') : 'nenhuma empresa com esse regime'}${o.mine ? ' · ' + o.mine + ' na sua carteira' : ''}</small></span></div>`).join('')}
             ${sel >= today ? `<div class="evt-add">${V.btn('Agendar neste dia', { act: 'agendaNew', cls: 'sm ghost', icon: 'plus', attrs: `data-date="${sel}"` })}</div>` : ''}
-            ${selEntries.length ? `<h4 class="sub-h">Atividades realizadas · ${F.n(selEntries.filter(P.counts).reduce((a, e) => a + e.points, 0))} pts</h4><ul class="day-list">${selEntries.map(e => `<li><span>${esc(P.act(e.activityId).name)}${target.length > 1 ? `<small>${esc(P.user(e.userId).name)}</small>` : ''}</span><b>${F.n(e.points, 2)}</b></li>`).join('')}</ul>` : '<p class="muted">Nenhuma atividade registrada neste dia.</p>'}
+            ${selEntries.length ? `<h4 class="sub-h">Atividades realizadas · ${F.n(selEntries.filter(P.counts).reduce((a, e) => a + e.points, 0))} pts</h4><ul class="day-list">${selEntries.map(e => `<li><span>${esc((P.act(e.activityId) || { name: '—' }).name)}${target.length > 1 ? `<small>${esc((P.user(e.userId) || { name: '—' }).name)}</small>` : ''}</span><b>${F.n(e.points, 2)}</b></li>`).join('')}</ul>` : '<p class="muted">Nenhuma atividade registrada neste dia.</p>'}
           ` : '<p class="muted">Clique em um dia para ver detalhes.</p>')}
           ${V.card(load ? 'Dias de maior carga no mês' : 'Dias com mais pontos no mês', heavy.length ? `<ul class="day-list">${heavy.map(([k, v]) => `<li><button type="button" class="link" data-act="calSel" data-date="${k}">${D.fmt(k)} · ${D.WEEKDAYS[D.parse(k).getDay()]}</button><b>${F.n(v.pts)} pts${load ? ' · ' + F.pct0(v.pts / capDay * 100) : ''}</b></li>`).join('')}</ul>` : '<p class="muted">Sem registros.</p>')}
           ${V.obligationsCard(u, m, scope)}

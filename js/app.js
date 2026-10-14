@@ -231,6 +231,7 @@
     }
     let html;
     try {
+      if (P.isSupport(u) && ['equipe', 'atividades', 'lancamentos', 'metas', 'insights', 'ranking', 'relatorios', 'historico', 'empresas', 'os'].includes(page)) throw new P.AccessError('Esta página não se aplica ao departamento de apoio.');
       if (!P.PAGES[page].includes(u.role)) throw new P.AccessError('Seu perfil (' + P.ROLES[u.role] + ') não tem acesso a "' + (PAGE_LABEL[page] || page) + '".');
       if (page === 'funcionario' && !S.route.id) throw new P.AccessError('Colaborador não informado.');
       html = page === 'funcionario' ? V.funcionario(u, S.route.id) : V[page](u);
@@ -477,7 +478,7 @@
       modal({
         title: 'Registrar reconhecimento', submit: 'Registrar',
         body: `<form id="rec-form" class="form" novalidate><div class="fgrid">
-          <label class="field span2"><span>Colega</span><select id="rc-user">${people.map(x => `<option value="${x.id}" ${x.id === pre ? 'selected' : ''}>${esc(x.name)} · ${esc(P.dept(x.deptId) ? P.dept(x.deptId).name : P.ROLES[x.role])}</option>`).join('')}</select></label>
+          <label class="field span2"><span>Colega</span><select id="rc-user">${people.map(x => `<option value="${x.id}" ${x.id === pre ? 'selected' : ''}>${esc(x.name)} · ${esc(P.dept(x.deptId) ? (P.dept(x.deptId) || { name: '—' }).name : P.ROLES[x.role])}</option>`).join('')}</select></label>
           <label class="field"><span>Categoria</span><select id="rc-cat">${Object.entries(P.REC_CATEGORIES).map(([k, l]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="field span3"><span>Justificativa <small>(o que a pessoa fez e por que importa)</small></span><textarea id="rc-text" rows="4" maxlength="600" placeholder="Ex.: assumiu o fechamento de dois clientes durante as férias da colega, sem atrasos e sem retrabalho.">${esc(el.dataset.text || '')}</textarea></label>
           ${emp ? '<input type="checkbox" id="rc-visible" checked hidden>' : '<label class="field check span3"><input type="checkbox" id="rc-visible" checked><span>Mostrar ao colaborador (ele vê a mensagem no próprio painel e recebe um alerta)</span></label>'}
@@ -485,7 +486,7 @@
         </div><p class="fine">Os números servem de apoio. Colaboração, iniciativa e atendimento ao cliente só aparecem nos destaques por meio destas indicações.</p></form>`,
         onSubmit: m => {
           const r = api.addRecognition(U(), { userId: $('#rc-user', m).value, category: $('#rc-cat', m).value, text: $('#rc-text', m).value, visible: $('#rc-visible', m).checked, shared: $('#rc-shared', m).checked, source: el.dataset.id ? 'sugestao' : 'manual' });
-          toast('Reconhecimento registrado para ' + P.user(r.userId).name + (r.shared ? ' e compartilhado no mural da equipe.' : '.')); render();
+          toast('Reconhecimento registrado para ' + (P.user(r.userId) || { name: '—' }).name + (r.shared ? ' e compartilhado no mural da equipe.' : '.')); render();
         }
       });
     },
@@ -509,7 +510,7 @@
       const title = op === 'recusar' ? 'Recusar lançamento' : 'Solicitar correção';
       modal({
         title, submit: op === 'recusar' ? 'Recusar' : 'Enviar solicitação', danger: op === 'recusar',
-        body: `<p class="prose">${esc(P.user(e.userId).name)} · ${esc(P.act(e.activityId).name)} · ${F.n(e.qty, 2)} × ${F.n(e.weight, 2)} = <b>${F.n(e.points, 2)} pts</b> em ${D.fmt(e.date)}</p>
+        body: `<p class="prose">${esc((P.user(e.userId) || { name: '—' }).name)} · ${esc((P.act(e.activityId) || { name: '—' }).name)} · ${F.n(e.qty, 2)} × ${F.n(e.weight, 2)} = <b>${F.n(e.points, 2)} pts</b> em ${D.fmt(e.date)}</p>
           <label class="field"><span>Origem do problema</span><select id="rv-cause">${Object.entries(P.REWORK_CAUSES).map(([k, l]) => `<option value="${k}">${l}${k === 'colaborador' ? ' (conta na qualidade)' : ' (não conta na qualidade)'}</option>`).join('')}</select></label>
           <label class="field"><span>${op === 'recusar' ? 'Motivo da recusa' : 'O que precisa ser corrigido?'}</span><textarea id="rv-note" rows="3" placeholder="${op === 'recusar' ? 'Ex.: lançamento duplicado' : 'Ex.: confirmar o cliente e a quantidade'}"></textarea></label>`,
         onSubmit: m => {
@@ -546,7 +547,7 @@
       const hist = (e.history && e.history.length ? e.history : [{ at: e.date, by: e.userId, action: 'Criado', note: '' }]);
       modal({
         title: 'Histórico do lançamento', cancel: 'Fechar',
-        body: `<p class="prose"><b>${esc(P.act(e.activityId).name)}</b> · ${esc(P.user(e.userId).name)} · ${D.fmt(e.date)} · ${F.n(e.qty, 2)} × ${F.n(e.weight, 2)} = <b>${F.n(e.points, 2)} pts</b> ${V.ebadge(e.status)}</p>
+        body: `<p class="prose"><b>${esc((P.act(e.activityId) || { name: '—' }).name)}</b> · ${esc((P.user(e.userId) || { name: '—' }).name)} · ${D.fmt(e.date)} · ${F.n(e.qty, 2)} × ${F.n(e.weight, 2)} = <b>${F.n(e.points, 2)} pts</b> ${V.ebadge(e.status)}</p>
         <ol class="timeline">${hist.map(h => `<li><b>${esc(h.action)}</b><span>${esc((P.user(h.by) || {}).name || '—')} · ${esc(h.at)}</span>${h.note ? `<p>${esc(h.note)}</p>` : ''}</li>`).join('')}</ol>`
       });
     },
@@ -570,7 +571,7 @@
       modal({
         title: 'Registrar atividade para colaborador', wide: true, submit: 'Registrar',
         body: V.entryForm(U(), {}, { id: 'new-form', noSubmit: true }),
-        onSubmit: m => { const d = readEntryForm($('#new-form', m)); const er = validateEntry(d); if (er) throw new Error(er); const e = api.createEntry(U(), d); toast(`Registrado: ${F.n(e.points, 2)} pontos para ${P.user(e.userId).name}.`); render(); }
+        onSubmit: m => { const d = readEntryForm($('#new-form', m)); const er = validateEntry(d); if (er) throw new Error(er); const e = api.createEntry(U(), d); toast(`Registrado: ${F.n(e.points, 2)} pontos para ${(P.user(e.userId) || { name: '—' }).name}.`); render(); }
       });
     },
     newOwnEntry() {
@@ -596,7 +597,7 @@
       const allDepts = P.isGlobal(u) && !S.dept;
       const emps = (allDepts ? team.slice() : team.filter(person => person.deptId === (P.isGlobal(u) ? S.dept : u.deptId)))
         .filter(person => person.deptId && P.dept(person.deptId))
-        .sort((a, b) => (P.dept(a.deptId).name || '').localeCompare(P.dept(b.deptId).name || '') || a.name.localeCompare(b.name));
+        .sort((a, b) => ((P.dept(a.deptId) || { name: '—' }).name || '').localeCompare((P.dept(b.deptId) || { name: '—' }).name || '') || a.name.localeCompare(b.name));
       if (!emps.length) return toast('Selecione um departamento com colaboradores.', 'err');
       const deptId = emps[0].deptId;
       const acts = api.activities(u, deptId);
@@ -606,7 +607,7 @@
         title: 'Atribuir tarefa',
         body: `<div class="fgrid">
           <label class="field span3"><span>Responsável</span><select id="nt-user">${allDepts
-            ? [...new Set(emps.map(e => e.deptId))].map(d => `<optgroup label="${esc(P.dept(d).name)}">${emps.filter(e => e.deptId === d).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</optgroup>`).join('')
+            ? [...new Set(emps.map(e => e.deptId))].map(d => `<optgroup label="${esc((P.dept(d) || { name: '—' }).name)}">${emps.filter(e => e.deptId === d).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</optgroup>`).join('')
             : emps.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
           <label class="field span3"><span>Atividade</span><select id="nt-act" data-dept="${deptId}">${acts.map(a => `<option value="${a.id}" data-dept="${a.deptId}">${esc(a.name)} · ${F.n(a.weight, 2)} pt</option>`).join('')}</select></label>
           <label class="field span2"><span>Empresa da carteira</span><select id="nt-client"><option value="">${clients.length ? 'Sem empresa vinculada' : 'Nenhuma empresa vinculada'}</option>${clients.map(client => `<option value="${esc(client)}">${esc(client)}</option>`).join('')}</select></label>
@@ -618,9 +619,9 @@
           const userId = $('#nt-user', m).value, a = P.act($('#nt-act', m).value), client = $('#nt-client', m).value.trim(), due = $('#nt-due', m).value;
           if (!due) throw new Error('Informe o prazo.');
           if (!a) throw new Error('Escolha uma atividade. O departamento deste responsável ainda não tem atividades cadastradas.');
-          if (a.deptId !== P.user(userId).deptId) throw new Error('A atividade escolhida é de outro departamento.');
+          if (a.deptId !== (P.user(userId) || {}).deptId) throw new Error('A atividade escolhida é de outro departamento.');
           api.saveTask(U(), { userId, activityId: a.id, client, due, title: $('#nt-title', m).value.trim() || a.name + (client ? ' — ' + client : '') });
-          toast('Tarefa atribuída a ' + P.user(userId).name + '.'); render();
+          toast('Tarefa atribuída a ' + (P.user(userId) || { name: '—' }).name + '.'); render();
         }
       });
     },
@@ -633,7 +634,7 @@
       }
       const clients = api.clientsFor(U(), el.value), select = $('#nt-client'), help = $('#nt-client-help');
       select.innerHTML = `<option value="">${clients.length ? 'Sem empresa vinculada' : 'Nenhuma empresa vinculada'}</option>` + clients.map(client => `<option value="${esc(client)}">${esc(client)}</option>`).join('');
-      help.textContent = clients.length ? `${clients.length} empresa(s) vinculada(s) a ${P.user(el.value).name}.` : `Nenhuma empresa vinculada a ${P.user(el.value).name}. A tarefa pode ser geral ou você pode cadastrar uma empresa na carteira.`;
+      help.textContent = clients.length ? `${clients.length} empresa(s) vinculada(s) a ${(P.user(el.value) || { name: '—' }).name}.` : `Nenhuma empresa vinculada a ${(P.user(el.value) || { name: '—' }).name}. A tarefa pode ser geral ou você pode cadastrar uma empresa na carteira.`;
     },
     manageClientAssignments() {
       const u = U(), depts = api.departments(u);
@@ -642,7 +643,7 @@
       const people = api.workers(u, deptId), assignments = api.clientAssignments(u, deptId);
       const rows = assignments.slice().sort((a, b) => a.client.localeCompare(b.client)).map(item => `<tr><td>${esc(item.client)}</td><td>${esc((P.user(item.userId) || {}).name || '—')}</td><td class="actions-col">${V.ibtn('trash', 'Remover da carteira', { act: 'removeClientAssignment', cls: 'danger', attrs: `data-id="${item.id}"` })}</td></tr>`).join('');
       modal({
-        title: 'Carteira de empresas · ' + esc(P.dept(deptId).name), submit: 'Salvar responsável', wide: true,
+        title: 'Carteira de empresas · ' + esc((P.dept(deptId) || { name: '—' }).name), submit: 'Salvar responsável', wide: true,
         body: `${P.isGlobal(u) ? `<label class="field"><span>Departamento</span><select id="ca-dept">${depts.map(d => `<option value="${d.id}" ${d.id === deptId ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}
           <div class="fgrid"><label class="field span2"><span>Empresa</span><input type="search" id="ca-client" list="ca-client-options" placeholder="Buscar empresa"><datalist id="ca-client-options">${P.catalog().map(client => `<option value="${esc(client)}">`).join('')}</datalist></label>
           <label class="field"><span>Pessoa responsável</span><select id="ca-user">${people.map(person => `<option value="${person.id}">${esc(person.name)}${person.role === 'manager' ? ' · Gestor(a)' : ''}</option>`).join('')}</select></label></div>
@@ -665,7 +666,7 @@
     assignmentDept(el) { S.clientAssignmentDept = el.value; A.manageClientAssignments(); },
     editGoal(el) {
       const g = P.store.db.goals.find(x => x.id === el.dataset.id);
-      const ref = g.scope === 'department' ? P.dept(g.refId).name : P.user(g.refId).name;
+      const ref = g.scope === 'department' ? (P.dept(g.refId) || { name: '—' }).name : (P.user(g.refId) || { name: '—' }).name;
       modal({
         title: 'Meta ' + g.period + ' · ' + esc(ref),
         body: `<label class="field"><span>Meta em pontos</span><input type="number" id="goal-v" value="${g.target}" min="1" step="0.5"></label><p class="fine">Referência: ${g.period === 'semanal' ? '30 a 32 pontos para jornada de 40h' : 'cerca de 4 semanas de capacidade'}.</p>`,
@@ -961,7 +962,7 @@
       modal({
         title: 'Promover ou rebaixar · ' + esc(x.name), submit: 'Confirmar',
         body: `<form id="role-form" class="form" novalidate>
-          <p class="prose">Função atual: <b>${P.ROLES[x.role]}</b>${x.deptId && P.dept(x.deptId) ? ' · ' + esc(P.dept(x.deptId).name) : ''}</p>
+          <p class="prose">Função atual: <b>${P.ROLES[x.role]}</b>${x.deptId && P.dept(x.deptId) ? ' · ' + esc((P.dept(x.deptId) || { name: '—' }).name) : ''}</p>
           <fieldset class="field roles"><legend>Nova função</legend>
             ${P.ROLE_ORDER.map(k => { const off = k === x.role || !allowed.includes(k); return `<label class="role-opt ${off ? 'cur' : ''}"><input type="radio" name="role" value="${k}" ${off ? 'disabled' : ''}><span><b>${P.ROLES[k]}${k === x.role ? ' (atual)' : !allowed.includes(k) ? ' · acima do seu nível' : P.LEVEL[k] > P.LEVEL[x.role] ? ' <i class="role-dir up">Promoção</i>' : ' <i class="role-dir down">Rebaixamento</i>'}</b><small>${ROLE_DESC[k]}</small></span></label>`; }).join('')}
           </fieldset>
@@ -1461,7 +1462,7 @@
         body: `${direct ? `<div class="banner info sm">${icon('shield')}<div>Este pedido ainda está na etapa do <b>${stage === 'gestor' ? 'gestor' : 'gerente'}</b>. Como diretoria, sua decisão é final: ${op === 'aprovar' ? 'as férias entram direto no calendário' : 'o pedido é recusado'} e o histórico registra que as etapas anteriores foram puladas.</div></div>` : ''}
           <p class="prose"><b>${D.fmt(v.start)} a ${D.fmt(v.end)}</b> · ${v.days} dias corridos${v.abono ? ' · abono pecuniário' : ''}${v.adiant13 ? ' · adiantamento do 13º' : ''}</p>
           ${v.comment ? `<blockquote class="vac-comment">${icon('message')}<span>${esc(v.comment)}</span></blockquote>` : ''}
-          ${conflicts.length ? `<div class="banner warn sm">${icon('users')}<div>No mesmo período: ${conflicts.map(c => esc(P.user(c.userId).name) + ' (' + P.VAC[c.status].short.toLowerCase() + ')').join(', ')}.</div></div>` : ''}
+          ${conflicts.length ? `<div class="banner warn sm">${icon('users')}<div>No mesmo período: ${conflicts.map(c => esc((P.user(c.userId) || { name: '—' }).name) + ' (' + P.VAC[c.status].short.toLowerCase() + ')').join(', ')}.</div></div>` : ''}
           <label class="field"><span>${op === 'aprovar' ? 'Observação (opcional)' : 'Motivo da recusa'}</span><textarea id="vr-note" rows="3" placeholder="${op === 'aprovar' ? 'Ex.: carteira fica com a Amanda durante o período' : 'Ex.: período coincide com o fechamento anual; sugerir outra data'}"></textarea></label>`,
         onSubmit: m => {
           const r = api.reviewVacation(U(), v.id, op, $('#vr-note', m).value);

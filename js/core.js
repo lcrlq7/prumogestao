@@ -768,7 +768,7 @@ window.P = window.P || {};
       const changes = [];
       if (patch.activityId && patch.activityId !== e.activityId) {
         const a = P.act(patch.activityId); assert(a && a.deptId === e.deptId, 'Atividade inválida.');
-        changes.push('atividade: ' + P.act(e.activityId).name + ' → ' + a.name); e.activityId = a.id; e.weight = a.weight;
+        changes.push('atividade: ' + (P.act(e.activityId) || { name: '—' }).name + ' → ' + a.name); e.activityId = a.id; e.weight = a.weight;
       }
       if (patch.qty != null && Number(patch.qty) !== e.qty) { changes.push('quantidade: ' + F.n(e.qty, 2) + ' → ' + F.n(patch.qty, 2)); e.qty = Math.max(0.25, Number(patch.qty)); }
       if (patch.date && patch.date !== e.date) { changes.push('data: ' + D.fmt(e.date) + ' → ' + D.fmt(patch.date)); e.date = patch.date; }
@@ -1361,11 +1361,11 @@ window.P = window.P || {};
       });
       const TITLES = { admin: 'Diretoria', office: 'Gerência do escritório', employee: 'Colaborador(a)' };
       if (keep) x.title = 'Diretoria · Gestão de ' + led.name;
-      else if (newRole === 'manager' && (!x.title || /^(Colaborador|Funcion|Diretoria|Gerência)/i.test(x.title))) x.title = 'Gestor(a) de ' + P.dept(deptId).name;
+      else if (newRole === 'manager' && (!x.title || /^(Colaborador|Funcion|Diretoria|Gerência)/i.test(x.title))) x.title = 'Gestor(a) de ' + (P.dept(deptId) || { name: '—' }).name;
       else if (TITLES[newRole] && (!x.title || /^(Gestor|Diretoria|Administra|Gerência|Colaborador)/i.test(x.title))) x.title = TITLES[newRole];
       (x.roleHistory = x.roleHistory || []).unshift({ at: D.stamp(), by: u.id, from, to: newRole, reason: String(opts.reason || '').trim() });
       P.reindex();
-      audit(u, P.LEVEL[newRole] > P.LEVEL[from] ? 'Promoção' : 'Rebaixamento de função', x.id, x.name + ': ' + P.ROLES[from] + ' → ' + P.ROLES[newRole] + (deptId ? ' (' + P.dept(deptId).name + ')' : '') + (opts.reason ? ' · motivo: ' + opts.reason : '') + (notes.length ? ' · ' + notes.join('; ') : ''));
+      audit(u, P.LEVEL[newRole] > P.LEVEL[from] ? 'Promoção' : 'Rebaixamento de função', x.id, x.name + ': ' + P.ROLES[from] + ' → ' + P.ROLES[newRole] + (deptId ? ' (' + (P.dept(deptId) || { name: '—' }).name + ')' : '') + (opts.reason ? ' · motivo: ' + opts.reason : '') + (notes.length ? ' · ' + notes.join('; ') : ''));
       P.store.save();
       return { user: x, notes };
     },
@@ -1662,7 +1662,7 @@ window.P = window.P || {};
      * nunca notas, ranking ou números de desempenho. Cada pessoa vê o mural do próprio departamento; gerente e diretoria, todos.
      */
     teamWall(u, deptId) {
-      let list = (db().recognitions || []).filter(r => r.shared && (P.user(r.userId) || {}).active !== false);
+      let list = (db().recognitions || []).filter(r => r.shared && P.user(r.userId) && P.user(r.userId).active !== false);
       if (!P.isGlobal(u)) list = list.filter(r => r.deptId === u.deptId);
       else if (deptId) list = list.filter(r => r.deptId === deptId);
       return list.sort((a, b) => a.at < b.at ? 1 : -1).map(r => ({ id: r.id, userId: r.userId, deptId: r.deptId, by: r.by, date: r.date, category: r.category, text: r.text }));

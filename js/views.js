@@ -105,6 +105,8 @@
     </div>`;
   };
   V.avatar = (u, size = '') => {
+    // pessoa removida do sistema ou ainda não carregada: mostra um marcador em vez de quebrar a tela
+    if (!u || !u.id) u = { id: '?', name: (u && u.name) || '?' };
     const ini = (u.name || '?').split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase();
     const hue = [...u.id].reduce((a, c) => a + c.charCodeAt(0), 0) % 5 + 1;
     // Foto de perfil, se houver; senão, as iniciais
@@ -122,7 +124,7 @@
         ${m ? `<b>${esc(m.name)}</b><span>${m.role === 'admin' ? 'Diretor(a) e gestor(a) do departamento · ' : ''}<a href="mailto:${esc(m.email)}">${esc(m.email)}</a></span>` : '<b>Departamento sem gestor no momento</b><span>Enquanto isso, procure o gerente do escritório.</span>'}
       </div></div>`;
   };
-  V.person = (u, sub) => `<span class="person">${V.avatar(u)}<span><b>${esc(u.name)}</b>${sub !== false ? `<small>${esc(sub || u.title || '')}</small>` : ''}</span></span>`;
+  V.person = (u, sub) => (u = u || { id: '?', name: 'Pessoa removida' }, `<span class="person">${V.avatar(u)}<span><b>${esc(u.name)}</b>${sub !== false ? `<small>${esc(sub || u.title || '')}</small>` : ''}</span></span>`);
   V.kpi = (label, value, o = {}) => `
     <div class="kpi${o.hero ? ' hero' : ''}${o.go ? ' clickable' : ''}" ${o.go ? `data-go="${o.go}" role="link" tabindex="0"` : ''}>
       <div class="kpi-top"><span class="kpi-label">${label}</span>${o.icon ? icon(o.icon, 'kpi-ic') : ''}</div>
@@ -220,7 +222,7 @@
         const spark = M.weekly([r.user], 8, false).map(w => w.points);
         return `<tr class="clickable" data-go="funcionario/${r.user.id}" tabindex="0" role="link">
           <td>${V.person(r.user)}</td>
-          ${o.dept ? `<td>${esc(P.dept(r.user.deptId).name)}</td>` : ''}
+          ${o.dept ? `<td>${esc((P.dept(r.user.deptId) || { name: '—' }).name)}</td>` : ''}
           <td class="num strong">${F.n(r.points)}</td>
           <td class="num">${F.n(r.capacity)}</td>
           <td class="util-col"><div class="util-cell"><span class="num">${F.pct(r.util)}</span>${V.progress(r.util, { status: r.status })}</div></td>
@@ -338,7 +340,7 @@
           <div class="seg sm" role="group">${[['semana', 'Semana'], ['mes', 'Mês'], ['3m', '3 meses'], ['6m', '6 meses']].map(([k, l]) => `<button type="button" class="${S.cmp === k ? 'on' : ''}" data-act="cmp" data-key="${k}">${l}</button>`).join('')}</div>
           ${V.compareBody(cmp)}`, { sub: cmp.labelA + ' × ' + cmp.labelB }); } },
       { id: 'atividades', title: 'Distribuição das atividades', size: 'half', html: () => { const acts = M.byActivity(emps, p); return V.card('Distribuição das atividades', acts.rows.length ? C.hbars(acts.rows.slice(0, 8).map(r => ({ label: r.act.name, value: r.points, valueLabel: F.n(r.points) + ' pts · ' + F.pct0(r.share), tip: `${r.act.name}: ${F.n(r.qty, 2)} ${r.act.unit} × ${F.n(r.act.weight, 2)} = ${F.n(r.points)} pts` }))) : V.empty('Sem lançamentos no período.'), { sub: 'Onde o esforço da equipe está concentrado · ' + p.label }); } },
-      { id: 'aprovacoes', title: 'Aprovações pendentes', size: 'half', html: () => { const pend = api.entries(u, { status: 'pendente' }).filter(e => e.userId !== u.id).slice(-5).reverse(); return V.card('Aprovações pendentes', pend.length ? `<ul class="plist">${pend.map(e => `<li>${V.avatar(P.user(e.userId))}<div><b>${esc(P.user(e.userId).name)}</b><small>${esc(P.act(e.activityId).name)} · ${F.n(e.qty, 2)} × ${F.n(e.weight, 2)} = <b>${F.n(e.points, 2)} pts</b> · ${D.relative(e.date)}</small></div><div class="row-actions">${V.ibtn('check', 'Aprovar', { act: 'review', attrs: `data-id="${e.id}" data-op="aprovar"`, cls: 'ok' })}</div></li>`).join('')}</ul>` : V.empty('Nenhum lançamento aguardando aprovação.', 'check'), { actions: V.btn('Abrir fila', { go: 'lancamentos', cls: 'ghost sm', icon: 'right' }), sub: goal ? 'Meta mensal do departamento: ' + F.n(goal.target) + ' pts' : '' }); } }
+      { id: 'aprovacoes', title: 'Aprovações pendentes', size: 'half', html: () => { const pend = api.entries(u, { status: 'pendente' }).filter(e => e.userId !== u.id).slice(-5).reverse(); return V.card('Aprovações pendentes', pend.length ? `<ul class="plist">${pend.map(e => `<li>${V.avatar(P.user(e.userId))}<div><b>${esc((P.user(e.userId) || { name: '—' }).name)}</b><small>${esc((P.act(e.activityId) || { name: '—' }).name)} · ${F.n(e.qty, 2)} × ${F.n(e.weight, 2)} = <b>${F.n(e.points, 2)} pts</b> · ${D.relative(e.date)}</small></div><div class="row-actions">${V.ibtn('check', 'Aprovar', { act: 'review', attrs: `data-id="${e.id}" data-op="aprovar"`, cls: 'ok' })}</div></li>`).join('')}</ul>` : V.empty('Nenhum lançamento aguardando aprovação.', 'check'), { actions: V.btn('Abrir fila', { go: 'lancamentos', cls: 'ghost sm', icon: 'right' }), sub: goal ? 'Meta mensal do departamento: ' + F.n(goal.target) + ' pts' : '' }); } }
     ]);
   };
   /* Painel individual: usado em "Meu desempenho" e no perfil do colaborador */
@@ -354,7 +356,8 @@
     const goals = P.store.db.goals.filter(g => g.scope === 'employee' && g.refId === emp.id);
     const st = M.overloadStreak(emp);
     const ins = own ? [] : P.insights(viewer, emp.deptId).filter(i => i.emp === emp.id);
-    const dept = P.dept(emp.deptId);
+    // diretoria e gerência não têm departamento: usa o nome do perfil no lugar
+    const dept = P.dept(emp.deptId) || { id: null, name: P.ROLES[emp.role] || '—', code: '' };
     // Capacidade, utilização e status de carga: só gestores, gerente e diretoria
     const load = P.seesLoad(viewer);
 
@@ -457,6 +460,9 @@
 
   V.funcionario = (u, id) => {
     const emp = api.employee(u, id);
+    // diretoria, gerência e departamento de apoio não têm produção individual (pontos/capacidade)
+    if (P.isGlobal(emp) || P.isSupport(emp)) return `${V.pageHead(esc(emp.name), esc(P.ROLES[emp.role]) + (P.dept(emp.deptId) ? ' · ' + esc(P.dept(emp.deptId).name) : ''))}
+      ${V.card('', V.empty(P.isSupport(emp) ? 'Departamento de apoio: fora dos indicadores de produção.' : 'Diretoria e gerência não têm painel de produção individual. Veja os números da equipe no Dashboard.', 'info') + `<div style="text-align:center;padding-bottom:16px">${V.btn('Ir para o Dashboard', { go: 'dashboard', icon: 'grid', cls: 'sm' })}</div>`)}`;
     return V.dashEmployee(u, emp, u.id === emp.id);
   };
 

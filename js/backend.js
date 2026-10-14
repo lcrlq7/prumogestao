@@ -257,7 +257,8 @@
     subscribe();
     return me;
   };
-  const signOutQuiet = async () => { unsubscribe(); try { await sb.auth.signOut(); } catch (e) { } session = null; P.store.db = P.emptyDb(); snap = {}; privSnap = {}; P.reindex(); };
+  let leaving = false; // saída pedida pela pessoa (não é sessão expirada)
+  const signOutQuiet = async () => { unsubscribe(); leaving = true; try { await sb.auth.signOut(); } catch (e) { } finally { setTimeout(() => { leaving = false; }, 0); } session = null; P.store.db = P.emptyDb(); snap = {}; privSnap = {}; P.reindex(); };
   // Links de convite e de recuperação: guardados antes de o Supabase limpar o endereço
   const urlFlow = /type=invite|[?&]convite=1/.test(location.href) ? 'invite' : /type=recovery|[?&]recuperar=1/.test(location.href) ? 'recovery' : null;
 
@@ -332,12 +333,22 @@
       const { error } = await sb.functions.invoke('admin-users', { body: { action: enabled ? 'enable' : 'disable', userId } });
       if (error) throw new Error(error.message);
     },
-    reload: async () => { await loadAll(); refreshUser(); }
+    // recarrega só com sessão válida (sem login, o banco recusaria tudo)
+    reload: async () => { if (!session) return; await loadAll(); refreshUser(); }
   };
   sb.auth.onAuthStateChange((event, s) => {
     if (event === 'PASSWORD_RECOVERY') { session = s; P.backend.flow = 'recovery'; if (P.state) { P.state.user = null; P.state.authMode = 'newpass'; P.render && P.render(); } }
     else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') session = s || session;
-    else if (event === 'SIGNED_OUT') { session = null; }
+    else if (event === 'SIGNED_OUT') {
+      session = null;
+      // sessão expirou com o site aberto: volta ao login avisando (senão as alterações deixariam de ser salvas em silêncio)
+      if (!leaving && P.state && P.state.user) {
+        unsubscribe(); P.state.user = null; P.state.authMode = 'login';
+        P.state.loginErr = 'Sua sessão expirou. Entre novamente para continuar (alterações não salvas podem precisar ser refeitas).';
+        P.store.db = P.emptyDb(); snap = {}; privSnap = {}; P.reindex();
+        if (P.render) P.render();
+      }
+    }
   });
 
   /* ---------- Ajustes de regras de negócio para o modo real ---------- */

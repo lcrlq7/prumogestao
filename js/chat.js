@@ -56,7 +56,7 @@
       const ok = canChat(u, o);
       // conversa não permitida pelas regras e sem histórico: não existe para quem consulta
       if (!ok && !msgs().some(m => m.conv === conv)) return null;
-      return { id: conv, dm: true, other: o, name: o.name, desc: P.ROLES[o.role] + (P.dept(o.deptId) ? ' · ' + P.dept(o.deptId).name : ''), canPost: () => ok, readonly: !ok, members: () => [u, o] };
+      return { id: conv, dm: true, other: o, name: o.name, desc: P.ROLES[o.role] + (P.dept(o.deptId) ? ' · ' + (P.dept(o.deptId) || { name: '—' }).name : ''), canPost: () => ok, readonly: !ok, members: () => [u, o] };
     }
     return channelsFor(u).find(c => c.id === conv) || null;
   };
@@ -191,7 +191,7 @@
         ${channels.filter(ch => match(ch.name)).map(ch => item(ch.id, ch.name, ch.desc, ch.icon)).join('') || '<p class="cv-none">Nenhum canal.</p>'}
         <div class="cv-g" style="display:flex;align-items:center;justify-content:space-between;gap:6px">Conversas privadas<button type="button" class="btn sm ghost" data-act="chatNewDm" title="Conversar em privado com qualquer pessoa">${icon('plus')}<span>Nova</span></button></div>
         ${dms.filter(d => match(d.name)).map(d => item(d.id, d.name, d.desc, 'user', d.other)).join('')}
-        ${(q ? contacts.filter(x => match(x.name)) : []).map(x => `<button type="button" class="cv new" data-act="chatOpen" data-id="${esc(dmId(u.id, x.id))}">${V.avatar(x)}<span class="cv-t"><b>${esc(x.name)}</b><small>${esc(P.ROLES[x.role] + (P.dept(x.deptId) && x.role !== 'admin' && x.role !== 'office' ? ' · ' + P.dept(x.deptId).name : ''))}</small></span><span class="cv-start">${icon('plus')}</span></button>`).join('')}
+        ${(q ? contacts.filter(x => match(x.name)) : []).map(x => `<button type="button" class="cv new" data-act="chatOpen" data-id="${esc(dmId(u.id, x.id))}">${V.avatar(x)}<span class="cv-t"><b>${esc(x.name)}</b><small>${esc(P.ROLES[x.role] + (P.dept(x.deptId) && x.role !== 'admin' && x.role !== 'office' ? ' · ' + (P.dept(x.deptId) || { name: '—' }).name : ''))}</small></span><span class="cv-start">${icon('plus')}</span></button>`).join('')}
         ${!dms.length && !q ? '<p class="cv-none">Nenhuma conversa privada ainda. Clique em <b>Nova</b> para escolher uma pessoa.</p>' : ''}
       </div>
     </aside>`;
@@ -267,7 +267,7 @@
     const people = active().filter(x => canChat(u, x))
       .sort((a, b) => (b.deptId === u.deptId) - (a.deptId === u.deptId) || a.name.localeCompare(b.name));
     if (!people.length) return P.toast('Não há outras pessoas ativas no sistema.', 'err');
-    const sub = x => P.ROLES[x.role] + (P.dept(x.deptId) ? ' · ' + P.dept(x.deptId).name : '');
+    const sub = x => P.ROLES[x.role] + (P.dept(x.deptId) ? ' · ' + (P.dept(x.deptId) || { name: '—' }).name : '');
     const row = x => `<button type="button" class="cv new" data-act="chatPickDm" data-id="${esc(x.id)}" data-q="${esc((x.name + ' ' + sub(x)).toLowerCase())}">${V.avatar(x)}<span class="cv-t"><b>${esc(x.name)}</b><small>${esc(sub(x))}</small></span><span class="cv-start">${icon('message')}</span></button>`;
     P.ui.modal({
       title: 'Nova conversa privada', cancel: 'Fechar',

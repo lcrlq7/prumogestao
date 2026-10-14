@@ -83,10 +83,10 @@
   // Detalhe no painel lateral
   V.agendaItem = (u, e) => {
     const isMeet = e.type === 'reuniao', parts = (e.participants || []).map(id => P.user(id)).filter(Boolean), org = P.user(e.createdBy);
-    if (e.type === 'prazo') return `<div class="evt prazo">${icon('clock')}<span><b>${esc(e.title)}</b><small>${e.deptId ? esc(P.dept(e.deptId).name) : 'Todos os departamentos'} · Prazo</small></span></div>`;
+    if (e.type === 'prazo') return `<div class="evt prazo">${icon('clock')}<span><b>${esc(e.title)}</b><small>${e.deptId ? esc((P.dept(e.deptId) || { name: '—' }).name) : 'Todos os departamentos'} · Prazo</small></span></div>`;
     return `<div class="evt ${e.type}">${icon(isMeet ? 'users' : 'calendar')}<span>
       <b>${esc(e.title)}</b>
-      <small>${KIND[e.type] || 'Evento'}${e.start ? ' · ' + e.start + (e.end ? '–' + e.end : '') : ''}${e.place ? ' · ' + esc(e.place) : ''}${!e.participants ? ' · ' + (e.deptId ? esc(P.dept(e.deptId).name) : 'Todos os departamentos') : ''}</small>
+      <small>${KIND[e.type] || 'Evento'}${e.start ? ' · ' + e.start + (e.end ? '–' + e.end : '') : ''}${e.place ? ' · ' + esc(e.place) : ''}${!e.participants ? ' · ' + (e.deptId ? esc((P.dept(e.deptId) || { name: '—' }).name) : 'Todos os departamentos') : ''}</small>
       ${e.notes ? `<em class="evt-comment">${esc(e.notes)}</em>` : ''}
       ${parts.length ? `<span class="evt-people" title="${esc(parts.map(p => p.name).join(', '))}">${parts.slice(0, 6).map(p => V.avatar(p, 'xs')).join('')}${parts.length > 6 ? `<em>+${parts.length - 6}</em>` : ''}<small>${org ? 'por ' + esc(P.firstName(org.name)) + ' · ' : ''}${parts.length} participante${parts.length > 1 ? 's' : ''}</small></span>` : ''}
       ${canEdit(u, e) ? `<span class="evt-acts">${V.btn('Editar', { act: 'agendaEdit', cls: 'sm ghost', icon: 'edit', attrs: `data-id="${e.id}"` })}${V.btn('Cancelar', { act: 'agendaCancel', cls: 'sm ghost', icon: 'x', attrs: `data-id="${e.id}"` })}</span>` : ''}

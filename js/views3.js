@@ -17,7 +17,7 @@
       const load = P.seesLoad(u); // o funcionário não vê capacidade, utilização nem classificação de carga
       return {
         kind: 'individual', title: 'Relatório individual', subject: emp.name, p, load,
-        meta: [['Funcionário', emp.name], ['Departamento', P.dept(emp.deptId).name], ['Cargo', emp.title || '—'], ['Período', p.label + ' (' + D.fmt(p.s) + ' a ' + D.fmt(p.e) + ')']].concat(load ? [['Capacidade semanal', F.n(emp.capacity) + ' pts']] : []),
+        meta: [['Funcionário', emp.name], ['Departamento', (P.dept(emp.deptId) || { name: '—' }).name], ['Cargo', emp.title || '—'], ['Período', p.label + ' (' + D.fmt(p.s) + ' a ' + D.fmt(p.e) + ')']].concat(load ? [['Capacidade semanal', F.n(emp.capacity) + ' pts']] : []),
         summary: load ? [['Pontos', F.n(st.points)], ['Capacidade no período', F.n(st.capacity)], ['Utilização', F.pct(st.util)], ['Classificação', V.STATUS[st.status].label], ['Atividades (unidades)', F.n(st.tasks)], ['Lançamentos', F.n(st.n)]]
           : [['Pontos', F.n(st.points)], ['Atividades (unidades)', F.n(st.tasks)], ['Lançamentos', F.n(st.n)]],
         acts, evo, insights: ins,
@@ -145,7 +145,7 @@
         ${V.card('Minha conta', `<dl class="kv">
           <div><dt>E-mail</dt><dd>${esc(u.email)}</dd></div>
           <div><dt>Perfil de acesso</dt><dd>${P.ROLES[u.role]}</dd></div>
-          <div><dt>Departamento</dt><dd>${u.deptId ? esc(P.dept(u.deptId).name) : 'Todos (acesso global)'}</dd></div>
+          <div><dt>Departamento</dt><dd>${u.deptId ? esc((P.dept(u.deptId) || {}).name || '—') : 'Todos (acesso global)'}</dd></div>
           ${!P.isGlobal(u) && u.deptId ? `<div><dt>Gestor(a) responsável</dt><dd>${V.deptManager(u.deptId) ? (V.deptManager(u.deptId).id === u.id ? 'Você' : esc(V.deptManager(u.deptId).name)) : 'Sem gestor no momento'}</dd></div>` : ''}
           ${u.role === 'manager' ? `<div><dt>Capacidade semanal</dt><dd>${F.n(u.capacity)} pontos</dd></div>` : ''}
         </dl>`)}
@@ -155,6 +155,14 @@
             <div class="pref-btns">${V.btn('Rever o tour', { act: 'startTour', icon: 'zap', cls: 'sm ghost' })}${V.btn('Atalhos de teclado', { act: 'shortcuts', icon: 'help', cls: 'sm ghost' })}</div>
           </div>`)}
       </div>
+      ${V.card('Notificações no computador', (() => {
+        const d = P.desktop; if (!d || !d.supported()) return '<p class="prose">Este navegador não permite notificações no computador. Use o Chrome ou o Edge atualizados.</p>';
+        const perm = d.permission(), on = d.enabled();
+        return `<p class="prose">${on ? '<span class="badge es-aprovado">' + icon('check') + 'Ativadas neste computador</span>' : perm === 'denied' ? '<span class="badge es-recusado">' + icon('x') + 'Bloqueadas pelo navegador</span>' : '<span class="badge st-sem">Desativadas</span>'}</p>
+          <p class="prose">Aprovações, férias, OS, solicitações de compra, mensagens e demais avisos aparecem no canto da tela do Windows, mesmo com o Prumo minimizado ou em outra aba. O site precisa estar aberto no navegador.</p>
+          ${perm === 'denied' ? '<p class="fine">Para liberar: clique no cadeado ao lado do endereço do site → Notificações → Permitir, e recarregue a página.</p>' : ''}
+          <div class="pref-btns">${on ? V.btn('Enviar um teste', { act: 'deskTest', icon: 'bell', cls: 'sm' }) + V.btn('Desativar', { act: 'deskOff', icon: 'x', cls: 'sm ghost' }) : perm === 'denied' ? '' : V.btn('Ativar notificações', { act: 'deskOn', icon: 'bell', cls: 'sm primary' })}</div>`;
+      })())}
       ${V.card('Metodologia de pontos', !P.seesLoad(u) ? `<div class="prose">
         <p><b>1 ponto ≈ 1 hora média de trabalho.</b> Cada lançamento gera pontos pela fórmula <code>quantidade × peso da atividade</code>. O peso fica gravado no lançamento, então recalibrações não alteram o passado.</p>
         <p>Os pesos são revisados periodicamente pela gestão, com base no tempo real das atividades. Cada ajuste fica registrado com data, autor e motivo.</p></div>` : `<div class="prose">
@@ -241,7 +249,7 @@
         <label class="field"><span>Situação</span><select id="ef-st" data-set="empFilter.status"><option value="">Ativos</option><option value="inativo" ${f.status === 'inativo' ? 'selected' : ''}>Desligados</option></select></label>
       </div></div></section>
       ${V.card('', `<div class="table-wrap"><table class="tbl"><thead><tr><th>Funcionário</th><th>E-mail</th><th>Departamento</th><th>Gestor(a)</th><th class="num">Jornada</th><th class="num">Capacidade</th><th>Situação</th><th class="actions-col"></th></tr></thead>
-        <tbody>${list.map(e => { const d = P.dept(e.deptId); return `<tr class="${e.active === false ? 'inactive' : ''}"><td>${V.person(e)}</td><td>${esc(e.email)}</td><td>${d ? esc(d.name) : '—'}</td><td>${d && P.user(d.managerId) ? esc(P.user(d.managerId).name) : '—'}</td><td class="num">${e.hours || 40}h</td><td class="num">${F.n(e.capacity)} pts</td><td>${V.userStatus(e)}</td>
+        <tbody>${list.map(e => { const d = P.dept(e.deptId); return `<tr class="${e.active === false ? 'inactive' : ''}"><td>${V.person(e)}</td><td>${esc(e.email)}</td><td>${d ? esc(d.name) : '—'}</td><td>${d && P.user(d.managerId) ? esc((P.user(d.managerId) || { name: '—' }).name) : '—'}</td><td class="num">${e.hours || 40}h</td><td class="num">${F.n(e.capacity)} pts</td><td>${V.userStatus(e)}</td>
           <td class="actions-col"><div class="row-actions">${P.canManageUser(u, e) ? V.ibtn('edit', 'Editar', { act: 'editUser', attrs: `data-id="${e.id}"` }) : ''}${P.canChangeRole(u, e) ? V.ibtn('shield', 'Promover ou rebaixar', { act: 'changeRole', attrs: `data-id="${e.id}"` }) : ''}${e.active !== false ? V.ibtn('right', 'Abrir painel', { attrs: `data-go="funcionario/${e.id}"` }) : ''}${V.dismissBtns(u, e)}</div></td></tr>`; }).join('')}</tbody></table></div>`, { cls: 'flush', sub: list.length + ' registros' })}`;
   };
 
@@ -268,9 +276,9 @@
     return `${V.pageHead('Pesos das Atividades', 'Tabela de pesos por departamento. 1 ponto ≈ 1 hora média de trabalho.', editable ? V.btn('Nova atividade', { act: 'editActivity', icon: 'plus', cls: 'primary' }) : '')}
       ${global ? `<div class="toolbar">${V.tabs(api.departments(u).map(d => [d.id, esc(d.name), api.activities(u, d.id, true).length]), deptId, 'pesoDept')}</div>` : ''}
       <div class="banner info">${icon('scale')}<div><b>Os pesos não são definitivos.</b> Recomendação: registrar o tempo das atividades por 2 semanas, usar a mediana e revisar os pesos periodicamente. Mudanças valem para novos lançamentos e ficam registradas abaixo.</div></div>
-      ${V.card('Banco de Atividades · ' + esc(P.dept(deptId).name), V.weightTable(u, deptId, editable), { cls: 'flush-b', sub: global ? '' : 'Você altera os pesos do seu departamento. Cada mudança de peso exige um motivo e fica no histórico.' })}
+      ${V.card('Banco de Atividades · ' + esc((P.dept(deptId) || { name: '—' }).name), V.weightTable(u, deptId, editable), { cls: 'flush-b', sub: global ? '' : 'Você altera os pesos do seu departamento. Cada mudança de peso exige um motivo e fica no histórico.' })}
       ${V.card('Evolução dos pesos', hist.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Atividade</th><th class="num">Peso anterior</th><th class="num">Novo peso</th><th>Data</th><th>Alterado por</th><th>Motivo</th></tr></thead>
-        <tbody>${hist.map(h => `<tr><td><b>${esc(P.act(h.activityId).name)}</b></td><td class="num">${h.from == null ? '—' : F.n(h.from, 2)}</td><td class="num strong">${F.n(h.to, 2)} ${h.from != null ? V.delta((h.to - h.from) / h.from * 100) : ''}</td><td class="nowrap">${D.fmt(h.at)}</td><td>${esc((P.user(h.by) || {}).name || '—')}</td><td>${esc(h.reason)}</td></tr>`).join('')}</tbody></table></div>` : V.empty('Nenhuma alteração registrada para este departamento.'), { cls: 'flush-b' })}`;
+        <tbody>${hist.map(h => `<tr><td><b>${esc((P.act(h.activityId) || { name: '—' }).name)}</b></td><td class="num">${h.from == null ? '—' : F.n(h.from, 2)}</td><td class="num strong">${F.n(h.to, 2)} ${h.from != null ? V.delta((h.to - h.from) / h.from * 100) : ''}</td><td class="nowrap">${D.fmt(h.at)}</td><td>${esc((P.user(h.by) || {}).name || '—')}</td><td>${esc(h.reason)}</td></tr>`).join('')}</tbody></table></div>` : V.empty('Nenhuma alteração registrada para este departamento.'), { cls: 'flush-b' })}`;
   };
 
   V.gerais = u => {
