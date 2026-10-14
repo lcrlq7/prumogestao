@@ -139,7 +139,8 @@
     const pick = c => { inp.value = c.name; x.hidden = false; close(); };
     const mark = () => ul.querySelectorAll('li[data-i]').forEach(li => li.classList.toggle('on', Number(li.dataset.i) === hi));
     // clicar ou focar: lista completa (mesmo com uma empresa já escolhida, para poder trocar)
-    inp.addEventListener('focus', () => { inp.select(); draw(''); });
+    // a lista abre ao clicar ou digitar (não sozinha quando a janela abre)
+    inp.addEventListener('focus', () => inp.select());
     inp.addEventListener('click', () => { if (ul.hidden) draw(''); });
     inp.addEventListener('input', () => { x.hidden = !inp.value; draw(inp.value); });
     inp.addEventListener('keydown', e => {
