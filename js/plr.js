@@ -72,7 +72,7 @@
       P.backend.client.rpc('plr_summary', { p_start: D.iso(cycle().start) }).then(({ data, error }) => {
         loading = false; if (error || !data) return;
         const changed = JSON.stringify(data) !== JSON.stringify(summary); summary = data;
-        if (changed && S().user && ['dashboard', 'plr'].includes(S().route.page) && (!$('#modal-root') || $('#modal-root').hidden)) P.render();
+        if (changed && S().user && ['dashboard', 'plr', 'financeiro'].includes(S().route.page) && (!$('#modal-root') || $('#modal-root').hidden)) P.render();
       }, () => { loading = false; });
     },
     get summary() { if (!summary || !P.isLive) P.plr.refresh(); return summary; },

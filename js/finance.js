@@ -38,7 +38,7 @@
   const profileOf = uid => profiles().find(p => p.id === uid);
   const audit = (u, action, target, details) => P.audit(u, 'Financeiro: ' + action, target, details);
 
-  const CATS = { passagem: 'Passagem', aluguel: 'Aluguel', servicos: 'Serviços', material: 'Material', impostos: 'Impostos', beneficios: 'Benefícios', outros: 'Outros' };
+  const CATS = { passagem: 'Passagem', aluguel: 'Aluguel', servicos: 'Serviços', material: 'Material', impostos: 'Impostos', beneficios: 'Benefícios', plr: 'PLR', outros: 'Outros' };
   const PERIODS = { semanal: 'Semanal', quinzenal: 'Quinzenal', mensal: 'Mensal' };
   const PIX_TYPES = { cpf: 'CPF', cnpj: 'CNPJ', email: 'E-mail', telefone: 'Telefone', aleatoria: 'Chave aleatória' };
   const WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -179,6 +179,24 @@
           updated++;
         });
       });
+      // provisão da PLR: um lançamento por pessoa, a pagar em dezembro do ano do ciclo; acompanha o rateio até ser pago/fechado
+      if (P.plr && P.plr.summary) {
+        const t = P.plr.table(), cs = D.iso(t.cyc.start), due = t.cyc.payYear + '-12-20';
+        t.people.forEach(({ x, a }) => {
+          const key = 'plr|' + cs + '|' + x.id, val = Math.round(a.total * t.avoProj), e = byKey.get(key);
+          const calc = { plr: true, avos: a.total, avo: Math.round(t.avoProj), ciclo: t.cyc.label };
+          if (!e) {
+            if (!val) return;
+            const p = profileOf(x.id), n = { id: P.uid('fe'), key, recId: null, userId: x.id, deptId: x.deptId || null, desc: 'PLR ' + t.cyc.payYear + ' — ' + x.name + ' (' + a.total + '/12 avos)',
+              category: 'plr', a: due, b: due, due, original: val, vacAdj: 0, otherAdj: 0, final: val, calc, paid: 0, paidAt: null, closed: false, adjustments: [],
+              history: [{ at: D.stamp(), action: 'Provisão da PLR gerada', value: val }], payMethod: 'pix', pixType: p ? p.pixType : '', pixKey: p ? p.pixKey : '', holder: p ? p.holder : '' };
+            entries().push(n); byKey.set(key, n); created++; return;
+          }
+          if (e.canceled || e.paid > 0 || e.closed || e.final === val) return;
+          e.history.push({ at: D.stamp(), action: 'Provisão da PLR recalculada', from: e.final, value: val });
+          Object.assign(e, { original: val, final: val, calc, desc: 'PLR ' + t.cyc.payYear + ' — ' + x.name + ' (' + a.total + '/12 avos)' }); updated++;
+        });
+      }
       if ((created || updated || flagged) && !opts.noSave) P.store.save();
       return { created, updated, flagged };
     },
