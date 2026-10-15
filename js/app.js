@@ -49,10 +49,19 @@
     if (r.q.dept && S.user && P.isGlobal(S.user)) S.dept = r.q.dept;
     S.route = r; S.navOpen = false;
     const h = '#/' + r.page + (r.id ? '/' + r.id : '');
-    try { if (location.hash !== h) history.replaceState(null, '', h); } catch (e) { }
+    // cada página vira um passo no histórico: as setas voltar/avançar do navegador funcionam dentro do site
+    try { if (location.hash !== h) history.pushState(null, '', h); } catch (e) { }
     render(true);
   };
-  window.addEventListener('hashchange', () => { if (S.user) { S.route = parse(location.hash); render(true); } });
+  const fromUrl = () => {
+    if (!S.user) return;
+    const r = parse(location.hash);
+    if (r.page === S.route.page && (r.id || null) === (S.route.id || null)) return;
+    if ($('#modal-root') && !$('#modal-root').hidden) closeModal();
+    S.route = r; S.navOpen = false; render(true);
+  };
+  window.addEventListener('popstate', fromUrl);
+  window.addEventListener('hashchange', fromUrl);
 
   /* ---------- Layout ---------- */
   function navItems(u) {
