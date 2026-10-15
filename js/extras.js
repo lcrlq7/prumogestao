@@ -100,7 +100,7 @@
       // só quando o site não está na frente (evita aviso duplicado com o pop-up da tela)
       if (!force && document.visibilityState === 'visible' && document.hasFocus()) return;
       try {
-        const note = new Notification(n.title || 'Prumo', { body: n.text || '', tag: n.id || (n.title + '|' + (n.text || '')), icon: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0f2233"/><path d="M32 10v14M32 24l12 15-12 15-12-15z" fill="none" stroke="#e0a63a" stroke-width="5" stroke-linejoin="round"/></svg>') });
+        const note = new Notification(n.title || 'Prumo', { body: n.text || '', tag: n.id || (n.title + '|' + (n.text || '')), icon: 'icon-512.png' });
         note.onclick = () => { window.focus(); if (n.id) openNotif(n.id); else if (n.onClick) n.onClick(); note.close(); };
       } catch (e) { /* alguns navegadores só permitem notificação via service worker */ }
     }
