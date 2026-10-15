@@ -197,7 +197,8 @@
   window.addEventListener('beforeunload', ev => { if (timer || saving) { ev.preventDefault(); ev.returnValue = ''; } });
 
   /* ---------- Tempo real ---------- */
-  const LIVE = ['notifications', 'messages', 'vacations', 'events', 'tasks', 'entries', 'recognitions', 'chat_reads'];
+  // tempo real em todas as tabelas (cada pessoa só recebe o que as regras de acesso do banco permitem ver)
+  const LIVE = [...new Set(COLLECTIONS.flatMap(c => [c.table].concat(c.priv ? [c.priv.table] : [])))];
   let channel = null, pending = {}, rtTimer = null;
   function subscribe() {
     unsubscribe();
@@ -212,6 +213,8 @@
   }
   function unsubscribe() { if (channel) { sb.removeChannel(channel); channel = null; } }
   async function applyRemote() {
+    // com alteração local ainda sendo salva, espera (para não sobrescrever o que a pessoa acabou de fazer)
+    if (timer || saving) { clearTimeout(rtTimer); rtTimer = setTimeout(applyRemote, 600); return; }
     const work = pending; pending = {};
     const added = { notifications: [], messages: [] };
     for (const [table, idsSet] of Object.entries(work)) {
@@ -223,6 +226,10 @@
       if (c.priv) { const r = await sb.from(c.priv.table).select('id, doc').in('id', ids); if (!r.error) privMap = new Map(r.data.map(x => [x.id, x.doc])); }
       const got = new Map(data.map(r => [r.id, c.priv && privMap.get(r.id) ? Object.assign({}, r.doc, privMap.get(r.id)) : r.doc]));
       const s = snap[c.key] = snap[c.key] || new Map();
+      if (c.single) {
+        const row = data[0]; if (row) { P.store.db.settings = Object.assign(P.store.db.settings || {}, row.doc); s.set(row.id, sj(row.doc)); }
+        continue;
+      }
       if (c.map) {
         const obj = P.store.db[c.key] = P.store.db[c.key] || {};
         ids.forEach(id => { if (got.has(id)) { const d = got.get(id); obj[id] = Array.isArray(d.ids) ? d.ids : d; s.set(id, sj(d)); } });

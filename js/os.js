@@ -36,7 +36,12 @@
   };
   const open = o => o.status === 'andamento' || o.status === 'aguardando' || o.status === 'aprovacao';
   const late = o => open(o) && o.status !== 'aprovacao' && o.due < D.iso(P.today());
-  const badge = o => `<span class="badge ${STATUS[o.status][1]}">${icon(STATUS[o.status][2])}${STATUS[o.status][0]}</span>${late(o) ? ' <span class="badge es-recusado">' + icon('alert') + 'Atrasada</span>' : ''}`;
+  // OS que dependeu da diretoria por inadimplência da empresa: isso fica explícito em todo lugar
+  const inadNote = o => o.status === 'aprovacao' ? 'Enviada à diretoria por inadimplência da empresa' + (P.delinq && P.delinq.describe(o.company) ? ' (' + P.delinq.describe(o.company) + ')' : '') + '. Aguardando a aprovação para seguir ao departamento.'
+    : o.needsApproval ? (/^Recusada pela diretoria/.test(o.reason || '') ? 'Recusada pela diretoria por inadimplência da empresa.' : 'Liberada pela diretoria (empresa estava inadimplente).') : '';
+  const badge = o => (o.status === 'aprovacao' ? `<span class="badge es-recusado">${icon('alert')}Aguardando diretoria · inadimplência</span>` : `<span class="badge ${STATUS[o.status][1]}">${icon(STATUS[o.status][2])}${STATUS[o.status][0]}</span>`)
+    + (o.needsApproval && o.status !== 'aprovacao' ? ' <span class="badge st-sem" title="' + esc(inadNote(o)) + '">' + icon('shield') + (/^Recusada/.test(o.reason || '') ? 'Recusada · inadimplência' : 'Liberada pela diretoria') + '</span>' : '')
+    + (late(o) ? ' <span class="badge es-recusado">' + icon('alert') + 'Atrasada</span>' : '');
   const notify = (ids, n) => { if (P.notify) P.notify([...new Set(ids)].filter(id => id && id !== U().id), Object.assign({ type: 'os', icon: 'clipboard', link: 'os' }, n)); };
   const deptPeople = deptId => db().users.filter(x => x.active !== false && x.deptId === deptId && (x.role === 'manager' || x.canOS)).map(x => x.id)
     .concat(((P.dept(deptId) || {}).managerId) || []);
@@ -55,8 +60,13 @@
     const title = canOpen(u) ? 'Solicitar OS' : 'Consultar OS';
     const sub = canOpen(u) ? 'Abra ordens de serviço para as empresas, acompanhe o andamento e conclua quando o trabalho for entregue.'
       : 'Consulte as ordens de serviço do seu departamento. Quem abre e conclui OS são a gestão e os colegas habilitados.';
+    const waitDir = all.filter(o => o.status === 'aprovacao');
     return `${V.pageHead(title, sub, canOpen(u) ? V.btn('Nova OS', { act: 'osNew', icon: 'plus', cls: 'primary' }) : '')}
+      ${waitDir.length ? `<div class="banner crit">${icon('alert')}<div><b>${waitDir.length} OS ${waitDir.length > 1 ? 'foram enviadas' : 'foi enviada'} à diretoria por inadimplência da empresa.</b>
+        ${u.role === 'admin' ? 'Aprove a continuidade ou recuse na aba "Aguardando diretoria · inadimplência".' : 'Elas só seguem para o departamento depois que a diretoria aprovar a continuidade.'}
+        <ul class="fin-alerts">${waitDir.slice(0, 5).map(o => `<li><b>${esc(o.code)}</b> · ${esc(o.company)} · empresa ${esc(P.delinq ? P.delinq.describe(o.company) || 'inadimplente' : 'inadimplente')}</li>`).join('')}</ul></div></div>` : ''}
       <div class="strip">
+        ${waitDir.length ? `<div class="t-warn"><span>Aguardando diretoria (inadimplência)</span><b>${waitDir.length}</b></div>` : ''}
         <div><span>Em aberto</span><b>${all.filter(open).length}</b></div>
         <div class="${all.some(late) ? 't-warn' : ''}"><span>Atrasadas</span><b>${all.filter(late).length}</b></div>
         <div><span>Aguardando cliente</span><b>${all.filter(o => o.status === 'aguardando').length}</b></div>
@@ -66,10 +76,10 @@
         <label class="field"><span>Buscar</span><input type="search" value="${esc(s.q)}" data-set="osv.q" data-live placeholder="Empresa, demanda, tipo ou nº"></label>
         ${P.isGlobal(u) ? `<label class="field"><span>Departamento</span><select data-set="osv.dept"><option value="">Todos</option>${depts.map(d => `<option value="${d.id}" ${s.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}
       </div></div></section>
-      <div class="toolbar">${V.tabs([].concat(tabs.diretoria.length || s.tab === 'diretoria' ? [['diretoria', 'Aguardando diretoria', tabs.diretoria.length]] : []).concat([['abertas', 'Em aberto', tabs.abertas.length], ['atrasadas', 'Atrasadas', tabs.atrasadas.length], ['aguardando', 'Aguardando cliente', tabs.aguardando.length], ['concluidas', 'Concluídas', tabs.concluidas.length], ['nao', 'Não concluídas', tabs.nao.length], ['todas', 'Todas', tabs.todas.length]]), s.tab, 'osv.tab')}</div>
+      <div class="toolbar">${V.tabs([].concat(tabs.diretoria.length || s.tab === 'diretoria' ? [['diretoria', 'Aguardando diretoria · inadimplência', tabs.diretoria.length]] : []).concat([['abertas', 'Em aberto', tabs.abertas.length], ['atrasadas', 'Atrasadas', tabs.atrasadas.length], ['aguardando', 'Aguardando cliente', tabs.aguardando.length], ['concluidas', 'Concluídas', tabs.concluidas.length], ['nao', 'Não concluídas', tabs.nao.length], ['todas', 'Todas', tabs.todas.length]]), s.tab, 'osv.tab')}</div>
       ${V.card('', shown.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Nº</th><th>Empresa</th><th>Demanda</th><th>Departamento</th><th>Tipo</th><th>Prazo</th><th>Situação</th><th>Aberta por</th><th class="actions-col"></th></tr></thead><tbody>
         ${shown.map(o => `<tr class="${o.status === 'nao_concluido' ? 'inactive' : ''}">
-          <td class="mono nowrap">${esc(o.code)}</td><td><b>${esc(o.company)}</b></td>
+          <td class="mono nowrap">${esc(o.code)}</td><td><b>${esc(o.company)}</b>${o.status === 'aprovacao' ? `<small class="obs" style="color:var(--bad,#c0392b)">${icon('alert')} Empresa inadimplente: aguardando a diretoria</small>` : ''}</td>
           <td>${esc(o.demand.length > 90 ? o.demand.slice(0, 90) + '…' : o.demand)}</td>
           <td>${esc((P.dept(o.deptId) || {}).name || '—')}</td><td>${esc(o.type)}</td>
           <td class="nowrap ${late(o) ? 'neg' : ''}">${D.fmt(o.due)}</td><td>${badge(o)}</td>
@@ -200,6 +210,7 @@
     const who = id => esc((P.user(id) || {}).name || '—');
     P.ui.modal({ title: esc(o.code + ' · ' + o.company), wide: true, cancel: 'Fechar',
       body: `<p class="prose">${badge(o)}</p>
+        ${inadNote(o) ? `<div class="banner ${o.status === 'aprovacao' ? 'crit' : 'info'} sm">${icon(o.status === 'aprovacao' ? 'alert' : 'shield')}<div><b>${esc(inadNote(o))}</b></div></div>` : ''}
         <dl class="rep-meta"><div><dt>Departamento</dt><dd>${esc((P.dept(o.deptId) || {}).name || '—')}</dd></div><div><dt>Tipo</dt><dd>${esc(o.type)}</dd></div><div><dt>Prazo</dt><dd>${D.fmt(o.due)}</dd></div><div><dt>Aberta por</dt><dd>${who(o.by)} · ${esc(o.at)}</dd></div></dl>
         <h4 class="sub-h">Demanda</h4><p class="prose">${esc(o.demand).replace(/\n/g, '<br>')}</p>
         ${o.status === 'nao_concluido' ? `<div class="banner warn sm">${icon('alert')}<div><b>Motivo de não conclusão:</b> ${esc(o.reason)}</div></div>` : ''}

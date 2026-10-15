@@ -76,6 +76,40 @@
   wrap('shareRecognition', (r, u) => { if (r.shared) P.notify(teamOf(r.deptId).filter(id => id !== r.userId && id !== u.id), { type: 'mural', icon: 'medal', title: 'Novo reconhecimento no mural', text: `${(P.user(r.userId) || { name: '—' }).name} foi reconhecido(a) em ${P.REC_CATEGORIES[r.category]}.`, link: 'mural' }); });
   wrap('saveTask', (t, u) => { if (t.userId !== u.id) P.notify([t.userId], { type: 'tarefa', icon: 'clipboard', title: 'Nova tarefa para você', text: `${t.title} · prazo ${D.fmt(t.due)} (atribuída por ${u.name}).`, link: 'atividades' }); });
 
+  /*
+   * Nova versão do site publicada: atualiza sozinho, sem precisar apertar F5.
+   * Confere version.json a cada minuto e quando a janela volta ao foco; se mudou, salva o que estiver pendente
+   * e recarrega. Se a pessoa estiver com uma janela aberta ou digitando, espera ela terminar.
+   */
+  (() => {
+    let current = null, waiting = false, warned = false;
+    const busy = () => {
+      const m = $('#modal-root'), a = document.activeElement;
+      return (m && !m.hidden) || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'checkbox' && String(a.value || '').length > 0);
+    };
+    const apply = async () => {
+      if (busy()) {
+        if (!warned && P.toast) { warned = true; P.toast('Há uma nova versão do Prumo. Ela será aplicada assim que você terminar o que está fazendo.'); }
+        setTimeout(apply, 4000); return;
+      }
+      try { if (P.backend && P.backend.flushNow) await P.backend.flushNow(); } catch (e) { }
+      location.reload();
+    };
+    const check = async () => {
+      try {
+        const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) return;
+        const v = (await r.json()).v;
+        if (current === null) { current = v; return; }
+        if (v && v !== current && !waiting) { waiting = true; apply(); }
+      } catch (e) { /* sem conexão: tenta de novo depois */ }
+    };
+    check();
+    setInterval(check, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    window.addEventListener('focus', check);
+  })();
+
   // Pop-up de notificação (canto da tela) e sino que balança
   const popBox = () => { let b = $('#notif-pop'); if (!b) { b = document.createElement('div'); b.id = 'notif-pop'; b.setAttribute('aria-live', 'polite'); document.body.appendChild(b); } return b; };
   /*
