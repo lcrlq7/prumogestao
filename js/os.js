@@ -21,18 +21,21 @@
   P.PAGES.os = ['admin', 'office', 'manager', 'employee'];
   const canOpen = u => !!u && u.active !== false && (['admin', 'office', 'manager'].includes(u.role) || (u.role === 'employee' && !!u.canOS));
   const canSeeOS = (u, o) => P.isGlobal(u) || o.by === u.id || o.deptId === u.deptId || (u.role === 'manager' && P.ledDept(u) && P.ledDept(u).id === o.deptId);
-  const canAct = (u, o) => canOpen(u) && canSeeOS(u, o);
+  // OS aguardando a diretoria (empresa inadimplente): só diretor decide; os demais só consultam
+  const canAct = (u, o) => o.status === 'aprovacao' ? false : canOpen(u) && canSeeOS(u, o);
+  const canDecide = (u, o) => o.status === 'aprovacao' && u.role === 'admin' && u.active !== false;
   const list = () => (db().serviceOrders = db().serviceOrders || []);
   const visible = u => list().filter(o => canSeeOS(u, o));
 
   const STATUS = {
+    aprovacao: ['Aguardando diretoria', 'es-pendente', 'shield'],
     andamento: ['Em andamento', 'es-pendente', 'clock'],
     aguardando: ['Aguardando retorno do cliente', 'es-correcao', 'message'],
     concluido: ['Concluída', 'es-aprovado', 'check'],
     nao_concluido: ['Não concluída', 'es-recusado', 'x']
   };
-  const open = o => o.status === 'andamento' || o.status === 'aguardando';
-  const late = o => open(o) && o.due < D.iso(P.today());
+  const open = o => o.status === 'andamento' || o.status === 'aguardando' || o.status === 'aprovacao';
+  const late = o => open(o) && o.status !== 'aprovacao' && o.due < D.iso(P.today());
   const badge = o => `<span class="badge ${STATUS[o.status][1]}">${icon(STATUS[o.status][2])}${STATUS[o.status][0]}</span>${late(o) ? ' <span class="badge es-recusado">' + icon('alert') + 'Atrasada</span>' : ''}`;
   const notify = (ids, n) => { if (P.notify) P.notify([...new Set(ids)].filter(id => id && id !== U().id), Object.assign({ type: 'os', icon: 'clipboard', link: 'os' }, n)); };
   const deptPeople = deptId => db().users.filter(x => x.active !== false && x.deptId === deptId && (x.role === 'manager' || x.canOS)).map(x => x.id)
@@ -46,7 +49,7 @@
     if (P.isSupport(u)) deny('Ordens de serviço não se aplicam ao seu departamento.');
     const s = st(), q = (s.q || '').toLowerCase(), all = visible(u);
     const filt = all.filter(o => (!s.dept || o.deptId === s.dept) && (!q || [o.company, o.demand, o.type, o.code].some(x => String(x || '').toLowerCase().includes(q))));
-    const tabs = { abertas: filt.filter(open), atrasadas: filt.filter(late), aguardando: filt.filter(o => o.status === 'aguardando'), concluidas: filt.filter(o => o.status === 'concluido'), nao: filt.filter(o => o.status === 'nao_concluido'), todas: filt };
+    const tabs = { diretoria: filt.filter(o => o.status === 'aprovacao'), abertas: filt.filter(open), atrasadas: filt.filter(late), aguardando: filt.filter(o => o.status === 'aguardando'), concluidas: filt.filter(o => o.status === 'concluido'), nao: filt.filter(o => o.status === 'nao_concluido'), todas: filt };
     const shown = (tabs[s.tab] || tabs.abertas).slice().sort((a, b) => open(a) && open(b) ? (a.due < b.due ? -1 : 1) : (a.at < b.at ? 1 : -1));
     const depts = P.api.departments(u);
     const title = canOpen(u) ? 'Solicitar OS' : 'Consultar OS';
@@ -63,7 +66,7 @@
         <label class="field"><span>Buscar</span><input type="search" value="${esc(s.q)}" data-set="osv.q" data-live placeholder="Empresa, demanda, tipo ou nº"></label>
         ${P.isGlobal(u) ? `<label class="field"><span>Departamento</span><select data-set="osv.dept"><option value="">Todos</option>${depts.map(d => `<option value="${d.id}" ${s.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}
       </div></div></section>
-      <div class="toolbar">${V.tabs([['abertas', 'Em aberto', tabs.abertas.length], ['atrasadas', 'Atrasadas', tabs.atrasadas.length], ['aguardando', 'Aguardando cliente', tabs.aguardando.length], ['concluidas', 'Concluídas', tabs.concluidas.length], ['nao', 'Não concluídas', tabs.nao.length], ['todas', 'Todas', tabs.todas.length]], s.tab, 'osv.tab')}</div>
+      <div class="toolbar">${V.tabs([].concat(tabs.diretoria.length || s.tab === 'diretoria' ? [['diretoria', 'Aguardando diretoria', tabs.diretoria.length]] : []).concat([['abertas', 'Em aberto', tabs.abertas.length], ['atrasadas', 'Atrasadas', tabs.atrasadas.length], ['aguardando', 'Aguardando cliente', tabs.aguardando.length], ['concluidas', 'Concluídas', tabs.concluidas.length], ['nao', 'Não concluídas', tabs.nao.length], ['todas', 'Todas', tabs.todas.length]]), s.tab, 'osv.tab')}</div>
       ${V.card('', shown.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Nº</th><th>Empresa</th><th>Demanda</th><th>Departamento</th><th>Tipo</th><th>Prazo</th><th>Situação</th><th>Aberta por</th><th class="actions-col"></th></tr></thead><tbody>
         ${shown.map(o => `<tr class="${o.status === 'nao_concluido' ? 'inactive' : ''}">
           <td class="mono nowrap">${esc(o.code)}</td><td><b>${esc(o.company)}</b></td>
@@ -71,7 +74,7 @@
           <td>${esc((P.dept(o.deptId) || {}).name || '—')}</td><td>${esc(o.type)}</td>
           <td class="nowrap ${late(o) ? 'neg' : ''}">${D.fmt(o.due)}</td><td>${badge(o)}</td>
           <td>${esc((P.user(o.by) || {}).name || '—')}</td>
-          <td class="actions-col"><div class="row-actions">${canAct(u, o) ? V.ibtn('edit', 'Atualizar situação', { act: 'osStatus', attrs: `data-id="${o.id}"` }) : ''}${V.ibtn('info', 'Detalhes e histórico', { act: 'osDetail', attrs: `data-id="${o.id}"` })}</div></td></tr>`).join('')}
+          <td class="actions-col"><div class="row-actions">${canDecide(u, o) ? V.btn('Aprovar', { act: 'osApprove', cls: 'sm primary', icon: 'check', attrs: `data-id="${o.id}"` }) + V.btn('Recusar', { act: 'osReject', cls: 'sm ghost', icon: 'x', attrs: `data-id="${o.id}"` }) : ''}${canAct(u, o) ? V.ibtn('edit', 'Atualizar situação', { act: 'osStatus', attrs: `data-id="${o.id}"` }) : ''}${V.ibtn('info', 'Detalhes e histórico', { act: 'osDetail', attrs: `data-id="${o.id}"` })}</div></td></tr>`).join('')}
         </tbody></table></div>` : V.empty(s.tab === 'abertas' ? (canOpen(u) ? 'Nenhuma OS em aberto. Use "Nova OS".' : 'Nenhuma OS em aberto no seu departamento.') : 'Nada por aqui.', 'clipboard'), { cls: 'flush' })}`;
   };
 
@@ -92,11 +95,8 @@
       title: 'Nova ordem de serviço', submit: 'Abrir OS', wide: true,
       body: `<div class="fgrid">
         <div class="field span2"><span>Empresa</span>
-          <div class="combo" id="os-co-box">
-            <input id="os-co" placeholder="Digite o nome ou o código da empresa" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="os-co-list">
-            <button type="button" class="combo-x" id="os-co-x" title="Limpar e escolher outra" aria-label="Limpar empresa" hidden>×</button>
-            <ul class="combo-list" id="os-co-list" role="listbox" hidden></ul>
-          </div></div>
+          ${P.companyPickerHtml('os-co')}<div id="os-co-warn"></div></div>
+
         <label class="field"><span>Departamento responsável</span><select id="os-dp"><option value="">Escolha…</option>${depts.map(d => `<option value="${d.id}" ${d.id === defDept ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
         <label class="field span3"><span>Demanda</span><textarea id="os-dm" rows="3" maxlength="1000" placeholder="O que precisa ser feito"></textarea></label>
         <label class="field span2"><span>Tipo de solicitação <small>(comentário breve)</small></span><input id="os-tp" maxlength="80" placeholder="Ex.: alteração contratual, retificação de declaração"></label>
@@ -109,21 +109,25 @@
         if (type.length < 3) throw new Error('Informe o tipo de solicitação.');
         if (!due || due < D.iso(P.today())) throw new Error('Informe um prazo a partir de hoje.');
         const n = new Date(), code = 'OS-' + String(n.getFullYear()).slice(2) + String(n.getMonth() + 1).padStart(2, '0') + String(n.getDate()).padStart(2, '0') + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
-        const o = { id: P.uid('os'), code, by: u.id, at: D.stamp(), company, demand, deptId, type, due, status: 'andamento', history: [] };
-        hist(o, 'OS aberta'); list().push(o);
-        P.audit(u, 'OS aberta', o.id, code + ' · ' + company + ' · ' + type);
-        notify(deptPeople(deptId), { title: 'Nova OS para o seu departamento', text: code + ' · ' + company + ' · prazo ' + D.fmt(due) });
-        st().tab = 'abertas'; done('OS ' + code + ' aberta.');
+        const needs = !!(P.delinq && P.delinq.needsApproval(company));
+        const o = { id: P.uid('os'), code, by: u.id, at: D.stamp(), company, demand, deptId, type, due, status: needs ? 'aprovacao' : 'andamento', needsApproval: needs, history: [] };
+        hist(o, needs ? 'OS aberta · aguardando a diretoria (empresa ' + P.delinq.describe(company) + ')' : 'OS aberta'); list().push(o);
+        P.audit(u, 'OS aberta', o.id, code + ' · ' + company + ' · ' + type + (needs ? ' · aguardando diretoria' : ''));
+        if (needs) notify(db().users.filter(x => x.role === 'admin' && x.active !== false).map(x => x.id), { title: 'OS aguarda sua aprovação', text: code + ' · ' + company + ' (empresa ' + P.delinq.describe(company) + ')' });
+        else notify(deptPeople(deptId), { title: 'Nova OS para o seu departamento', text: code + ' · ' + company + ' · prazo ' + D.fmt(due) });
+        st().tab = needs ? 'diretoria' : 'abertas'; done(needs ? 'OS ' + code + ' aberta e enviada para a diretoria aprovar (empresa inadimplente).' : 'OS ' + code + ' aberta.');
       }
     });
-    companyPicker(compList);
+    companyPicker(compList, 'os-co', name => { const w = $('#os-co-warn'); if (w) w.innerHTML = P.delinq && P.delinq.needsApproval(name) ? `<div class="banner warn sm" style="margin-top:8px">${icon('alert')}<div><b>Empresa ${P.delinq.describe(name)}.</b> Esta OS vai primeiro para a <b>diretoria aprovar a continuidade</b>; depois segue para o departamento.</div></div>` : ''; });
   };
   /*
    * Seletor de empresa com busca: mostra a lista inteira ao clicar, filtra por nome, código ou CNPJ,
    * aceita teclado (↑ ↓ Enter Esc) e deixa trocar a escolha a qualquer momento (botão × ou digitando de novo).
    */
-  function companyPicker(list) {
-    const box = $('#os-co-box'), inp = $('#os-co'), ul = $('#os-co-list'), x = $('#os-co-x');
+  P.companyPickerHtml = id => `<div class="combo" id="${id}-box"><input id="${id}" placeholder="Digite o nome ou o código da empresa" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="${id}-list"><button type="button" class="combo-x" id="${id}-x" title="Limpar e escolher outra" aria-label="Limpar empresa" hidden>×</button><ul class="combo-list" id="${id}-list" role="listbox" hidden></ul></div>`;
+  P.companyPicker = (list, id, onPick) => companyPicker(list, id, onPick);
+  function companyPicker(list, id = 'os-co', onPick) {
+    const box = $('#' + id + '-box'), inp = $('#' + id), ul = $('#' + id + '-list'), x = $('#' + id + '-x');
     if (!box) return;
     const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     let shown = [], hi = -1;
@@ -136,7 +140,7 @@
       ul.hidden = false; inp.setAttribute('aria-expanded', 'true');
     };
     const close = () => { ul.hidden = true; inp.setAttribute('aria-expanded', 'false'); };
-    const pick = c => { inp.value = c.name; x.hidden = false; close(); };
+    const pick = c => { inp.value = c.name; x.hidden = false; close(); if (onPick) onPick(c.name); };
     const mark = () => ul.querySelectorAll('li[data-i]').forEach(li => li.classList.toggle('on', Number(li.dataset.i) === hi));
     // clicar ou focar: lista completa (mesmo com uma empresa já escolhida, para poder trocar)
     // a lista abre ao clicar ou digitar (não sozinha quando a janela abre)
@@ -149,16 +153,30 @@
       else if (e.key === 'Escape' && !ul.hidden) { e.stopPropagation(); close(); }
     });
     ul.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); pick(shown[Number(li.dataset.i)]); } });
-    x.addEventListener('click', () => { inp.value = ''; x.hidden = true; inp.focus(); });
+    x.addEventListener('click', () => { inp.value = ''; x.hidden = true; if (onPick) onPick(''); inp.focus(); });
     inp.addEventListener('blur', () => setTimeout(close, 120));
   }
+  A.osApprove = el => {
+    const o = get(el.dataset.id), u = U(); if (!o || !canDecide(u, o)) return;
+    P.ui.modal({ title: 'Aprovar continuidade · ' + esc(o.code), submit: 'Aprovar e enviar ao departamento',
+      body: `<p class="prose"><b>${esc(o.company)}</b> · ${esc(o.type)}<br>${P.delinq ? 'Situação: empresa ' + esc(P.delinq.describe(o.company)) + '.' : ''}</p><label class="field"><span>Observação (opcional)</span><input id="oa-n" placeholder="Ex.: liberado, cliente fechou acordo"></label>`,
+      onSubmit: m => { o.status = 'andamento'; hist(o, 'Continuidade aprovada pela diretoria', $('#oa-n', m).value.trim()); P.audit(u, 'OS aprovada (inadimplência)', o.id, o.code + ' · ' + o.company);
+        notify(deptPeople(o.deptId).concat(o.by), { title: 'OS liberada pela diretoria', text: o.code + ' · ' + o.company + ' · prazo ' + D.fmt(o.due) }); done('OS liberada para o departamento.'); } });
+  };
+  A.osReject = el => {
+    const o = get(el.dataset.id), u = U(); if (!o || !canDecide(u, o)) return;
+    P.ui.modal({ title: 'Recusar ' + esc(o.code), submit: 'Recusar', danger: true,
+      body: `<p class="prose"><b>${esc(o.company)}</b> · ${esc(o.type)}</p><label class="field"><span>Motivo</span><textarea id="or-n" rows="2" placeholder="Ex.: aguardar a regularização dos pagamentos"></textarea></label>`,
+      onSubmit: m => { const n = $('#or-n', m).value.trim(); if (n.length < 3) throw new Error('Informe o motivo.'); o.status = 'nao_concluido'; o.reason = 'Recusada pela diretoria (empresa inadimplente): ' + n; o.closedAt = D.stamp(); o.closedBy = u.id;
+        hist(o, 'Recusada pela diretoria', n); P.audit(u, 'OS recusada (inadimplência)', o.id, o.code + ' · ' + n); notify([o.by], { title: 'OS recusada pela diretoria', text: o.code + ' · ' + o.company + ': ' + n }); done('OS recusada.'); } });
+  };
   A.osStatus = el => {
     const o = get(el.dataset.id), u = U(); if (!o || !canAct(u, o)) return;
     P.ui.modal({
       title: 'Atualizar ' + esc(o.code), submit: 'Salvar',
       body: `<p class="prose"><b>${esc(o.company)}</b> · ${esc(o.type)} · prazo ${D.fmt(o.due)}</p>
         <div class="fgrid">
-          <label class="field span2"><span>Situação</span><select id="os-st">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></label>
+          <label class="field span2"><span>Situação</span><select id="os-st">${Object.entries(STATUS).filter(([k]) => k !== 'aprovacao').map(([k, v]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></label>
           <label class="field"><span>Novo prazo <small>(opcional)</small></span><input type="date" id="os-nd" value="${o.due}"></label>
           <label class="field span3" id="os-rs-w"><span>Motivo <small>(obrigatório se não concluída)</small></span><textarea id="os-rs" rows="2" maxlength="500">${esc(o.reason || '')}</textarea></label>
           <label class="field span3"><span>Comentário <small>(opcional)</small></span><input id="os-cm" maxlength="300" placeholder="Ex.: cliente enviou os documentos"></label></div>`,

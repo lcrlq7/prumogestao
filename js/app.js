@@ -35,7 +35,7 @@
   const PAGE_LABEL = {
     dashboard: 'Dashboard', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
-    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço'
+    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência'
   };
   function parse(path) {
     path = String(path || '').replace(/^#?\/?/, '');
@@ -75,6 +75,7 @@
       ['ferias', 'Férias', 'palm', vacCount],
       ['mural', 'Mural', 'medal'],
       ['empresas', 'Empresas', 'briefcase'],
+      ['inadimplencia', 'Inadimplência', 'alert'],
       ['solicitacoes', 'Solicitações', 'cart', P.purchases ? P.purchases.badge(u) : 0],
       ['financeiro', 'Financeiro', 'wallet'],
       ['relatorios', 'Relatórios', 'file'],
