@@ -1509,6 +1509,8 @@ window.P = window.P || {};
       if (!x) { x = { id: P.uid('u'), password: 'demo123', active: true, role: data.role, createdAt: D.iso(P.today()) }; db().users.push(x); }
       const prevDept = x.deptId;
       Object.assign(x, { name: data.name, email, title: data.title || x.title || '', deptId: data.deptId || null });
+      // data de contratação: base dos avos da PLR
+      if (data.hiredAt !== undefined && data.hiredAt !== (x.hiredAt || '')) { assert(!data.hiredAt || data.hiredAt <= D.iso(P.today()), 'A data de contratação não pode estar no futuro.'); if (data.hiredAt) x.hiredAt = data.hiredAt; else delete x.hiredAt; }
       if (x.role === 'employee' || x.role === 'manager') {
         x.capacity = Number(data.capacity) || x.capacity || db().settings.defaultCapacity;
         x.weeklyGoal = Number(data.weeklyGoal) || x.weeklyGoal || Math.round(x.capacity * 0.94);

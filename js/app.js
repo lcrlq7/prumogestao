@@ -35,7 +35,7 @@
   const PAGE_LABEL = {
     dashboard: 'Dashboard', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
-    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência'
+    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR'
   };
   function parse(path) {
     path = String(path || '').replace(/^#?\/?/, '');
@@ -85,6 +85,7 @@
       ['mural', 'Mural', 'medal'],
       ['empresas', 'Empresas', 'briefcase'],
       ['inadimplencia', 'Inadimplência', 'alert'],
+      ['plr', 'PLR', 'wallet'],
       ['solicitacoes', 'Solicitações', 'cart', P.purchases ? P.purchases.badge(u) : 0],
       ['financeiro', 'Financeiro', 'wallet'],
       ['relatorios', 'Relatórios', 'file'],
@@ -744,6 +745,7 @@
         body: `<div class="fgrid">
           <label class="field span2"><span>Nome completo</span><input type="text" id="us-name" value="${esc(x.name)}"></label>
           <label class="field"><span>Cargo</span><input type="text" id="us-title" value="${esc(x.title || '')}"></label>
+          ${x.role !== 'admin' ? `<label class="field"><span>Data de contratação <small>(base da PLR)</small></span><input type="date" id="us-hired" max="${D.iso(P.today())}" value="${esc(x.hiredAt || '')}"></label>` : ''}
           <label class="field span2"><span>E-mail de acesso</span><input type="email" id="us-email" value="${esc(x.email)}"></label>
           ${global ? '<span></span>' : `<label class="field"><span>Departamento</span><select id="us-dept" ${deptLocked ? 'disabled' : ''}><option value="">—</option>${depts.map(d => `<option value="${d.id}" ${(x.deptId || (deptLocked ? U().deptId : '')) === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>`}
           ${isWorker ? `<label class="field"><span>Jornada semanal (h)</span><input type="number" id="us-hours" value="${x.hours || 40}" min="4" max="44"></label>
@@ -752,7 +754,7 @@
           ${isEmp ? `<label class="field check span3"><input type="checkbox" id="us-os" ${x.canOS ? 'checked' : ''}><span><b>Pode abrir OS</b> <small class="muted">(no menu aparece “Solicitar OS” e a pessoa pode abrir e concluir ordens de serviço)</small></span></label>` : ''}` : ''}
         </div>${!el.dataset.id ? '<p class="fine">A senha inicial de demonstração é <code>demo123</code>. Na versão com banco de dados, o convite é enviado por e-mail.</p>' : ''}`,
         onSubmit: m => {
-          const data = { id: el.dataset.id, role: x.role, name: $('#us-name', m).value.trim(), title: $('#us-title', m).value.trim(), email: $('#us-email', m).value.trim(), deptId: global ? null : $('#us-dept', m).value };
+          const data = { id: el.dataset.id, role: x.role, name: $('#us-name', m).value.trim(), title: $('#us-title', m).value.trim(), email: $('#us-email', m).value.trim(), deptId: global ? null : $('#us-dept', m).value, hiredAt: $('#us-hired', m) ? $('#us-hired', m).value : undefined };
           if (!data.name) throw new Error('Informe o nome.');
           if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) throw new Error('Informe um e-mail válido.');
           if (isWorker) { if (isEmp && !data.deptId) throw new Error('Selecione o departamento.'); data.hours = $('#us-hours', m).value; data.capacity = $('#us-cap', m).value; if (isEmp) { data.active = $('#us-active', m).checked; data.canOS = $('#us-os', m).checked; } }
@@ -1436,7 +1438,7 @@
       A._receita = null; A._lookingUp = null; A._autoToken = null;
       modal({
         title: el.dataset.id ? 'Editar empresa' : 'Nova empresa', wide: true,
-        body: V.companyForm(c),
+        body: V.companyForm(c) + (el.dataset.id && U().role === 'admin' ? `<div class="banner info sm" style="margin-top:12px">${icon('wallet')}<div><b>PLR:</b> ${(P.store.db.companyFees || []).some(f => f.id === c.id && f.inRateio) ? 'esta empresa <b>entra no rateio</b>.' : 'esta empresa não está no rateio.'} <button type="button" class="link" data-act="plrCompany" data-id="${esc(c.id)}">Honorário e rateio</button></div></div>` : ''),
         onSubmit: m => {
           const r = api.saveCompany(U(), {
             id: el.dataset.id, code: $('#co-code', m).value, name: $('#co-name', m).value, tradeName: $('#co-trade', m).value, cnpj: $('#co-cnpj', m).value,
