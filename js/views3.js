@@ -16,7 +16,7 @@
       const ins = u.role === 'employee' ? [] : P.insights(u, emp.deptId).filter(i => i.emp === emp.id);
       const load = P.seesLoad(u); // o funcionário não vê capacidade, utilização nem classificação de carga
       return {
-        kind: 'individual', title: 'Relatório individual', subject: emp.name, p, load,
+        kind: 'individual', title: 'Relatório individual', subject: emp.name, p, load, util: load ? st.util : null,
         meta: [['Funcionário', emp.name], ['Departamento', (P.dept(emp.deptId) || { name: '—' }).name], ['Cargo', emp.title || '—'], ['Período', p.label + ' (' + D.fmt(p.s) + ' a ' + D.fmt(p.e) + ')']].concat(load ? [['Capacidade semanal', F.n(emp.capacity) + ' pts']] : []),
         summary: load ? [['Pontos', F.n(st.points)], ['Capacidade no período', F.n(st.capacity)], ['Utilização', F.pct(st.util)], ['Classificação', V.STATUS[st.status].label], ['Atividades (unidades)', F.n(st.tasks)], ['Lançamentos', F.n(st.n)]]
           : [['Pontos', F.n(st.points)], ['Atividades (unidades)', F.n(st.tasks)], ['Lançamentos', F.n(st.n)]],
@@ -30,7 +30,7 @@
     const acts = M.byActivity(emps, p);
     const evo = M.monthly(emps, months);
     return {
-      kind: 'departamento', title: 'Relatório do departamento', subject: d.name, p, load: true,
+      kind: 'departamento', title: 'Relatório do departamento', subject: d.name, p, load: true, util: tm.util, over: tm.over,
       meta: [['Departamento', d.name], ['Gestor(a)', (P.user(d.managerId) || {}).name || '—'], ['Período', p.label + ' (' + D.fmt(p.s) + ' a ' + D.fmt(p.e) + ')']],
       summary: [['Pessoas com produção', emps.length], ['Total de pontos', F.n(tm.points)], ['Total de atividades', F.n(tm.tasks)], ['Média por pessoa', F.n(tm.avg)], ['Capacidade', F.n(tm.capacity)], ['Utilização', F.pct(tm.util)], ['Em sobrecarga', tm.over], ['Baixa utilização', tm.low]],
       team: tm.rows.sort((a, b) => (b.util || 0) - (a.util || 0)), acts, evo,
