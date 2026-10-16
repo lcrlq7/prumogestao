@@ -25,6 +25,8 @@
   const toC = v => Math.round((Number(String(v || '').replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')) || 0) * 100);
   const fees = () => (db().companyFees = db().companyFees || []);
   const ym = d => D.iso(d).slice(0, 7);
+  const overrides = () => (db().settings.plrMontante = db().settings.plrMontante || {});
+  const override = cyc => { const o = overrides()[ym(cyc.start)]; return o && o.value > 0 ? o : null; };
 
   /* ---------- Ciclo e avos ---------- */
   const cycle = (ref = P.today()) => {
@@ -79,7 +81,10 @@
     get summary() { if (!summary || !P.isLive) P.plr.refresh(); return summary; },
     // rateio de todos: valor do avo = montante ÷ total de avos (100% distribuído)
     table() {
-      const cyc = cycle(), sm = P.plr.summary || { montante: 0, previsto: 0 };
+      const cyc = cycle(); let sm = P.plr.summary || { montante: 0, previsto: 0 };
+      // montante definido pela diretoria para o ciclo substitui o calculado
+      const ov = override(cyc);
+      if (ov) sm = Object.assign({}, sm, { montante: ov.value, previsto: 0, manual: ov, calculado: sm.montante });
       const people = db().users.filter(eligible).map(x => ({ x, a: avosOf(x, cyc) })).sort((p, q) => p.x.name.localeCompare(q.x.name));
       const totalAvos = people.reduce((t, p) => t + p.a.total, 0);
       const avo = totalAvos ? sm.montante / totalAvos : 0, avoProj = totalAvos ? (sm.montante + (sm.previsto || 0)) / totalAvos : 0;
@@ -118,7 +123,8 @@
     const months = t.cyc.months.map(ym);
     const missing = t.people.filter(p => !p.x.hiredAt);
     return `${V.pageHead('PLR · rateio de honorários', `Ciclo ${t.cyc.label} · pagamento em dezembro/${t.cyc.payYear}. 5% dos honorários pagos pelas empresas do rateio, divididos pelo total de avos.`,
-      V.btn('Exportar Excel', { act: 'plrExport', icon: 'download' }) + (dir ? V.btn('Empresa no rateio', { act: 'plrCompany', icon: 'plus', cls: 'primary' }) : ''))}
+      V.btn('Exportar Excel', { act: 'plrExport', icon: 'download' }) + (dir ? V.btn('Editar montante', { act: 'plrMontante', icon: 'edit', cls: 'ghost' }) : '') + (dir ? V.btn('Empresa no rateio', { act: 'plrCompany', icon: 'plus', cls: 'primary' }) : ''))}
+      ${sm.manual ? `<div class="banner info">${icon('edit')}<div><b>Montante definido pela diretoria: ${brl(sm.montante)}</b>${sm.manual.by ? ' · ' + esc((P.user(sm.manual.by) || {}).name || '') : ''}${sm.manual.at ? ' em ' + esc(sm.manual.at) : ''}${sm.manual.note ? ' · ' + esc(sm.manual.note) : ''}. Calculado pelos honorários: ${brl(sm.calculado || 0)}.</div></div>` : ''}
       ${!sm.calculadoEm ? `<div class="banner info">${icon('clock')}<div>Calculando o montante…</div></div>` : ''}
       ${missing.length ? `<div class="banner warn">${icon('alert')}<div><b>${missing.length} pessoa${missing.length > 1 ? 's' : ''} sem data de contratação</b> (usando a data de cadastro): ${missing.slice(0, 6).map(p => esc(p.x.name)).join(', ')}${missing.length > 6 ? '…' : ''}. Informe em Funcionários → Editar.</div></div>` : ''}
       <div class="kpis k4">
@@ -175,6 +181,29 @@
     });
     if (!comp) P.companyPicker(comps, 'plr-co');
     const fee = $('#plr-fee'); if (fee) fee.addEventListener('input', () => { const v = toC(fee.value); $('#plr-5').textContent = v ? brl(Math.round(v * 0.05)) + '/mês' : '—'; });
+  };
+  /* ---------- Montante manual (diretoria) ---------- */
+  A.plrMontante = () => {
+    if (!U() || U().role !== 'admin') return P.toast('Somente a diretoria edita o montante.', 'err');
+    const cyc = cycle(), k = ym(cyc.start), o = overrides()[k], calc = (P.plr.summary || {}).montante || 0;
+    P.ui.modal({
+      title: 'Montante da PLR · ' + esc(cyc.label), submit: 'Salvar',
+      body: `<div class="fgrid">
+        <label class="field check span3"><input type="checkbox" id="plm-on" ${o ? 'checked' : ''}><span><b>Usar valor definido pela diretoria</b> (desmarque para voltar ao cálculo pelos honorários)</span></label>
+        <label class="field"><span>Montante (R$)</span><input id="plm-v" inputmode="decimal" value="${o ? (o.value / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}"></label>
+        <div class="field"><span>Calculado pelos honorários</span><b>${brl(calc)}</b></div>
+        <label class="field span3"><span>Motivo (opcional)</span><input id="plm-n" value="${o && o.note ? esc(o.note) : ''}"></label></div>
+        <p class="fine">${icon('info')} O rateio, o cartão de cada pessoa e a provisão no Financeiro passam a usar esse valor.</p>`,
+      onSubmit: m => {
+        const on = $('#plm-on', m).checked, v = toC($('#plm-v', m).value), note = $('#plm-n', m).value.trim();
+        if (on && !(v > 0)) throw new Error('Informe o montante.');
+        const hist = (o && o.history) || [];
+        if (on) overrides()[k] = { value: v, note, by: U().id, at: D.stamp(), history: hist.concat({ at: D.stamp(), by: U().id, value: v }) };
+        else delete overrides()[k];
+        P.audit(U(), 'PLR: montante ' + (on ? 'definido pela diretoria' : 'voltou ao cálculo'), k, on ? brl(v) : '');
+        P.store.save(); P.toast('Montante atualizado.'); P.render();
+      }
+    });
   };
   A.plrExport = () => {
     const t = P.plr.table();
