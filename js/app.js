@@ -420,13 +420,19 @@
     const head = (t, sub) => { need(70); T(t, L, y, { bold: true, size: 13 }); if (sub) T(sub, L, y + 14, { color: muted }); y += sub ? 30 : 18; };
 
     // cabeçalho
-    fill(gold); doc.rect(L, y, 4, 58, 'F');
-    T(rep.title + ' · Prumo', L + 14, y + 12, { color: muted });
+    // logo do site (ícone do prumo); sem ela, volta ao traço dourado
+    let hx = L + 14;
+    try {
+      const logo = await fetch('apple-touch-icon.png').then(r => r.ok ? r.blob() : Promise.reject()).then(b => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = no; fr.readAsDataURL(b); }));
+      doc.addImage(logo, 'PNG', L, y + 4, 50, 50); hx = L + 64;
+    } catch (e) { fill(gold); doc.rect(L, y, 4, 58, 'F'); }
+    const L0 = hx;
+    T(rep.title + ' · Prumo', L0, y + 12, { color: muted });
     T(pdfSafe(P.store.db.settings.companyName), R, y + 12, { color: muted, align: 'right' });
-    T(rep.subject, L + 14, y + 42, { bold: true, size: 26 });
+    T(rep.subject, L0, y + 42, { bold: true, size: 26 });
     const period = (rep.meta.find(([k]) => k === 'Período') || [])[1] || '';
     const extra = rep.meta.filter(([k]) => k !== 'Período' && k !== rep.meta[0][0] && k !== 'Capacidade semanal').map(([k, v]) => k + ': ' + v);
-    T([period].concat(extra).concat(['gerado em ' + D.fmt(D.iso(P.today()))]).join(' · '), L + 14, y + 58, { color: muted });
+    T([period].concat(extra).concat(['gerado em ' + D.fmt(D.iso(P.today()))]).join(' · '), L0, y + 58, { color: muted });
     y += 76; stroke(line); doc.setLineWidth(0.6); doc.line(L, y, R, y); y += 22;
 
     // medidor + números
