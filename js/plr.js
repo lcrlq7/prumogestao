@@ -124,7 +124,7 @@
     const missing = t.people.filter(p => !p.x.hiredAt);
     return `${V.pageHead('PLR · rateio de honorários', `Ciclo ${t.cyc.label} · pagamento em dezembro/${t.cyc.payYear}. 5% dos honorários pagos pelas empresas do rateio, divididos pelo total de avos.`,
       V.btn('Exportar Excel', { act: 'plrExport', icon: 'download' }) + (dir ? V.btn('Editar montante', { act: 'plrMontante', icon: 'edit', cls: 'ghost' }) : '') + (dir ? V.btn('Empresa no rateio', { act: 'plrCompany', icon: 'plus', cls: 'primary' }) : ''))}
-      ${sm.manual ? `<div class="banner info">${icon('edit')}<div><b>Montante definido pela diretoria: ${brl(sm.montante)}</b>${sm.manual.by ? ' · ' + esc((P.user(sm.manual.by) || {}).name || '') : ''}${sm.manual.at ? ' em ' + esc(sm.manual.at) : ''}${sm.manual.note ? ' · ' + esc(sm.manual.note) : ''}. Calculado pelos honorários: ${brl(sm.calculado || 0)}.</div></div>` : ''}
+      ${sm.manual && dir ? `<div class="banner info">${icon('edit')}<div><b>Montante definido pela diretoria: ${brl(sm.montante)}</b>${sm.manual.by ? ' · ' + esc((P.user(sm.manual.by) || {}).name || '') : ''}${sm.manual.at ? ' em ' + esc(sm.manual.at) : ''}${sm.manual.note ? ' · ' + esc(sm.manual.note) : ''}. Calculado pelos honorários: ${brl(sm.calculado || 0)}.</div></div>` : ''}
       ${!sm.calculadoEm ? `<div class="banner info">${icon('clock')}<div>Calculando o montante…</div></div>` : ''}
       ${missing.length ? `<div class="banner warn">${icon('alert')}<div><b>${missing.length} pessoa${missing.length > 1 ? 's' : ''} sem data de contratação</b> (usando a data de cadastro): ${missing.slice(0, 6).map(p => esc(p.x.name)).join(', ')}${missing.length > 6 ? '…' : ''}. Informe em Funcionários → Editar.</div></div>` : ''}
       <div class="kpis k4">
