@@ -61,19 +61,34 @@
       ${err ? `<div class="banner crit">${icon('lock')}<div>${esc(err)}</div></div>` : V.reportPreview(rep)}`;
   };
 
-  V.reportPreview = rep => `
-    <article class="card report">
-      <header class="rep-h"><div class="brand-mini">${icon('plumb')}<span>Prumo</span></div><div><h2>${rep.title}</h2><p>${esc(rep.subject)} · gerado em ${D.fmt(D.iso(P.today()))}</p></div></header>
-      <dl class="rep-meta">${rep.meta.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
-      <div class="rep-sum">${rep.summary.map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>
-      ${rep.team ? `<h4 class="sub-h">Carga por colaborador</h4><div class="table-wrap"><table class="tbl"><thead><tr><th>Funcionário</th><th class="num">Pontos</th><th class="num">Capacidade</th><th class="num">Utilização</th><th class="num">Tarefas</th><th>Classificação</th></tr></thead><tbody>${rep.team.map(r => `<tr><td>${esc(r.user.name)}</td><td class="num">${F.n(r.points)}</td><td class="num">${F.n(r.capacity)}</td><td class="num">${F.pct(r.util)}</td><td class="num">${F.n(r.tasks)}</td><td>${V.badge(r.status)}</td></tr>`).join('')}</tbody></table></div>` : ''}
-      <div class="grid g-1-1">
-        <div><h4 class="sub-h">Atividades no período</h4>${rep.acts.rows.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Atividade</th><th class="num">Qtd.</th><th class="num">Pontos</th><th class="num">%</th></tr></thead><tbody>${rep.acts.rows.map(r => `<tr><td>${esc(r.act.name)}</td><td class="num">${F.n(r.qty, 2)}</td><td class="num">${F.n(r.points)}</td><td class="num">${F.pct0(r.share)}</td></tr>`).join('')}</tbody></table></div>` : V.empty('Sem atividades no período.')}</div>
-        <div><h4 class="sub-h">Evolução mensal</h4>${C.slot({ type: 'bars', data: rep.evo.map(m => ({ label: m.label, value: m.points, partial: m.partial, tip: `${D.monthLabel(m.start, true)}: ${F.n(m.points)} pts${rep.load ? ' · ' + F.pct0(m.util) : ''}` })), ref: rep.load ? { values: rep.evo.map(m => m.capacity), label: 'Capacidade' } : null, height: 220, aria: 'Evolução mensal' })}
-          <div class="table-wrap"><table class="tbl compact"><thead><tr><th>Mês</th><th class="num">Pontos</th>${rep.load ? '<th class="num">Utilização</th>' : ''}</tr></thead><tbody>${rep.evo.map(m => `<tr><td>${D.monthLabel(m.start, true)}${m.partial ? ' (parcial)' : ''}</td><td class="num">${F.n(m.points)}</td>${rep.load ? `<td class="num">${F.pct(m.util)}</td>` : ''}</tr>`).join('')}</tbody></table></div></div>
+  // relatório como documento: destaque para um número, demais dados em texto e seções com rótulo lateral
+  const utilBar = (v, st) => `<span class="rp-bar"><i class="${st || ''}" style="width:${Math.min(100, Math.round((v || 0) * 100))}%"></i></span>`;
+  const rpSec = (label, note, body) => `<section class="rp-sec"><div class="rp-sec-l"><h3>${label}</h3>${note ? `<p>${note}</p>` : ''}</div><div class="rp-sec-b">${body}</div></section>`;
+  V.reportPreview = rep => {
+    const [hk, hv] = rep.summary[rep.kind === 'departamento' ? 1 : 0];
+    const rest = rep.summary.filter(([k]) => k !== hk);
+    const period = (rep.meta.find(([k]) => k === 'Período') || [])[1] || '';
+    const who = rep.meta.filter(([k]) => k !== 'Período' && k !== rep.meta[0][0]).map(([k, v]) => `${k} <b>${esc(v)}</b>`).join('<span class="rp-sep"></span>');
+    const maxAct = Math.max(1, ...rep.acts.rows.map(r => r.points));
+    return `
+    <article class="card report rp">
+      <header class="rp-head">
+        <div class="rp-kicker">${icon('plumb')}<span>${rep.title}</span><span class="rp-date">Gerado em ${D.fmt(D.iso(P.today()))}</span></div>
+        <h2>${esc(rep.subject)}</h2>
+        <p class="rp-period">${esc(period)}</p>
+        ${who ? `<p class="rp-who">${who}</p>` : ''}
+      </header>
+      <div class="rp-hero">
+        <div class="rp-big"><b>${esc(hv)}</b><span>${hk.toLowerCase()}</span></div>
+        <dl class="rp-stats">${rest.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
       </div>
-      ${rep.insights.length ? `<h4 class="sub-h">Insights</h4>${V.insightList(rep.insights.slice(0, 8), { links: false })}` : ''}
+      ${rep.team ? rpSec('Carga por pessoa', 'Ordenado pela utilização da capacidade.', `<div class="table-wrap"><table class="tbl rp-tbl"><thead><tr><th>Pessoa</th><th class="num">Pontos</th><th class="num">Tarefas</th><th>Utilização</th><th>Situação</th></tr></thead><tbody>${rep.team.map(r => `<tr><td>${esc(r.user.name)}</td><td class="num">${F.n(r.points)}</td><td class="num">${F.n(r.tasks)}</td><td class="rp-util">${utilBar(r.util, r.status)}<span class="num">${F.pct0(r.util)}</span></td><td>${V.badge(r.status)}</td></tr>`).join('')}</tbody></table></div>`) : ''}
+      ${rpSec('Atividades', 'O que mais consumiu pontos no período.', rep.acts.rows.length ? `<ol class="rp-acts">${rep.acts.rows.map(r => `<li><div class="rp-act-t"><span>${esc(r.act.name)}</span><span class="num">${F.n(r.points)} pts · ${F.pct0(r.share)}</span></div><span class="rp-bar thin"><i style="width:${Math.round(r.points / maxAct * 100)}%"></i></span><small>${F.n(r.qty, 2)} unidade(s)</small></li>`).join('')}</ol>` : V.empty('Sem atividades no período.'))}
+      ${rpSec('Evolução', 'Pontos dos últimos 6 meses' + (rep.load ? ', com a linha da capacidade.' : '.'), `${C.slot({ type: 'bars', data: rep.evo.map(m => ({ label: m.label, value: m.points, partial: m.partial, tip: `${D.monthLabel(m.start, true)}: ${F.n(m.points)} pts${rep.load ? ' · ' + F.pct0(m.util) : ''}` })), ref: rep.load ? { values: rep.evo.map(m => m.capacity), label: 'Capacidade' } : null, height: 200, aria: 'Evolução mensal' })}
+        <div class="rp-months">${rep.evo.map(m => `<div><span>${D.monthLabel(m.start)}${m.partial ? '*' : ''}</span><b class="num">${F.n(m.points)}</b>${rep.load ? `<small class="num">${F.pct0(m.util)}</small>` : ''}</div>`).join('')}</div>`)}
+      ${rep.insights.length ? rpSec('Pontos de atenção', '', V.insightList(rep.insights.slice(0, 8), { links: false })) : ''}
     </article>`;
+  };
 
   /* ---------- Histórico ---------- */
   V.historico = u => {
