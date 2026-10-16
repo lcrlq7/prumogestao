@@ -19,7 +19,8 @@
   const $ = (s, r = document) => r.querySelector(s);
   const deny = m => { throw new P.AccessError(m); };
 
-  P.PAGES.plr = ['admin', 'office', 'manager'];
+  // aberta a todos por transparência; honorários continuam só para a diretoria
+  P.PAGES.plr = ['admin', 'office', 'manager', 'employee'];
   const brl = c => ((c || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const toC = v => Math.round((Number(String(v || '').replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')) || 0) * 100);
   const fees = () => (db().companyFees = db().companyFees || []);
@@ -112,7 +113,7 @@
 
   /* ---------- Aba PLR (diretoria, gerência e gestores) ---------- */
   V.plr = u => {
-    if (!P.PAGES.plr.includes(u.role)) deny('A aba PLR é da diretoria, da gerência e dos gestores.');
+    if (!P.PAGES.plr.includes(u.role)) deny('Acesso restrito.');
     const t = P.plr.table(), sm = t.sm || {}, dir = u.role === 'admin';
     const months = t.cyc.months.map(ym);
     const missing = t.people.filter(p => !p.x.hiredAt);
