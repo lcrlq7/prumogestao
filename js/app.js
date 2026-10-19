@@ -619,7 +619,7 @@
       modal({
         title: 'Registrar minha atividade', wide: true, submit: 'Registrar',
         body: V.entryForm(u, { userId: u.id, own: true }, { id: 'own-form', noSubmit: true }),
-        onSubmit: m => { const d = readEntryForm($('#own-form', m)); const er = validateEntry(d); if (er) throw new Error(er); const e = api.createEntry(u, d); toast(`Registrado: ${F.n(e.points, 2)} pontos · aguardando revisão do administrador.`); render(); }
+        onSubmit: m => { const d = readEntryForm($('#own-form', m)); const er = validateEntry(d); if (er) throw new Error(er); const e = api.createEntry(u, d); toast(`Registrado: ${F.n(e.points, 2)} pontos${e.status === 'pendente' ? ' · aguardando revisão do administrador' : ''}.`); render(); }
       });
     },
     completeTask(el) {

@@ -739,6 +739,8 @@ window.P = window.P || {};
       const emp = P.user(data.userId);
       assert(emp && (emp.role === 'employee' || emp.role === 'manager'), 'Selecione uma pessoa válida.');
       const own = u.id === emp.id;
+      // só o lançamento do próprio funcionário passa por aprovação; diretoria, gerência e gestores entram aprovados
+      const needsReview = own && u.role === 'employee';
       assert(own || P.isGlobal(u) || (u.role === 'manager' && emp.role === 'employee' && emp.deptId === u.deptId), 'Você só pode registrar atividades próprias ou da equipe do seu departamento.');
       const a = P.act(data.activityId);
       assert(a && a.active && a.deptId === emp.deptId, 'A atividade não pertence à tabela do departamento.');
@@ -746,8 +748,8 @@ window.P = window.P || {};
       const e = {
         id: P.uid('e'), date: data.date, userId: emp.id, deptId: emp.deptId, activityId: a.id,
         client: (data.client || '').trim(), qty, weight: a.weight, points: round2(qty * a.weight),
-        obs: (data.obs || '').trim(), status: own && !P.isGlobal(u) ? 'pendente' : 'aprovado',
-        history: [{ at: D.stamp(), by: u.id, action: 'Criado', note: own && !P.isGlobal(u) ? 'Enviado para aprovação' : 'Registrado por ' + P.ROLES[u.role].toLowerCase() }]
+        obs: (data.obs || '').trim(), status: needsReview ? 'pendente' : 'aprovado',
+        history: [{ at: D.stamp(), by: u.id, action: 'Criado', note: needsReview ? 'Enviado para aprovação' : 'Registrado por ' + P.ROLES[u.role].toLowerCase() }]
       };
       if (data.taskId) {
         const t = db().tasks.find(x => x.id === data.taskId && x.userId === emp.id);
@@ -760,8 +762,8 @@ window.P = window.P || {};
       const e = P.idx.byId.get(id);
       assert(e && e.userId === u.id && (e.status === 'correcao' || e.status === 'pendente'), 'Somente lançamentos próprios pendentes ou em correção podem ser editados.');
       api._applyPatch(e, patch);
-      e.status = 'pendente';
-      e.history.push({ at: D.stamp(), by: u.id, action: 'Corrigido e reenviado', note: patch.note || '' });
+      e.status = u.role === 'employee' ? 'pendente' : 'aprovado';
+      e.history.push({ at: D.stamp(), by: u.id, action: u.role === 'employee' ? 'Corrigido e reenviado' : 'Corrigido', note: patch.note || '' });
       P.reindex(); audit(u, 'Lançamento reenviado', e.id); P.store.save();
     },
     _applyPatch(e, patch) {
