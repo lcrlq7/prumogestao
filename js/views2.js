@@ -37,6 +37,33 @@
     </form>`;
   };
 
+  /* ---------- Filtros da lista de tarefas: busca (tarefa, empresa, responsável), empresa, prazo e atrasadas ---------- */
+  const normT = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  V.taskFilter = list => {
+    const f = P.state.tf || {}, q = normT(f.q).trim(), today = D.iso(P.today());
+    if (!q && !f.client && !f.from && !f.to && !f.late) return list;
+    return list.filter(t => {
+      if (q && !normT(t.title + ' ' + (t.client || '') + ' ' + ((P.user(t.userId) || {}).name || '') + ' ' + ((P.act(t.activityId) || {}).name || '')).includes(q)) return false;
+      if (f.client && t.client !== f.client) return false;
+      if (f.from && t.due < f.from) return false;
+      if (f.to && t.due > f.to) return false;
+      if (f.late && !(t.status === 'pendente' && t.due < today)) return false;
+      return true;
+    });
+  };
+  V.taskFilterBar = (base, shown) => {
+    const f = P.state.tf || {}, clients = [...new Set(base.map(t => t.client).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const on = !!(f.q || f.client || f.from || f.to || f.late);
+    return `<div class="toolbar tfilter">
+      <label class="picker grow">${icon('search')}<input type="search" id="tf-q" data-set="tf.q" data-live value="${esc(f.q || '')}" placeholder="Buscar por tarefa, empresa ou responsável" aria-label="Buscar tarefas"></label>
+      <label class="picker">${icon('building')}<select data-set="tf.client" aria-label="Empresa"><option value="">Todas as empresas</option>${clients.map(c => `<option value="${esc(c)}" ${f.client === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+      <label class="picker"><span>Prazo de</span><input type="date" data-set="tf.from" value="${esc(f.from || '')}" aria-label="Prazo a partir de"></label>
+      <label class="picker"><span>até</span><input type="date" data-set="tf.to" value="${esc(f.to || '')}" aria-label="Prazo até"></label>
+      <label class="check-inline"><input type="checkbox" data-set="tf.late" ${f.late ? 'checked' : ''}> Só atrasadas</label>
+      ${on ? V.btn('Limpar filtros', { act: 'tfClear', icon: 'x', cls: 'sm ghost' }) : ''}
+      <span class="fine tf-count">${shown} de ${base.length} tarefa(s)</span></div>`;
+  };
+
   /* ---------- Atividades / tarefas ---------- */
   V.atividades = u => {
     const S = P.state;
@@ -44,16 +71,19 @@
     const today = D.iso(P.today());
     if (u.role === 'employee') {
       const inTab = t => tab === 'concluida' ? (t.status === 'concluida' || t.status === 'dispensada') : t.status === tab;
-      const tasks = api.tasks(u).filter(inTab).sort((a, b) => tab === 'pendente' ? (a.due < b.due ? -1 : 1) : (a.due > b.due ? -1 : 1));
+      const tabbed = api.tasks(u).filter(inTab).sort((a, b) => tab === 'pendente' ? (a.due < b.due ? -1 : 1) : (a.due > b.due ? -1 : 1));
+      const tasks = V.taskFilter(tabbed);
       const counts = { pendente: api.tasks(u).filter(t => t.status === 'pendente').length, concluida: api.tasks(u).filter(t => t.status === 'concluida' || t.status === 'dispensada').length };
       return `${V.pageHead('Minhas tarefas', 'Tarefas atribuídas pelo seu gestor. Ao concluir, registre a atividade para gerar os pontos.', V.btn('Registrar atividade avulsa', { go: 'lancamentos', icon: 'plus', cls: 'primary' }))}
         ${V.tabs([['pendente', 'Pendentes', counts.pendente], ['concluida', 'Concluídas', counts.concluida]], tab, 'taskTab')}
+        ${V.taskFilterBar(tabbed, tasks.length)}
         ${V.card('', V.taskList(u, tasks, today), { cls: 'flush' })}
         ${V.card('Tabela de pesos do meu departamento', V.weightTable(u, u.deptId, false), { sub: '1 ponto ≈ 1 hora média de trabalho' })}`;
     }
     const emps = V.team(u);
     let tasks = api.tasks(u, { deptId: V.scopeDept(u) || undefined }).filter(t => tab === 'concluida' ? (t.status === 'concluida' || t.status === 'dispensada') : t.status === tab);
     if (S.taskUser) tasks = tasks.filter(t => t.userId === S.taskUser);
+    const tabbed = tasks; tasks = V.taskFilter(tasks);
     tasks.sort((a, b) => tab === 'pendente' ? (a.due < b.due ? -1 : 1) : (a.due > b.due ? -1 : 1));
     const all = api.tasks(u, { deptId: V.scopeDept(u) || undefined });
     const overdue = all.filter(t => t.status === 'pendente' && t.due < today).length;
@@ -66,6 +96,7 @@
       </div>
       <div class="toolbar">${V.tabs([['lista', 'Lista'], ['quadro', 'Quadro da equipe']], S.taskView || 'lista', 'taskView')}${S.taskView === 'quadro' ? '' : V.tabs([['pendente', 'Pendentes'], ['concluida', 'Concluídas']], tab, 'taskTab')}
         <label class="picker">${icon('users')}<select id="task-user" data-set="taskUser" aria-label="Responsável"><option value="">Toda a equipe</option>${emps.map(e => `<option value="${e.id}" ${S.taskUser === e.id ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label></div>
+      ${S.taskView === 'quadro' ? '' : V.taskFilterBar(tabbed, tasks.length)}
       ${S.taskView === 'quadro' ? V.taskBoard(u, P.isGlobal(u) && !V.scopeDept(u) ? [] : emps, all.filter(t => t.status === 'pendente')) : V.card('', V.taskList(u, tasks, today, true), { cls: 'flush' })}
       ${V.scopeDept(u) ? V.card('Atividades e pesos · ' + esc(P.dept(V.scopeDept(u)).name), V.weightTable(u, V.scopeDept(u), false), { sub: 'Para cadastrar atividades ou mudar pesos, use a aba "Atividades e pesos".', actions: V.btn('Atividades e pesos', { act: 'setState', icon: 'scale', cls: 'ghost sm', attrs: 'data-key="atvTab" data-val="pesos"' }) }) : ''}`;
   };

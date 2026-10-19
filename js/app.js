@@ -20,6 +20,7 @@
     rep: { type: 'departamento', deptId: '', userId: '', period: 'mes_ant', custom: { start: D.iso(D.add(today, -29)), end: D.iso(today) } },
     insFilter: 'all', hlPeriod: 'mes_ant', hlAll: false, recAll: false, rankPeriod: 'semana', pesoDept: 'd1', empFilter: { q: '', dept: '', status: '' }, alertFilter: 'all',
     comp: { q: '', code: '', regime: '', dept: '', status: 'ativas', limit: '50' }, compPage: 1, vac: { month: D.monthStart(today), sel: null, tab: 'fila' },
+    tf: { q: '', client: '', from: '', to: '', late: false },
     theme: ls.get('prumo.theme') || 'system', navOpen: false, navCollapsed: ls.get('prumo.nav') === 'min'
   };
 
@@ -504,6 +505,7 @@
     period(el) { S.period.key = el.dataset.key; render(); },
     cmp(el) { S.cmp = el.dataset.key; render(); },
     setState(el) { if (/^task/.test(el.dataset.key)) S.taskLimit = 0; setPath(el.dataset.key, el.dataset.val); render(); },
+    tfClear() { S.tf = { q: '', client: '', from: '', to: '', late: false }; S.taskLimit = 0; render(); },
     moreTasks() { S.taskLimit = (S.taskLimit || 80) + 150; render(); },
     toggleHlAll() { S.hlAll = !S.hlAll; render(); },
     toggleRecAll() { S.recAll = !S.recAll; render(); },
@@ -1618,6 +1620,7 @@
     for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]];
     o[parts[parts.length - 1]] = value;
     if (path.startsWith('hist.') && path !== 'hist.page') S.hist.page = 1;
+    if (path.startsWith('tf.') || path === 'taskUser') S.taskLimit = 0;
     if (path === 'dept') { S.taskUser = ''; S.cal.userId = ''; }
     if (path === 'rep.deptId') S.rep.userId = '';
   }
