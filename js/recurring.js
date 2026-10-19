@@ -32,6 +32,7 @@
    * O banco só conhece recorrência mensal, então as trimestrais ficam com active:false para ele ignorar e são geradas aqui, pelo navegador
    * de quem gerencia o departamento. "Pausada" para elas é o campo paused. */
   const isQ = r => r.freq === 'trimestral';
+  const isUnica = r => r.freq === 'unica'; // tarefa que não se repete: uma vez só, na data r.date (por regime)
   // geradas aqui (não pelo banco): as trimestrais e as por regime tributário; o banco as ignora (active:false) e "pausada" é o campo paused
   const isLocal = r => isQ(r) || !!r.regime;
   const isOn = r => isLocal(r) ? !r.paused : r.active !== false;
@@ -43,8 +44,9 @@
     const multi = r => !!(r.regime || (r.clients && r.clients.length));
     const have = new Set(db().tasks.map(t => t.recKey).filter(Boolean));
     const scope = recs().filter(r => isOn(r) && (!onlyLocal || isLocal(r)) && (!onlyLocal || canManage(U(), r.deptId)));
-    scope.forEach(r => (isQ(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => clientsOf(r).forEach(client => {
+    scope.forEach(r => (isQ(r) || isUnica(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => clientsOf(r).forEach(client => {
       if (isQ(r) && !QMONTHS.includes(m.getMonth())) return;
+      if (isUnica(r) && ym(m) !== String(r.date || '').slice(0, 7)) return;
       const k = ym(m); if (k < (r.start || '0000') || (r.end && k > r.end)) return;
       // uma tarefa por empresa e por mês (ou por trimestre)
       const key = multi(r) ? r.id + '|' + client + '|' + k : r.id + '|' + k;
@@ -54,7 +56,7 @@
       const title = (multi(r) ? r.title + (isQ(r) ? ' (' + quarterOf(m) + ')' : '') + (client ? ' — ' + client : '') : r.title + (isQ(r) ? ' (' + quarterOf(m) + ')' : ''));
       // id fixo nas geradas aqui: se dois navegadores gerarem ao mesmo tempo, o repetido é ignorado em vez de duplicar
       const id = isLocal(r) ? 'tq_' + key.replace(/[^A-Za-z0-9]+/g, '_') : P.uid('t');
-      db().tasks.push({ id, userId: uid, deptId: r.deptId, title, activityId: r.activityId || null, client: client || '', due: dueOf(r, m), status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); have.add(key); n++;
+      db().tasks.push({ id, userId: uid, deptId: r.deptId, title, activityId: r.activityId || null, client: client || '', due: isUnica(r) ? r.date : dueOf(r, m), status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); have.add(key); n++;
     })));
     // empresa que saiu do regime (ou foi inativada): some a tarefa pendente que ainda não foi mexida
     if ((db().companies || []).length) scope.filter(r => r.regime).forEach(r => {
@@ -85,27 +87,36 @@
   const rulesOf = actId => recs().filter(r => r.regime && r.activityId === actId);
   const rulesText = actId => {
     const rs = rulesOf(actId); if (!rs.length) return '<span class="muted">—</span>';
-    return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${isQ(r) ? 'trimestral' : 'mensal'}, dia ${r.day}</span>`).join(' ');
+    return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${isUnica(r) ? 'uma vez, ' + D.fmt(r.date) : (isQ(r) ? 'trimestral' : 'mensal') + ', dia ' + r.day}</span>`).join(' ');
   };
   const regimeFormHtml = actId => {
     const rs = actId ? rulesOf(actId) : [], first = rs[0] || {}, on = new Set(rs.map(r => r.regime));
     return `<div class="fgrid reg-box">
       <p class="fine span3"><b>Tarefa automática por regime tributário</b> (opcional). Marque os regimes: todas as empresas ativas de cada regime recebem esta tarefa. Empresa nova, ou que mudar de regime, entra e sai sozinha.</p>
       <div class="span3 reg-checks">${Object.entries(P.REGIMES).map(([k, v]) => `<label class="check-inline"><input type="checkbox" class="ac-reg" value="${k}" ${on.has(k) ? 'checked' : ''}> ${esc(v.label)}</label>`).join('')}</div>
-      <label class="field"><span>Repetição</span><select id="ac-freq"><option value="mensal" ${isQ(first) ? '' : 'selected'}>Todo mês</option><option value="trimestral" ${isQ(first) ? 'selected' : ''}>Trimestral (jan, abr, jul e out)</option></select></label>
-      <label class="field"><span>Dia do prazo</span><input type="number" id="ac-day" min="1" max="31" value="${first.day || 20}"></label>
-      <label class="field"><span>Começa em</span><input type="month" id="ac-start" value="${first.start || ym(P.today())}"></label>
-      <label class="field check span3"><input type="checkbox" id="ac-bd" ${first.businessDay === false ? '' : 'checked'}><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
+      <label class="field"><span>É recorrente?</span><select id="ac-freq"><option value="mensal" ${isQ(first) || isUnica(first) ? '' : 'selected'}>Sim, todo mês</option><option value="trimestral" ${isQ(first) ? 'selected' : ''}>Sim, trimestral (jan, abr, jul e out)</option><option value="unica" ${isUnica(first) ? 'selected' : ''}>Não, só uma vez</option></select></label>
+      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Dia do prazo</span><input type="number" id="ac-day" min="1" max="31" value="${first.day || 20}"></label>
+      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Começa em</span><input type="month" id="ac-start" value="${first.start || ym(P.today())}"></label>
+      <label class="field ac-once" ${isUnica(first) ? '' : 'style="display:none"'}><span>Prazo (data)</span><input type="date" id="ac-date" value="${first.date || D.iso(D.add(P.today(), 7))}"></label>
+      <label class="field check span3 ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><input type="checkbox" id="ac-bd" ${first.businessDay === false ? '' : 'checked'}><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
       <label class="field check span3"><input type="checkbox" id="ac-cart" ${first.onlyCarteira === false ? '' : 'checked'}><span>Só empresas atendidas por este departamento (carteira ou cadastro da empresa)</span></label>
     </div>`;
   };
   const readRules = m => ({
     regimes: [...m.querySelectorAll('.ac-reg:checked')].map(x => x.value), freq: m.querySelector('#ac-freq').value,
-    day: Number(m.querySelector('#ac-day').value), start: m.querySelector('#ac-start').value, bd: m.querySelector('#ac-bd').checked, cart: m.querySelector('#ac-cart').checked
+    day: Number(m.querySelector('#ac-day').value), start: m.querySelector('#ac-start').value, date: m.querySelector('#ac-date').value, bd: m.querySelector('#ac-bd').checked, cart: m.querySelector('#ac-cart').checked
+  });
+  // mostra os campos certos conforme "É recorrente?"
+  document.addEventListener('change', ev => {
+    if (!ev.target || ev.target.id !== 'ac-freq') return;
+    const once = ev.target.value === 'unica';
+    document.querySelectorAll('.ac-rec').forEach(x => { x.style.display = once ? 'none' : ''; });
+    document.querySelectorAll('.ac-once').forEach(x => { x.style.display = once ? '' : 'none'; });
   });
   const validateRegimeRules = m => {
     if (!m.querySelector('.ac-reg')) return;
     const x = readRules(m); if (!x.regimes.length) return;
+    if (x.freq === 'unica') { if (!x.date) throw new Error('Informe a data do prazo da tarefa.'); return; }
     if (!(x.day >= 1 && x.day <= 31)) throw new Error('Informe o dia do prazo da tarefa por regime (1 a 31).');
     if (!x.start) throw new Error('Informe o mês de início da tarefa por regime.');
   };
@@ -118,8 +129,10 @@
     x.regimes.forEach(reg => {
       let r = old.find(o => o.regime === reg);
       if (!r) { r = { id: P.uid('tr'), auto: true, userId: null, clients: [], end: '', active: false, paused: false, createdBy: u.id, createdAt: D.stamp() }; recs().push(r); }
-      Object.assign(r, { deptId: act.deptId, title: act.name, activityId: act.id, regime: reg, onlyCarteira: x.cart, day: x.day, businessDay: x.bd, start: x.start, active: false });
-      if (x.freq === 'trimestral') r.freq = 'trimestral'; else delete r.freq;
+      const once = x.freq === 'unica';
+      Object.assign(r, { deptId: act.deptId, title: act.name, activityId: act.id, regime: reg, onlyCarteira: x.cart, day: once ? Number(x.date.slice(8, 10)) : x.day, businessDay: once ? false : x.bd, start: once ? x.date.slice(0, 7) : x.start, active: false });
+      if (x.freq === 'trimestral' || once) r.freq = x.freq; else delete r.freq;
+      if (once) r.date = x.date; else delete r.date;
     });
     let removed = 0;
     const gone = old.filter(o => !x.regimes.includes(o.regime));
@@ -129,7 +142,7 @@
       if (dropTasks) { const tids = new Set(pend.map(t => t.id)); db().tasks = db().tasks.filter(t => !tids.has(t.id)); removed = tids.size; }
       db().taskRecurrences = recs().filter(r => !ids.has(r.id));
     }
-    P.audit(u, 'Tarefa por regime configurada', act.id, act.name + ' · ' + (x.regimes.map(k => (P.REGIMES[k] || {}).label).join(', ') || 'nenhum regime') + (x.regimes.length ? (x.freq === 'trimestral' ? ' · trimestral' : ' · mensal') + ', dia ' + x.day : ''));
+    P.audit(u, 'Tarefa por regime configurada', act.id, act.name + ' · ' + (x.regimes.map(k => (P.REGIMES[k] || {}).label).join(', ') || 'nenhum regime') + (x.regimes.length ? (x.freq === 'unica' ? ' · uma vez, ' + D.fmt(x.date) : (x.freq === 'trimestral' ? ' · trimestral' : ' · mensal') + ', dia ' + x.day) : ''));
     P.store.save();
     if (x.regimes.length) { if (P.isLive) setTimeout(() => generate(true), 500); else if (localGenerate()) P.store.save(); }
     const n = x.regimes.reduce((s, reg) => s + regimeClients({ regime: reg, deptId: act.deptId, onlyCarteira: x.cart }).length, 0);
@@ -203,7 +216,7 @@
   };
   const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"><input type="checkbox" data-act="recSelAll" aria-label="Selecionar todas" ${list.every(r => recSel().has(r.id)) ? 'checked' : ''}></th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
     ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1 || !!r.regime; return `<tr class="${!isOn(r) ? 'inactive' : ''}"><td class="chk-col"><input type="checkbox" data-act="recSel" data-id="${esc(r.id)}" aria-label="Selecionar" ${recSel().has(r.id) ? 'checked' : ''}></td><td><b>${esc(r.title)}</b>${r.regime ? `<small class="obs" title="${esc(cl.join(', '))}">Regime ${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${cl.length} empresas (automático)</small>` : many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
-      <td class="nowrap">${isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
+      <td class="nowrap">${isUnica(r) ? 'Uma vez · ' + D.fmt(r.date) : isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
       <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
       <td>${!isOn(r) ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
       <td class="actions-col">${V.ibtn(!isOn(r) ? 'check' : 'clock', !isOn(r) ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`; }).join('')}
