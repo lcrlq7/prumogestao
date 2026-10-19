@@ -115,7 +115,7 @@
     const tabs = `<div class="toolbar atv-tabs">${V.tabs([['tarefas', 'Tarefas da equipe'], ['cadastro', 'Cadastro de tarefas', recs().filter(r => canManage(u, r.deptId) && r.active !== false).length], ['pesos', 'Atividades e pesos']], tab, 'atvTab')}</div>`;
     if (tab === 'tarefas') { const html = origAtv(u), i = html.indexOf('<div class="strip">'); return i > 0 ? html.slice(0, i) + tabs + html.slice(i) : tabs + html; }
     const head = tab === 'cadastro'
-      ? V.pageHead('Cadastro de tarefas', 'Atividade, peso, empresa e recorrência num só cadastro. Todo mês a tarefa aparece para quem cuida da empresa no departamento.', V.deptPicker(u) + V.btn('Tarefa avulsa', { act: 'newTask', icon: 'plus', cls: 'ghost' }) + V.btn('Nova tarefa recorrente', { act: 'newActRec', icon: 'refresh', cls: 'primary' }))
+      ? V.pageHead('Cadastro de tarefas', 'Atividade, peso, empresa e recorrência num só cadastro. Todo mês a tarefa aparece para quem cuida da empresa no departamento.', V.deptPicker(u) + V.btn('Editar em lote', { act: 'batchEditTasks', icon: 'edit', cls: 'ghost' }) + V.btn('Tarefa avulsa', { act: 'newTask', icon: 'plus', cls: 'ghost' }) + V.btn('Nova tarefa recorrente', { act: 'newActRec', icon: 'refresh', cls: 'primary' }))
       : V.pageHead('Atividades e pesos', 'Cadastre os tipos de tarefa e o peso de cada um. 1 ponto ≈ 1 hora média de trabalho.', V.deptPicker(u) + (dept ? V.btn('Nova atividade', { act: 'atvNewActivity', icon: 'plus', cls: 'primary' }) : ''));
     const body = tab === 'cadastro' ? cadastro(u)
       : dept ? V.card('Atividades e pesos · ' + esc((P.dept(dept) || {}).name || ''), V.weightTable(u, dept, true), { cls: 'flush', sub: 'O novo peso vale para os lançamentos futuros; os já feitos mantêm o peso da época. Somente diretoria, gerência e o gestor do departamento alteram.' })
@@ -282,6 +282,78 @@
         P.store.save(); P.toast('Tarefa atualizada.'); P.render();
       }
     });
+  };
+  /* ---------- Editar em lote: filtra pelo nome (ex.: ISS) e muda prazo/responsável de todas de uma vez ---------- */
+  A.batchEditTasks = () => {
+    const u = U();
+    const scope = () => P.api.tasks(u, { deptId: V.scopeDept(u) || undefined }).filter(t => t.status === 'pendente' && canManage(u, t.deptId));
+    // o nome que vale é o da atividade/recorrência (o título das tarefas por empresa leva o nome da empresa)
+    const keyOf = t => ((t.recId && recs().find(r => r.id === t.recId) || {}).title || t.title || '').toLowerCase();
+    const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const all = scope();
+    if (!all.length) return P.toast('Não há tarefas pendentes para editar.', 'err');
+    const owners = [...new Set(all.map(t => t.userId))].map(id => P.user(id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+    const deptIds = [...new Set(all.map(t => t.deptId))];
+    const people = deptIds.map(d => ({ d, list: db().users.filter(x => x.deptId === d && x.active !== false && (x.role === 'employee' || x.role === 'manager')).sort((a, b) => a.name.localeCompare(b.name)) }));
+    const pick = () => {
+      const q = norm($('#bt-q').value.trim()), mon = $('#bt-mon').value, from = $('#bt-from').value;
+      return all.filter(t => (!q || norm(keyOf(t)).includes(q)) && (!mon || t.due.slice(0, 7) === mon) && (!from || t.userId === from));
+    };
+    P.ui.modal({
+      title: 'Editar tarefas em lote', wide: true, submit: 'Aplicar a todas',
+      body: `<div class="fgrid">
+        <p class="fine span3"><b>1. Quais tarefas?</b> Só pendentes. Deixe em branco para pegar todas.</p>
+        <label class="field span2"><span>Nome da tarefa contém</span><input type="text" id="bt-q" placeholder="Ex.: ISS"></label>
+        <label class="field"><span>Mês do prazo</span><input type="month" id="bt-mon"></label>
+        <label class="field span3"><span>Responsável atual</span><select id="bt-from"><option value="">Todos</option>${owners.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
+        <div class="span3 fine" id="bt-prev"></div>
+        <p class="fine span3"><b>2. O que mudar?</b> Preencha só o que quiser alterar.</p>
+        <label class="field"><span>Novo dia do prazo (1 a 31)</span><input type="number" id="bt-day" min="1" max="31" placeholder="Ex.: 15"></label>
+        <label class="field"><span>ou prazo exato</span><input type="date" id="bt-due"></label>
+        <label class="field"><span>Novo responsável</span><select id="bt-user"><option value="">Não mudar</option>${people.map(g => `<optgroup label="${esc((P.dept(g.d) || { name: '—' }).name)}">${g.list.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        <label class="field check span3"><input type="checkbox" id="bt-rec" checked><span><b>Aplicar também nas recorrências</b> (os próximos meses já nascem com o novo dia e o novo responsável)</span></label>
+      </div><p class="fine">${V.icon('info')} "Novo dia" mantém o mês de cada tarefa e antecipa para dia útil quando a recorrência está assim. O novo responsável vale só para tarefas do mesmo departamento dele; nas recorrências automáticas, quem recebe continua sendo definido pela carteira de empresas.</p>`,
+      onSubmit: m => {
+        const list = pick(); if (!list.length) throw new Error('Nenhuma tarefa corresponde ao filtro.');
+        const day = Number($('#bt-day').value) || 0, due = $('#bt-due').value, userId = $('#bt-user').value, withRec = $('#bt-rec').checked;
+        if (!day && !due && !userId) throw new Error('Escolha o que mudar: dia do prazo, prazo exato ou responsável.');
+        if (day && due) throw new Error('Use o dia do prazo ou o prazo exato, não os dois.');
+        if (day && !(day >= 1 && day <= 31)) throw new Error('O dia do prazo vai de 1 a 31.');
+        const newUser = userId ? P.user(userId) : null;
+        if (userId && !newUser) throw new Error('Responsável não encontrado.');
+        if (list.length > 20 && !confirm('Alterar ' + list.length + ' tarefas de uma vez?')) return;
+        const stamp = D.stamp(), notes = new Map(); const recDone = new Set(); let n = 0, skipped = 0;
+        list.forEach(t => {
+          const rec = t.recId ? recs().find(r => r.id === t.recId) : null, ch = [];
+          let nd = t.due;
+          if (due) nd = due; else if (day) { const d0 = D.parse(t.due); nd = dueOf({ day, businessDay: rec ? rec.businessDay : false }, new Date(d0.getFullYear(), d0.getMonth(), 1)); }
+          if (nd !== t.due) { ch.push('prazo ' + D.fmt(t.due) + ' → ' + D.fmt(nd)); if (!t.originalDue) t.originalDue = t.due; }
+          let nu = t.userId;
+          if (newUser) { if (newUser.deptId !== t.deptId) skipped++; else if (newUser.id !== t.userId) { ch.push('responsável: ' + ((P.user(t.userId) || {}).name || '—') + ' → ' + newUser.name); nu = newUser.id; } }
+          if (!ch.length) return;
+          (t.edits = t.edits || []).push({ by: u.id, at: stamp, changes: ch.join('; '), batch: true });
+          [t.userId, nu].forEach(id => { if (id && id !== u.id) notes.set(id, (notes.get(id) || 0) + 1); });
+          t.due = nd; t.userId = nu; n++;
+          if (rec && withRec && !recDone.has(rec.id)) {
+            recDone.add(rec.id);
+            if (day) rec.day = day;
+            if (newUser && !rec.auto && newUser.deptId === rec.deptId) rec.userId = newUser.id;
+          }
+        });
+        if (!n) { P.toast('Nada mudou: as tarefas já estão assim.'); return; }
+        P.audit(u, 'Tarefas editadas em lote', 'lote', n + ' tarefa(s)' + (recDone.size ? ' e ' + recDone.size + ' recorrência(s)' : '') + ' · ' + [day ? 'dia ' + day : due ? 'prazo ' + D.fmt(due) : '', newUser ? 'responsável ' + newUser.name : ''].filter(Boolean).join(' · '));
+        if (P.notify && notes.size) notes.forEach((c, id) => P.notify([id], { type: 'tarefa', icon: 'clipboard', title: 'Tarefas alteradas', text: `${u.name} alterou ${c} tarefa(s) sua(s) em lote. Veja os novos prazos.`, link: 'atividades' }));
+        P.store.save();
+        P.toast(n + ' tarefa(s) atualizada(s)' + (recDone.size ? ' e ' + recDone.size + ' recorrência(s)' : '') + (skipped ? '. ' + skipped + ' ficaram com o responsável antigo (outro departamento)' : '') + '.');
+        P.render();
+      }
+    });
+    const prev = () => {
+      const l = pick(), sample = l.slice(0, 5).map(t => esc(t.title) + ' (' + D.fmt(t.due) + ')').join(' · ');
+      $('#bt-prev').innerHTML = `<b>${l.length}</b> tarefa(s) selecionada(s) de ${all.length}.${l.length ? '<br>' + sample + (l.length > 5 ? ' …' : '') : ''}`;
+    };
+    ['bt-q', 'bt-mon', 'bt-from'].forEach(id => { const el = $('#' + id); el.addEventListener('input', prev); el.addEventListener('change', prev); });
+    prev();
   };
   // lista de tarefas: botões Adiar/Dispensar/Editar e o registro do motivo
   // botões com texto (não só ícone), para ficarem fáceis de achar
