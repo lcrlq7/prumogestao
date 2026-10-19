@@ -43,15 +43,16 @@
     const tab = S.taskTab;
     const today = D.iso(P.today());
     if (u.role === 'employee') {
-      const tasks = api.tasks(u).filter(t => t.status === tab).sort((a, b) => tab === 'pendente' ? (a.due < b.due ? -1 : 1) : (a.due > b.due ? -1 : 1));
-      const counts = { pendente: api.tasks(u).filter(t => t.status === 'pendente').length, concluida: api.tasks(u).filter(t => t.status === 'concluida').length };
+      const inTab = t => tab === 'concluida' ? (t.status === 'concluida' || t.status === 'dispensada') : t.status === tab;
+      const tasks = api.tasks(u).filter(inTab).sort((a, b) => tab === 'pendente' ? (a.due < b.due ? -1 : 1) : (a.due > b.due ? -1 : 1));
+      const counts = { pendente: api.tasks(u).filter(t => t.status === 'pendente').length, concluida: api.tasks(u).filter(t => t.status === 'concluida' || t.status === 'dispensada').length };
       return `${V.pageHead('Minhas tarefas', 'Tarefas atribuídas pelo seu gestor. Ao concluir, registre a atividade para gerar os pontos.', V.btn('Registrar atividade avulsa', { go: 'lancamentos', icon: 'plus', cls: 'primary' }))}
         ${V.tabs([['pendente', 'Pendentes', counts.pendente], ['concluida', 'Concluídas', counts.concluida]], tab, 'taskTab')}
         ${V.card('', V.taskList(u, tasks, today), { cls: 'flush' })}
         ${V.card('Tabela de pesos do meu departamento', V.weightTable(u, u.deptId, false), { sub: '1 ponto ≈ 1 hora média de trabalho' })}`;
     }
     const emps = V.team(u);
-    let tasks = api.tasks(u, { deptId: V.scopeDept(u) || undefined }).filter(t => t.status === tab);
+    let tasks = api.tasks(u, { deptId: V.scopeDept(u) || undefined }).filter(t => tab === 'concluida' ? (t.status === 'concluida' || t.status === 'dispensada') : t.status === tab);
     if (S.taskUser) tasks = tasks.filter(t => t.userId === S.taskUser);
     tasks.sort((a, b) => tab === 'pendente' ? (a.due < b.due ? -1 : 1) : (a.due > b.due ? -1 : 1));
     const all = api.tasks(u, { deptId: V.scopeDept(u) || undefined });
@@ -81,6 +82,7 @@
           <small>${showWho ? esc(who.name) + ' · ' : ''}${a ? F.n(a.weight, 2) + ' pt/' + esc(a.unit) + ' · ' : ''}${t.status === 'concluida' ? 'Concluída em ' + D.fmt(t.doneAt || t.due) : 'Prazo ' + D.fmt(t.due)}</small></div>
         ${late ? '<span class="badge st-sobrecarga">' + icon('alert') + 'Em atraso</span>' : soon ? '<span class="badge st-baixa">' + icon('clock') + 'Vence em breve</span>' : ''}
         ${t.status === 'pendente' && u.id === t.userId ? V.btn('Concluir e registrar', { act: 'completeTask', cls: 'sm primary', icon: 'check', attrs: `data-id="${t.id}"` }) : ''}
+        ${V.taskExtra ? V.taskExtra(u, t) : ''}
       </li>`;
     }).join('')}</ul>`;
   };

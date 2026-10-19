@@ -550,7 +550,7 @@ window.P = window.P || {};
       const constancy = weeks.length >= 2 ? weeks.filter(x => x >= s.lowThreshold && x <= s.highThreshold).length / weeks.length * 100 : null;
       const days = M.workdays(u, p);
       const quality = reviewed.length ? (1 - rework / reviewed.length) * 100 : null;
-      const tasks = db().tasks.filter(t => t.userId === u.id && t.due >= p.s && t.due <= p.e && (t.status === 'concluida' || t.due < D.iso(P.today())));
+      const tasks = db().tasks.filter(t => t.userId === u.id && t.due >= p.s && t.due <= p.e && t.status !== 'dispensada' && (t.status === 'concluida' || t.due < D.iso(P.today())));
       const onTime = tasks.length ? tasks.filter(t => t.status === 'concluida' && (t.doneAt || t.due) <= t.due).length / tasks.length * 100 : null;
       const pv = prev ? M.stats(u, prev) : null;
       const growth = pv && pv.util != null && st.util != null ? st.util - pv.util : null;

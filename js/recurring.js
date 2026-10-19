@@ -186,6 +186,71 @@
     P.companyPicker(comps, 'ar-co', add);
   };
 
+  /* ---------- Adiar ou dispensar uma tarefa (com motivo) ---------- */
+  // o responsável pela tarefa, o gestor do departamento, a gerência e a diretoria
+  const canHandle = (u, t) => !!u && !!t && (t.userId === u.id || canManage(u, t.deptId));
+  const taskOf = el => db().tasks.find(x => x.id === el.dataset.id);
+  const notifyOwner = (t, u, text) => { if (t.userId !== u.id && P.notify) P.notify([t.userId], { type: 'tarefa', icon: 'clipboard', title: 'Tarefa alterada', text, link: 'atividades' }); };
+  const notifyMgr = (t, u, text) => { const d = P.dept(t.deptId); if (P.notify && d && d.managerId && d.managerId !== u.id) P.notify([d.managerId], { type: 'tarefa', icon: 'clipboard', title: 'Tarefa alterada', text, link: 'atividades' }); };
+  const reasonOk = v => { if ((v || '').trim().length < 5) throw new Error('Descreva o motivo (pelo menos 5 caracteres).'); return v.trim(); };
+  A.postponeTask = el => {
+    const u = U(), t = taskOf(el);
+    if (!canHandle(u, t) || t.status !== 'pendente') return P.toast('Você não pode adiar esta tarefa.', 'err');
+    const end = D.iso(D.monthEnd(D.parse(t.due)));
+    P.ui.modal({
+      title: 'Adiar tarefa', submit: 'Adiar',
+      body: `<p class="prose"><b>${esc(t.title)}</b><br><small class="muted">Prazo atual: ${D.fmt(t.due)}</small></p>
+        <div class="fgrid"><label class="field"><span>Novo prazo</span><input type="date" id="tp-due" min="${D.iso(D.add(D.parse(t.due), 1))}" value="${D.iso(D.add(D.parse(t.due), 7))}"></label>
+        <label class="field span3"><span>Motivo</span><textarea id="tp-why" rows="3" placeholder="Ex.: cliente ainda não enviou os extratos"></textarea></label></div>
+        <p class="fine">${V.icon('info')} O adiamento fica registrado na tarefa, com o motivo e quem adiou.${t.recId ? ' A tarefa do mês seguinte continua sendo criada normalmente.' : ''}</p>`,
+      onSubmit: m => {
+        const due = $('#tp-due').value, why = reasonOk($('#tp-why').value);
+        if (!due || due <= t.due) throw new Error('Escolha um prazo depois do atual.');
+        (t.postponed = t.postponed || []).push({ from: t.due, to: due, reason: why, by: u.id, at: D.stamp() });
+        if (!t.originalDue) t.originalDue = t.due;
+        t.due = due;
+        P.audit(u, 'Tarefa adiada', t.id, t.title + ' para ' + D.fmt(due) + ' · ' + why);
+        notifyOwner(t, u, `${t.title}: prazo adiado para ${D.fmt(due)} (${why}).`); notifyMgr(t, u, `${u.name} adiou "${t.title}" para ${D.fmt(due)}: ${why}`);
+        P.store.save(); P.toast('Tarefa adiada para ' + D.fmt(due) + '.'); P.render();
+      }
+    });
+    void end;
+  };
+  A.dismissTask = el => {
+    const u = U(), t = taskOf(el);
+    if (!canHandle(u, t) || t.status !== 'pendente') return P.toast('Você não pode dispensar esta tarefa.', 'err');
+    P.ui.modal({
+      title: 'Dispensar tarefa', submit: 'Dispensar',
+      body: `<p class="prose"><b>${esc(t.title)}</b><br><small class="muted">Prazo: ${D.fmt(t.due)}</small></p>
+        <label class="field"><span>Motivo da dispensa</span><textarea id="td-why" rows="3" placeholder="Ex.: empresa sem movimento no mês"></textarea></label>
+        <p class="fine">${V.icon('info')} A tarefa sai das pendentes e não conta como atrasada. Ela não gera pontos e fica registrada em "Concluídas" como dispensada.${t.recId ? ' A do mês seguinte continua sendo criada.' : ''}</p>`,
+      onSubmit: m => {
+        const why = reasonOk($('#td-why').value);
+        t.status = 'dispensada'; t.dismissed = { reason: why, by: u.id, at: D.stamp() };
+        P.audit(u, 'Tarefa dispensada', t.id, t.title + ' · ' + why);
+        notifyOwner(t, u, `${t.title}: dispensada (${why}).`); notifyMgr(t, u, `${u.name} dispensou "${t.title}": ${why}`);
+        P.store.save(); P.toast('Tarefa dispensada.'); P.render();
+      }
+    });
+  };
+  A.reopenTask = el => {
+    const u = U(), t = taskOf(el);
+    if (!t || !canManage(u, t.deptId) || t.status !== 'dispensada') return;
+    if (!confirm('Reabrir esta tarefa? Ela volta para as pendentes.')) return;
+    (t.reopened = t.reopened || []).push({ by: u.id, at: D.stamp(), dismissed: t.dismissed }); t.status = 'pendente'; delete t.dismissed;
+    P.audit(u, 'Tarefa reaberta', t.id, t.title); notifyOwner(t, u, `${t.title}: reaberta por ${u.name}.`);
+    P.store.save(); P.render();
+  };
+  // lista de tarefas: botões Adiar/Dispensar e o registro do motivo
+  V.taskExtra = (u, t) => {
+      const extra = [];
+      if (t.status === 'dispensada' && t.dismissed) extra.push(`<span class="badge st-sem">${V.icon('x')}Dispensada</span><small class="task-why">${esc(t.dismissed.reason)} · ${esc((P.user(t.dismissed.by) || {}).name || '')}</small>`);
+      if (t.status === 'pendente' && t.postponed && t.postponed.length) { const p = t.postponed[t.postponed.length - 1]; extra.push(`<small class="task-why" title="${esc(t.postponed.map(x => D.fmt(x.from) + ' → ' + D.fmt(x.to) + ': ' + x.reason).join('\n'))}">Adiada${t.postponed.length > 1 ? ' ' + t.postponed.length + 'x' : ''} (era ${D.fmt(t.originalDue || p.from)}): ${esc(p.reason)}</small>`); }
+      const btns = t.status === 'pendente' && canHandle(u, t) ? V.ibtn('clock', 'Adiar', { act: 'postponeTask', attrs: `data-id="${t.id}"` }) + V.ibtn('x', 'Dispensar', { act: 'dismissTask', attrs: `data-id="${t.id}"` })
+        : t.status === 'dispensada' && canManage(u, t.deptId) ? V.ibtn('refresh', 'Reabrir', { act: 'reopenTask', attrs: `data-id="${t.id}"` }) : '';
+      return `${btns ? `<div class="task-acts">${btns}</div>` : ''}${extra.length ? `<div class="task-extra">${extra.join(' ')}</div>` : ''}`;
+  };
+
   A.toggleTaskRec = el => {
     const r = recs().find(x => x.id === el.dataset.id); if (!r || !canManage(U(), r.deptId)) return;
     r.active = r.active === false; P.audit(U(), 'Tarefa recorrente ' + (r.active ? 'reativada' : 'pausada'), r.id, r.title);
