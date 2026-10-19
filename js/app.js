@@ -35,7 +35,7 @@
   const PAGE_LABEL = {
     dashboard: 'Dashboard', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
-    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR'
+    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR', tarefas: 'Cadastro de tarefas'
   };
   function parse(path) {
     path = String(path || '').replace(/^#?\/?/, '');
@@ -75,6 +75,7 @@
       ['comunicacao', 'Comunicação', 'message', P.chat ? P.chat.unread(u) : 0],
       ['equipe', 'Minha Equipe', 'users'],
       ['atividades', emp ? 'Minhas tarefas' : 'Atividades', 'clipboard'],
+      ['tarefas', 'Cadastro de tarefas', 'refresh'],
       ['os', P.os ? P.os.label(u) : 'OS', 'file', P.os ? P.os.badge(u) : 0],
       ['lancamentos', 'Lançamentos', 'inbox', pendCount],
       ['metas', 'Metas', 'target'],
@@ -93,7 +94,7 @@
       ['configuracoes', 'Configurações', 'cog']
     ].filter(([k]) => P.PAGES[k] && P.PAGES[k].includes(u.role))
       // departamento de apoio: sem as páginas de produção (pontos, metas, ranking…)
-      .filter(([k]) => !P.isSupport(u) || !['equipe', 'atividades', 'lancamentos', 'metas', 'insights', 'ranking', 'relatorios', 'historico', 'empresas', 'os'].includes(k))
+      .filter(([k]) => !P.isSupport(u) || !['equipe', 'atividades', 'tarefas', 'lancamentos', 'metas', 'insights', 'ranking', 'relatorios', 'historico', 'empresas', 'os'].includes(k))
       .filter(([k]) => k !== 'solicitacoes' || (P.purchases && P.purchases.canSee(u)));
     // Administração conforme o nível: gerente e diretoria veem tudo; o gestor cuida dos funcionários e dos pesos do departamento
     const admin = P.isGlobal(u) ? [
@@ -619,8 +620,9 @@
           if (!due) throw new Error('Informe o prazo.');
           if (!a) throw new Error('Escolha uma atividade. O departamento deste responsável ainda não tem atividades cadastradas.');
           if (a.deptId !== (P.user(userId) || {}).deptId) throw new Error('A atividade escolhida é de outro departamento.');
-          api.saveTask(U(), { userId, activityId: a.id, client, due, title: $('#nt-title', m).value.trim() || a.name + (client ? ' — ' + client : '') });
-          toast('Tarefa atribuída a ' + (P.user(userId) || { name: '—' }).name + '.'); render();
+          const saved = api.saveTask(U(), { userId, activityId: a.id, client, due, title: $('#nt-title', m).value.trim() || a.name + (client ? ' — ' + client : '') });
+          if (!saved || !saved.day) toast('Tarefa atribuída a ' + (P.user(userId) || { name: '—' }).name + '.'); // recorrente já avisa
+          render();
         }
       });
     },

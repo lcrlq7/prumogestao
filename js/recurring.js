@@ -69,39 +69,40 @@
     return r;
   };
 
-  /* ---------- Lista e gestão das recorrências ---------- */
-  A.taskRecurrences = () => {
-    const u = U(), list = recs().filter(r => canManage(u, r.deptId)).sort((a, b) => (P.user(a.userId) || {}).name > (P.user(b.userId) || {}).name ? 1 : -1);
-    P.ui.modal({
-      title: 'Tarefas recorrentes', wide: true, cancel: 'Fechar',
-      body: list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
-        ${list.map(r => `<tr class="${r.active === false ? 'inactive' : ''}"><td><b>${esc(r.title)}</b>${r.client ? `<small class="obs">${esc(r.client)}</small>` : ''}</td><td>${esc((P.user(r.userId) || { name: '—' }).name)}</td>
-          <td class="nowrap">Todo dia ${r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}</td>
-          <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
-          <td>${r.active === false ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
-          <td class="actions-col">${V.ibtn(r.active === false ? 'check' : 'clock', r.active === false ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`).join('')}
-        </tbody></table></div><p class="fine">${V.icon('info')} As tarefas são criadas automaticamente para o mês atual e o próximo. Pausar ou excluir não apaga as tarefas já criadas.</p>`
-        : V.empty('Nenhuma tarefa recorrente. Em "Atribuir tarefa", marque "Repetir todo mês".', 'refresh')
-    });
+  /* ---------- Aba "Cadastro de tarefas" ---------- */
+  P.PAGES.tarefas = ['admin', 'office', 'manager'];
+  const who = id => esc((P.user(id) || { name: '—' }).name);
+  const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
+    ${list.map(r => `<tr class="${r.active === false ? 'inactive' : ''}"><td><b>${esc(r.title)}</b>${r.client ? `<small class="obs">${esc(r.client)}</small>` : ''}</td><td>${who(r.userId)}</td>
+      <td class="nowrap">Todo dia ${r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}</td>
+      <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
+      <td>${r.active === false ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
+      <td class="actions-col">${V.ibtn(r.active === false ? 'check' : 'clock', r.active === false ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`).join('')}
+    </tbody></table></div>` : V.empty('Nenhuma tarefa recorrente. Use "Nova tarefa" e marque "Repetir todo mês".', 'refresh');
+  V.tarefas = u => {
+    if (!P.PAGES.tarefas.includes(u.role)) throw new P.AccessError('Acesso restrito.');
+    const list = recs().filter(r => canManage(u, r.deptId)).sort((a, b) => (P.user(a.userId) || {}).name > (P.user(b.userId) || {}).name ? 1 : -1);
+    const today = D.iso(P.today());
+    const avulsas = P.api.tasks(u).filter(t => !t.recId && t.status === 'pendente').sort((a, b) => a.due.localeCompare(b.due));
+    const geradas = P.api.tasks(u).filter(t => t.recId && t.status === 'pendente').sort((a, b) => a.due.localeCompare(b.due));
+    const taskRows = l => l.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th></tr></thead><tbody>${l.map(t => `<tr><td><b>${esc(t.title)}</b>${t.client ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due < today ? ' bad' : ''}">${D.fmt(t.due)}${t.due < today ? ' <small>(atrasada)</small>' : ''}</td></tr>`).join('')}</tbody></table></div>` : V.empty('Nenhuma tarefa pendente.', 'check');
+    return `${V.pageHead('Cadastro de tarefas', 'Cadastre tarefas avulsas ou recorrentes (um cadastro gera a tarefa todo mês).', V.btn('Nova tarefa', { act: 'newTask', icon: 'plus', cls: 'primary' }))}
+      <div class="kpis k3">${V.kpi('Recorrências ativas', list.filter(r => r.active !== false).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
+      ${V.card('Tarefas recorrentes', recTable(list), { cls: 'flush', sub: 'As tarefas são criadas automaticamente para o mês atual e o próximo. Pausar ou excluir não apaga as já criadas.' })}
+      <div class="grid g-1-1">${V.card('Geradas pelas recorrências (pendentes)', taskRows(geradas), { cls: 'flush' })}${V.card('Tarefas avulsas (pendentes)', taskRows(avulsas), { cls: 'flush' })}</div>`;
   };
+  A.taskRecurrences = () => P.go('tarefas');
   A.toggleTaskRec = el => {
     const r = recs().find(x => x.id === el.dataset.id); if (!r || !canManage(U(), r.deptId)) return;
     r.active = r.active === false; P.audit(U(), 'Tarefa recorrente ' + (r.active ? 'reativada' : 'pausada'), r.id, r.title);
     if (r.active && !P.isLive) localGenerate();
     P.store.save(); if (r.active && P.isLive) setTimeout(() => generate(true), 1500);
-    P.ui.closeModal(); A.taskRecurrences(); P.render();
+    P.render();
   };
   A.deleteTaskRec = el => {
     const r = recs().find(x => x.id === el.dataset.id); if (!r || !canManage(U(), r.deptId)) return;
     if (!confirm(`Excluir a recorrência "${r.title}"? Ela deixa de ser criada nos próximos meses. As tarefas já criadas continuam.`)) return;
-    db().taskRecurrences = recs().filter(x => x.id !== r.id); P.audit(U(), 'Tarefa recorrente excluída', r.id, r.title); P.store.save(); P.ui.closeModal(); A.taskRecurrences(); P.render();
+    db().taskRecurrences = recs().filter(x => x.id !== r.id); P.audit(U(), 'Tarefa recorrente excluída', r.id, r.title); P.store.save(); P.render();
   };
 
-  /* ---------- Botão na aba Atividades ---------- */
-  const origAtv = V.atividades;
-  if (origAtv) V.atividades = u => {
-    const html = origAtv(u);
-    if (!(P.isGlobal(u) || u.role === 'manager')) return html;
-    return html.replace('data-act="newTask"', 'data-act="newTask" data-rec-anchor').replace(/(<button[^>]*data-rec-anchor[^>]*>)/, V.btn('Recorrentes', { act: 'taskRecurrences', icon: 'refresh', cls: 'ghost' }).replace(/\s+$/, '') + '$1');
-  };
 })(window.P);
