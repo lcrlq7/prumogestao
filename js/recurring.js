@@ -190,6 +190,8 @@
 
   /* ---------- Aba "Cadastro de tarefas" ---------- */
   P.PAGES.tarefas = ['admin', 'office', 'manager'];
+  // endereço antigo #/tarefas (aba separada que existiu por pouco tempo): abre o cadastro dentro de Atividades
+  V.tarefas = u => { P.state.atvTab = 'cadastro'; return V.atividades(u); };
   const who = id => esc((P.user(id) || { name: '—' }).name);
   /* ---------- Filtros e seleção em lote (recorrências e tarefas geradas) ---------- */
   const normS = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

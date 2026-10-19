@@ -273,8 +273,9 @@
 
   V.vacForm = (u, id = 'vac-form') => {
     const t = P.today();
-    let s = D.add(t, 30); while ([5, 6, 0].includes(s.getDay())) s = D.add(s, 1);
-    const e = D.add(s, 13);
+    // sugere a primeira data que já passa nas regras (sem fim de semana nem véspera de feriado)
+    let s = D.add(t, 30), e = D.add(s, 13);
+    for (let i = 0; i < 60 && P.api.vacationRules(D.iso(s), D.iso(e)); i++) { s = D.add(s, 1); e = D.add(s, 13); }
     return `<form class="form" id="${id}" data-vac-form novalidate>
       <div class="fgrid">
         <label class="field"><span>Início</span><input type="date" name="start" id="${id}-start" value="${D.iso(s)}" min="${D.iso(D.add(t, 1))}" data-vf></label>
