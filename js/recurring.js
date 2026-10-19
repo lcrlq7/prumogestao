@@ -288,22 +288,29 @@
     const u = U();
     const scope = () => P.api.tasks(u, { deptId: V.scopeDept(u) || undefined }).filter(t => t.status === 'pendente' && canManage(u, t.deptId));
     // o nome que vale é o da atividade/recorrência (o título das tarefas por empresa leva o nome da empresa)
-    const keyOf = t => ((t.recId && recs().find(r => r.id === t.recId) || {}).title || t.title || '').toLowerCase();
-    const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const keyOf = t => (P.act(t.activityId) || {}).name || (t.recId && recs().find(r => r.id === t.recId) || {}).title || t.title || '';
+    const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
     const all = scope();
     if (!all.length) return P.toast('Não há tarefas pendentes para editar.', 'err');
+    // banco de tarefas do departamento: atividades cadastradas + recorrências + o que já existe pendente, com a contagem de pendentes
+    const bank = new Map();
+    const addName = (name, n) => { const k = norm(name || ''); if (!k) return; const b = bank.get(k) || { name, n: 0 }; b.n += n; bank.set(k, b); };
+    [...new Set(all.map(t => t.deptId))].forEach(d => { P.api.activities(u, d).forEach(a => addName(a.name, 0)); });
+    recs().filter(r => canManage(u, r.deptId) && (!V.scopeDept(u) || r.deptId === V.scopeDept(u))).forEach(r => addName(r.title, 0));
+    all.forEach(t => addName(keyOf(t), 1));
+    const names = [...bank.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name));
     const owners = [...new Set(all.map(t => t.userId))].map(id => P.user(id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
     const deptIds = [...new Set(all.map(t => t.deptId))];
     const people = deptIds.map(d => ({ d, list: db().users.filter(x => x.deptId === d && x.active !== false && (x.role === 'employee' || x.role === 'manager')).sort((a, b) => a.name.localeCompare(b.name)) }));
     const pick = () => {
-      const q = norm($('#bt-q').value.trim()), mon = $('#bt-mon').value, from = $('#bt-from').value;
-      return all.filter(t => (!q || norm(keyOf(t)).includes(q)) && (!mon || t.due.slice(0, 7) === mon) && (!from || t.userId === from));
+      const q = $('#bt-q').value, mon = $('#bt-mon').value, from = $('#bt-from').value;
+      return all.filter(t => (!q || norm(keyOf(t)) === q) && (!mon || t.due.slice(0, 7) === mon) && (!from || t.userId === from));
     };
     P.ui.modal({
       title: 'Editar tarefas em lote', wide: true, submit: 'Aplicar a todas',
       body: `<div class="fgrid">
-        <p class="fine span3"><b>1. Quais tarefas?</b> Só pendentes. Deixe em branco para pegar todas.</p>
-        <label class="field span2"><span>Nome da tarefa contém</span><input type="text" id="bt-q" placeholder="Ex.: ISS"></label>
+        <p class="fine span3"><b>1. Quais tarefas?</b> Escolha a tarefa na lista. Mês e responsável são filtros opcionais: deixe em branco para pegar todos.</p>
+        <label class="field span2"><span>Tarefa (do banco de tarefas do departamento)</span><select id="bt-q"><option value="">Todas as tarefas</option>${names.map(([k, b]) => `<option value="${esc(k)}">${esc(b.name)} (${b.n} pendente${b.n === 1 ? '' : 's'})</option>`).join('')}</select></label>
         <label class="field"><span>Mês do prazo</span><input type="month" id="bt-mon"></label>
         <label class="field span3"><span>Responsável atual</span><select id="bt-from"><option value="">Todos</option>${owners.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
         <div class="span3 fine" id="bt-prev"></div>
