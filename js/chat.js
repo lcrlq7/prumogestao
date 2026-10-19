@@ -198,7 +198,10 @@
     </aside>`;
     let main;
     if (!cur) {
-      main = `<section class="chat-main empty">${V.empty('Escolha um canal ou uma pessoa para começar.', 'message')}
+      // tela inicial: esfera de partículas animada (js/particles.js) com o título por cima
+      main = `<section class="chat-main empty pt-stage"><canvas class="pt-canvas" aria-hidden="true"></canvas>
+        <div class="pt-title"><b>Comunicação</b><span>Prumo</span></div>
+        <p class="pt-sub">Escolha um canal ou uma pessoa para começar.</p>
         <div class="chat-rules"><b>Como funciona</b><ul>
           <li><b>Conversas privadas:</b> qualquer pessoa pode conversar com qualquer colega. Só os dois participantes leem.</li>
           <li><b>Canais:</b> grupos por departamento e por nível (gestores, gerência, diretoria)</li>
@@ -357,7 +360,10 @@
   const origAfter = P.fx.afterRender;
   P.fx.afterRender = routeChanged => {
     origAfter(routeChanged);
-    if (S().user && S().route.page === 'comunicacao') { if (routeChanged) scrollEnd(); else keepScroll(); restoreComposer(); }
+    if (S().user && S().route.page === 'comunicacao') {
+      if (routeChanged) scrollEnd(); else keepScroll(); restoreComposer();
+      const cv = document.querySelector('.pt-canvas'); if (cv && P.particles) P.particles.mount(cv);
+    }
   };
 
   // Mensagens que chegam de outra aba: aviso no canto (se a conversa não estiver aberta)
