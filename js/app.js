@@ -176,6 +176,7 @@
              ${r(3, `<label class="field"><span>E-mail</span><span class="in-ic">${icon('mail')}<input type="email" name="email" autocomplete="username" placeholder="nome@empresa.com.br" required></span></label>`)}
              ${r(3, `<label class="field"><span>Senha</span><span class="in-ic pass">${icon('lock')}<input type="password" name="password" autocomplete="new-password" placeholder="Mínimo de 8 caracteres, letras e números" required></span></label>`)}
              ${r(3, `<label class="field"><span>Confirme a senha</span><span class="in-ic pass">${icon('lock')}<input type="password" name="confirm" autocomplete="new-password" required></span></label>`)}
+             ${P.captcha ? P.captcha.slot() : ''}
              ${err ? `<div class="auth-msg err shake" role="alert">${icon('alert')}<span>${esc(err)}</span></div>` : ''}
              ${r(4, `<button type="submit" class="btn primary block lg" ${S.authBusy ? 'disabled' : ''}>${icon('check')}<span>${S.authBusy ? 'Criando acesso…' : 'Criar meu acesso'}</span></button>`)}
            </form>
@@ -189,6 +190,7 @@
         : `${logo}${r(1, `<h2>Esqueceu a senha?</h2><p class="lede">Informe o e-mail cadastrado e enviaremos um link para você criar uma nova senha.</p>`)}
            <form class="auth-form" id="forgot-form" novalidate>
              ${r(2, `<label class="field"><span>E-mail</span><span class="in-ic">${icon('mail')}<input type="email" name="email" id="forgot-email" autocomplete="username" placeholder="nome@empresa.com.br" value="${esc(S.loginEmail || '')}" required></span></label>`)}
+             ${P.captcha ? P.captcha.slot() : ''}
              ${err ? `<div class="auth-msg err shake" role="alert">${icon('alert')}<span>${esc(err)}</span></div>` : ''}
              ${r(3, `<button type="submit" class="btn primary block lg" ${S.authBusy ? 'disabled' : ''}>${icon('mail')}<span>${S.authBusy ? 'Enviando…' : 'Enviar link de recuperação'}</span></button>`)}
            </form>
@@ -200,6 +202,7 @@
           ${r(2, `<label class="field"><span>E-mail</span><span class="in-ic">${icon('mail')}<input type="email" id="login-email" name="email" autocomplete="username" placeholder="nome@empresa.com.br" value="${esc(S.loginEmail || remembered)}" required></span></label>`)}
           ${r(3, `<label class="field"><span>Senha</span><span class="in-ic pass">${icon('lock')}<input type="${S.showPass ? 'text' : 'password'}" id="login-pass" name="password" autocomplete="current-password" placeholder="Sua senha" required><button type="button" class="eye" data-act="togglePass" aria-label="${S.showPass ? 'Ocultar senha' : 'Mostrar senha'}" title="${S.showPass ? 'Ocultar senha' : 'Mostrar senha'}">${icon(S.showPass ? 'eyeoff' : 'eye')}</button></span></label>`)}
           ${r(4, `<div class="auth-row"><label><input type="checkbox" name="remember" ${remembered ? 'checked' : ''}>Lembrar meu e-mail</label><button type="button" class="link" data-act="authMode" data-mode="forgot">Esqueci minha senha</button></div>`)}
+          ${P.captcha ? P.captcha.slot() : ''}
           ${err ? `<div class="auth-msg err shake" role="alert">${icon('alert')}<span>${esc(err)}</span></div>` : ''}
           ${r(5, `<button type="submit" class="btn primary block lg" ${S.authBusy ? 'disabled' : ''}>${icon('right')}<span>${S.authBusy ? 'Entrando…' : 'Entrar'}</span></button>`)}
         </form>

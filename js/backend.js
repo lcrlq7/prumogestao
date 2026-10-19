@@ -271,13 +271,19 @@
   // Links de convite e de recuperação: guardados antes de o Supabase limpar o endereço
   const urlFlow = /type=invite|[?&]convite=1/.test(location.href) ? 'invite' : /type=recovery|[?&]recuperar=1/.test(location.href) ? 'recovery' : null;
 
+  // hCaptcha (js/captcha.js): token de uso único enviado ao Supabase Auth
+  const capToken = () => P.captcha ? P.captcha.token() : undefined;
+  const capReset = () => { if (P.captcha) P.captcha.reset(); };
+  const CAP_ERR = 'A verificação de segurança falhou ou expirou. Marque "Sou humano" de novo e tente outra vez.';
   P.backend = {
     client: sb,
     flow: urlFlow,
     queueSave() { clearTimeout(timer); timer = setTimeout(() => { timer = null; runSave(); }, 350); },
     flushNow() { clearTimeout(timer); timer = null; return runSave(); },
     async signIn(email, password) {
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      const captchaToken = capToken();
+      const { data, error } = await sb.auth.signInWithPassword({ email, password, options: { captchaToken } }).finally(capReset);
+      if (error && /captcha/i.test(error.message)) throw new Error(CAP_ERR);
       if (error) throw new Error(/Invalid login/i.test(error.message) ? 'E-mail ou senha inválidos. Confira os dados e tente de novo.' : /Email not confirmed/i.test(error.message) ? 'Confirme o seu e-mail pelo link que você recebeu.' : error.message);
       session = data.session;
       return toUser();
@@ -290,7 +296,9 @@
     },
     async signOut() { if (timer || saving) { await this.flushNow(); await saving; } await signOutQuiet(); },
     async resetPassword(email) {
-      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: site + '/?recuperar=1' });
+      const captchaToken = capToken();
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: site + '/?recuperar=1', captchaToken }).finally(capReset);
+      if (error && /captcha/i.test(error.message)) throw new Error(CAP_ERR);
       if (error && !/rate limit/i.test(error.message)) throw new Error(error.message);
     },
     async updatePassword(password) {
@@ -307,16 +315,17 @@
     },
     // Cadastro com código de convite: o banco valida o código, cria o perfil com a função/departamento e consome o código
     async signUpWithCode({ code, name, email, password }) {
-      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { invite_code: code.trim().toUpperCase(), name }, emailRedirectTo: site + '/' } });
+      const captchaToken = capToken();
+      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { invite_code: code.trim().toUpperCase(), name }, emailRedirectTo: site + '/', captchaToken } }).finally(capReset);
       if (error) {
         const m = error.message || '';
-        throw new Error(/already registered|already exists/i.test(m) ? 'Este e-mail já tem acesso. Use "Entrar" ou "Esqueci minha senha".'
+        throw new Error(/captcha/i.test(m) ? CAP_ERR :/already registered|already exists/i.test(m) ? 'Este e-mail já tem acesso. Use "Entrar" ou "Esqueci minha senha".'
           : /convite|invite|403/i.test(m) ? 'Código de convite inválido, vencido ou já utilizado.'
           : /password/i.test(m) ? 'A senha precisa ter pelo menos 8 caracteres, com letras e números.'
           : /signups not allowed|disabled/i.test(m) ? 'O cadastro está desativado no Supabase (Authentication → Sign In / Providers → Allow new users to sign up).' : m);
       }
       session = data.session;
-      if (!session) {
+      if (!session && !(P.captcha && P.captcha.enabled)) { // com captcha o token já foi usado: a pessoa entra pelo login
         // sem sessão: tenta entrar direto (o banco já confirma o e-mail de quem usou código válido)
         const r = await sb.auth.signInWithPassword({ email, password });
         if (r.error) return null;

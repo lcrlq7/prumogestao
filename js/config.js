@@ -16,5 +16,9 @@ window.PRUMO_CONFIG = {
   supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzcG1qaWZra2Foc3d0cWZhc2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0Nzg0NTIsImV4cCI6MjEwNzA1NDQ1Mn0.QknOCeSc8l-BHIvP5teDNK63-ZlhOeSobiSRTtaeyGw',
   // endereço público do site (preencha quando publicar; enquanto vazio, usa o endereço atual da página)
   siteUrl: '',
-  companyName: '2S Consultoria e Serviços'
+  companyName: '2S Consultoria e Serviços',
+  // hCaptcha no login, "esqueci a senha" e cadastro por convite. Cole aqui a "Site Key" (pública) do painel do hCaptcha.
+  // A "Secret Key" NÃO vai aqui: ela é colada no Supabase → Authentication → Attack Protection → Enable Captcha protection.
+  // Enquanto vazio, o captcha fica desligado.
+  hcaptchaSiteKey: ''
 };
