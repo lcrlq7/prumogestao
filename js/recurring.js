@@ -584,6 +584,8 @@
   };
   A.taskSel = el => { flip(taskSel(), el.dataset.id); P.render(); };
   A.taskSelAll = el => { const l = cadLists(U())[el.dataset.list === 'gen' ? 'geradas' : 'avulsas'], s = taskSel(), all = l.every(t => s.has(t.id)); l.forEach(t => all ? s.delete(t.id) : s.add(t.id)); P.render(); };
+  // lista "Tarefas da equipe": seleciona ou desmarca todas as tarefas filtradas (os ids vêm da própria tela)
+  A.teamSelAll = () => { const ids = P.state.teamIds || [], s = taskSel(), all = ids.every(id => s.has(id)); ids.forEach(id => all ? s.delete(id) : s.add(id)); P.render(); };
   A.taskBulkDelete = () => {
     const u = U(), { pend } = cadLists(u), ids = new Set(pend.filter(t => taskSel().has(t.id)).map(t => t.id));
     if (!ids.size) return P.toast('Selecione ao menos uma tarefa.', 'err');

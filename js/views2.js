@@ -99,11 +99,21 @@
       <div class="toolbar">${V.tabs([['lista', 'Lista'], ['quadro', 'Quadro da equipe']], S.taskView || 'lista', 'taskView')}${S.taskView === 'quadro' ? '' : V.tabs([['pendente', 'Pendentes'], ['concluida', 'Concluídas']], tab, 'taskTab')}
         <label class="picker">${icon('users')}<select id="task-user" data-set="taskUser" aria-label="Responsável"><option value="">Toda a equipe</option>${emps.map(e => `<option value="${e.id}" ${S.taskUser === e.id ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label></div>
       ${S.taskView === 'quadro' ? '' : V.taskFilterBar(tabbed, tasks.length)}
-      ${S.taskView === 'quadro' ? V.taskBoard(u, P.isGlobal(u) && !V.scopeDept(u) ? [] : emps, all.filter(t => t.status === 'pendente')) : V.card('', V.taskList(u, tasks, today, true, 'team'), { cls: 'flush' })}
+      ${S.taskView === 'quadro' ? '' : teamBulkBar(u, tasks, tab)}
+      ${S.taskView === 'quadro' ? V.taskBoard(u, P.isGlobal(u) && !V.scopeDept(u) ? [] : emps, all.filter(t => t.status === 'pendente')) : V.card('', V.taskList(u, tasks, today, true, 'team', true), { cls: 'flush' })}
       ${V.scopeDept(u) ? V.card('Atividades e pesos · ' + esc(P.dept(V.scopeDept(u)).name), V.weightTable(u, V.scopeDept(u), false), { sub: 'Para cadastrar atividades ou mudar pesos, use a aba "Atividades e pesos".', actions: V.btn('Atividades e pesos', { act: 'setState', icon: 'scale', cls: 'ghost sm', attrs: 'data-key="atvTab" data-val="pesos"' }) }) : ''}`;
   };
   V.tabs = (items, cur, key) => `<div class="tabs" role="tablist">${items.map(([k, l, n]) => `<button type="button" role="tab" class="${cur === k ? 'on' : ''}" aria-selected="${cur === k}" data-act="setState" data-key="${key}" data-val="${k}">${l}${n != null ? `<span class="count">${n}</span>` : ''}</button>`).join('')}</div>`;
-  V.taskList = (u, tasks, today, showWho, key) => {
+  // seleção em lote na lista "Tarefas da equipe": só tarefas pendentes que a pessoa pode gerenciar (gestor do departamento, gerente e diretoria)
+  const canDelTask = (u, t) => t.status === 'pendente' && (P.isGlobal(u) || (u.role === 'manager' && u.deptId === t.deptId));
+  const teamSel = () => (P.state.taskSel = P.state.taskSel || new Set());
+  const teamBulkBar = (u, tasks, tab) => {
+    const ids = tasks.filter(t => canDelTask(u, t)).map(t => t.id); P.state.teamIds = ids;
+    if (tab !== 'pendente' || !ids.length) return '';
+    const n = ids.filter(id => teamSel().has(id)).length, all = n === ids.length;
+    return `<div class="cart-bulk">${V.btn(all ? 'Desmarcar todas as filtradas' : 'Selecionar todas as filtradas (' + ids.length + ')', { act: 'teamSelAll', icon: all ? 'x' : 'check', cls: 'sm ghost' })}${n ? `<span class="fine"><b>${n}</b> selecionada(s)</span>${V.btn('Excluir selecionadas', { act: 'taskBulkDelete', icon: 'trash', cls: 'sm ghost danger' })}` : '<span class="fine">Marque as tarefas na lista, ou use os filtros e selecione todas de uma vez.</span>'}</div>`;
+  };
+  V.taskList = (u, tasks, today, showWho, key, selectable) => {
     if (!tasks.length) return V.empty('Nenhuma tarefa nesta lista.', 'check');
     // listas longas (ex.: depois de importar tarefas) são paginadas: 20, 50 ou 100 por página
     const pg = V.pageSlice(tasks, key || 'main'); tasks = pg.items;
@@ -112,6 +122,7 @@
       const late = t.status === 'pendente' && !!t.due && t.due < today;
       const soon = t.status === 'pendente' && !late && !!t.due && t.due <= D.iso(D.add(P.today(), 2));
       return `<li class="task ${late ? 'late' : ''}">
+        ${selectable && canDelTask(u, t) ? `<input type="checkbox" class="task-chk" data-act="taskSel" data-id="${t.id}" aria-label="Selecionar tarefa" ${teamSel().has(t.id) ? 'checked' : ''}>` : ''}
         <span class="task-ic ${t.status === 'concluida' ? 'done' : ''}">${icon(t.status === 'concluida' ? 'check' : 'clock')}</span>
         <div class="task-main"><b>${esc(t.title)}</b>
           <small>${showWho ? esc(who.name) + ' · ' : ''}${a ? F.n(a.weight, 2) + ' pt/' + esc(a.unit) + ' · ' : ''}${t.status === 'concluida' ? 'Concluída em ' + D.fmt(t.doneAt || t.due) : t.due ? 'Prazo ' + D.fmt(t.due) : 'Sem prazo'}</small></div>
