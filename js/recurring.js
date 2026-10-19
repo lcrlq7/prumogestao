@@ -241,10 +241,52 @@
     P.audit(u, 'Tarefa reaberta', t.id, t.title); notifyOwner(t, u, `${t.title}: reaberta por ${u.name}.`);
     P.store.save(); P.render();
   };
-  // lista de tarefas: botões Adiar/Dispensar e o registro do motivo
+  // editar uma tarefa já lançada (prazo, responsável, título, atividade, empresa): gestor do departamento, gerência e diretoria
+  A.editTask = el => {
+    const u = U(), t = taskOf(el);
+    if (!t || !canManage(u, t.deptId) || t.status !== 'pendente') return P.toast('Você não pode editar esta tarefa.', 'err');
+    const people = db().users.filter(x => x.deptId === t.deptId && x.active !== false && (x.role === 'employee' || x.role === 'manager')).sort((a, b) => a.name.localeCompare(b.name));
+    if (!people.some(x => x.id === t.userId) && P.user(t.userId)) people.unshift(P.user(t.userId));
+    const acts = P.api.activities(u, t.deptId);
+    const clients = [...new Set((db().clientAssignments || []).filter(a => a.deptId === t.deptId).map(a => a.client).concat(t.client ? [t.client] : []))].sort((a, b) => a.localeCompare(b));
+    P.ui.modal({
+      title: 'Editar tarefa', submit: 'Salvar alterações',
+      body: `<div class="fgrid">
+        <label class="field span3"><span>Título</span><input type="text" id="te-title" value="${esc(t.title)}" maxlength="160"></label>
+        <label class="field span3"><span>Responsável</span><select id="te-user">${people.map(x => `<option value="${x.id}" ${x.id === t.userId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+        <label class="field span3"><span>Atividade</span><select id="te-act"><option value="">Sem atividade</option>${acts.map(a => `<option value="${a.id}" ${a.id === t.activityId ? 'selected' : ''}>${esc(a.name)} · ${P.fmt.n(a.weight, 2)} pt</option>`).join('')}</select></label>
+        <label class="field span2"><span>Empresa</span><select id="te-client"><option value="">Sem empresa vinculada</option>${clients.map(c => `<option value="${esc(c)}" ${c === t.client ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+        <label class="field"><span>Prazo</span><input type="date" id="te-due" value="${esc(t.due)}"></label></div>
+        <p class="fine">${V.icon('info')} A alteração fica registrada com data e autor${t.recId ? '. A tarefa do mês seguinte continua sendo criada normalmente pela recorrência' : ''}.</p>`,
+      onSubmit: m => {
+        const title = $('#te-title').value.trim(), userId = $('#te-user').value, actId = $('#te-act').value, client = $('#te-client').value, due = $('#te-due').value;
+        if (!title) throw new Error('Informe o título.');
+        if (!due) throw new Error('Informe o prazo.');
+        const who2 = P.user(userId); if (!who2 || who2.deptId !== t.deptId) throw new Error('O responsável precisa ser do mesmo departamento da tarefa.');
+        if (actId && (P.act(actId) || {}).deptId !== t.deptId) throw new Error('A atividade escolhida é de outro departamento.');
+        const changes = [];
+        if (title !== t.title) changes.push('título');
+        if (due !== t.due) { changes.push('prazo ' + D.fmt(t.due) + ' → ' + D.fmt(due)); if (!t.originalDue) t.originalDue = t.due; }
+        if (userId !== t.userId) changes.push('responsável: ' + ((P.user(t.userId) || {}).name || '—') + ' → ' + who2.name);
+        if ((actId || null) !== (t.activityId || null)) changes.push('atividade');
+        if (client !== (t.client || '')) changes.push('empresa');
+        if (!changes.length) return;
+        const oldUser = t.userId;
+        (t.edits = t.edits || []).push({ by: u.id, at: D.stamp(), changes: changes.join('; ') });
+        Object.assign(t, { title, userId, activityId: actId || null, client, due });
+        P.audit(u, 'Tarefa editada', t.id, t.title + ' · ' + changes.join('; '));
+        if (P.notify) {
+          const ids = [...new Set([userId, oldUser])].filter(id => id !== u.id);
+          if (ids.length) P.notify(ids, { type: 'tarefa', icon: 'clipboard', title: 'Tarefa alterada', text: `${u.name} editou "${t.title}" (${changes.join('; ')}).`, link: 'atividades' });
+        }
+        P.store.save(); P.toast('Tarefa atualizada.'); P.render();
+      }
+    });
+  };
+  // lista de tarefas: botões Adiar/Dispensar/Editar e o registro do motivo
   // botões com texto (não só ícone), para ficarem fáceis de achar
   const taskBtns = (u, t) => t.status === 'pendente' && canHandle(u, t)
-    ? V.btn('Adiar', { act: 'postponeTask', icon: 'clock', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) + V.btn('Dispensar', { act: 'dismissTask', icon: 'x', cls: 'sm ghost', attrs: `data-id="${t.id}"` })
+    ? (canManage(u, t.deptId) ? V.btn('Editar', { act: 'editTask', icon: 'edit', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) : '') + V.btn('Adiar', { act: 'postponeTask', icon: 'clock', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) + V.btn('Dispensar', { act: 'dismissTask', icon: 'x', cls: 'sm ghost', attrs: `data-id="${t.id}"` })
     : t.status === 'dispensada' && canManage(u, t.deptId) ? V.btn('Reabrir', { act: 'reopenTask', icon: 'refresh', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) : '';
   V.taskExtra = (u, t) => {
       const extra = [];
