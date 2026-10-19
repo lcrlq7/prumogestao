@@ -81,7 +81,61 @@
       if (localGenerate(true)) { P.store.save(); P.render(); }
     } else if (localGenerate()) { P.store.save(); P.render(); }
   }
-  P.taskRec = { generate, dueOf, localGenerate, onCompanySaved };
+  /* ---------- Tarefa automática por regime, no cadastro da atividade (Pesos das Atividades) ---------- */
+  const rulesOf = actId => recs().filter(r => r.regime && r.activityId === actId);
+  const rulesText = actId => {
+    const rs = rulesOf(actId); if (!rs.length) return '<span class="muted">—</span>';
+    return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${isQ(r) ? 'trimestral' : 'mensal'}, dia ${r.day}</span>`).join(' ');
+  };
+  const regimeFormHtml = actId => {
+    const rs = actId ? rulesOf(actId) : [], first = rs[0] || {}, on = new Set(rs.map(r => r.regime));
+    return `<div class="fgrid reg-box">
+      <p class="fine span3"><b>Tarefa automática por regime tributário</b> (opcional). Marque os regimes: todas as empresas ativas de cada regime recebem esta tarefa. Empresa nova, ou que mudar de regime, entra e sai sozinha.</p>
+      <div class="span3 reg-checks">${Object.entries(P.REGIMES).map(([k, v]) => `<label class="check-inline"><input type="checkbox" class="ac-reg" value="${k}" ${on.has(k) ? 'checked' : ''}> ${esc(v.label)}</label>`).join('')}</div>
+      <label class="field"><span>Repetição</span><select id="ac-freq"><option value="mensal" ${isQ(first) ? '' : 'selected'}>Todo mês</option><option value="trimestral" ${isQ(first) ? 'selected' : ''}>Trimestral (jan, abr, jul e out)</option></select></label>
+      <label class="field"><span>Dia do prazo</span><input type="number" id="ac-day" min="1" max="31" value="${first.day || 20}"></label>
+      <label class="field"><span>Começa em</span><input type="month" id="ac-start" value="${first.start || ym(P.today())}"></label>
+      <label class="field check span3"><input type="checkbox" id="ac-bd" ${first.businessDay === false ? '' : 'checked'}><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
+      <label class="field check span3"><input type="checkbox" id="ac-cart" ${first.onlyCarteira === false ? '' : 'checked'}><span>Só empresas atendidas por este departamento (carteira ou cadastro da empresa)</span></label>
+    </div>`;
+  };
+  const readRules = m => ({
+    regimes: [...m.querySelectorAll('.ac-reg:checked')].map(x => x.value), freq: m.querySelector('#ac-freq').value,
+    day: Number(m.querySelector('#ac-day').value), start: m.querySelector('#ac-start').value, bd: m.querySelector('#ac-bd').checked, cart: m.querySelector('#ac-cart').checked
+  });
+  const validateRegimeRules = m => {
+    if (!m.querySelector('.ac-reg')) return;
+    const x = readRules(m); if (!x.regimes.length) return;
+    if (!(x.day >= 1 && x.day <= 31)) throw new Error('Informe o dia do prazo da tarefa por regime (1 a 31).');
+    if (!x.start) throw new Error('Informe o mês de início da tarefa por regime.');
+  };
+  // devolve um texto curto para o aviso "Atividade salva"
+  const saveRegimeRules = (u, act, m) => {
+    if (!act || !m.querySelector('.ac-reg')) return '';
+    const x = readRules(m), old = rulesOf(act.id);
+    if (!x.regimes.length && !old.length) return '';
+    if (!canManage(u, act.deptId)) throw new P.AccessError('Você só cadastra tarefas do seu departamento.');
+    x.regimes.forEach(reg => {
+      let r = old.find(o => o.regime === reg);
+      if (!r) { r = { id: P.uid('tr'), auto: true, userId: null, clients: [], end: '', active: false, paused: false, createdBy: u.id, createdAt: D.stamp() }; recs().push(r); }
+      Object.assign(r, { deptId: act.deptId, title: act.name, activityId: act.id, regime: reg, onlyCarteira: x.cart, day: x.day, businessDay: x.bd, start: x.start, active: false });
+      if (x.freq === 'trimestral') r.freq = 'trimestral'; else delete r.freq;
+    });
+    let removed = 0;
+    const gone = old.filter(o => !x.regimes.includes(o.regime));
+    if (gone.length) {
+      const ids = new Set(gone.map(g => g.id)), pend = db().tasks.filter(t => ids.has(t.recId) && t.status === 'pendente');
+      const dropTasks = pend.length && confirm(`Você desmarcou ${gone.length} regime(s). Apagar também as ${pend.length} tarefa(s) pendente(s) já criadas para ele(s)?\n\nOK = apagar as pendentes. Cancelar = manter as já criadas.`);
+      if (dropTasks) { const tids = new Set(pend.map(t => t.id)); db().tasks = db().tasks.filter(t => !tids.has(t.id)); removed = tids.size; }
+      db().taskRecurrences = recs().filter(r => !ids.has(r.id));
+    }
+    P.audit(u, 'Tarefa por regime configurada', act.id, act.name + ' · ' + (x.regimes.map(k => (P.REGIMES[k] || {}).label).join(', ') || 'nenhum regime') + (x.regimes.length ? (x.freq === 'trimestral' ? ' · trimestral' : ' · mensal') + ', dia ' + x.day : ''));
+    P.store.save();
+    if (x.regimes.length) { if (P.isLive) setTimeout(() => generate(true), 500); else if (localGenerate()) P.store.save(); }
+    const n = x.regimes.reduce((s, reg) => s + regimeClients({ regime: reg, deptId: act.deptId, onlyCarteira: x.cart }).length, 0);
+    return (x.regimes.length ? ' Tarefa automática para ' + n + ' empresa(s) dos regimes marcados.' : '') + (removed ? ' ' + removed + ' tarefa(s) pendente(s) apagada(s).' : '');
+  };
+  P.taskRec = { generate, dueOf, localGenerate, onCompanySaved, regimeFormHtml, validateRegimeRules, saveRegimeRules, rulesText, rulesOf };
   setInterval(() => generate(), 60e3); window.addEventListener('focus', () => generate());
   setTimeout(() => generate(true), 3000);
 

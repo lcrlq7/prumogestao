@@ -141,9 +141,9 @@
     const used = {};
     P.store.db.entries.forEach(e => { if (e.deptId === deptId && e.date >= p30.s && P.counts(e)) { used[e.activityId] = (used[e.activityId] || 0) + e.points; } });
     return `<div class="table-wrap"><table class="tbl">
-      <thead><tr><th>Atividade</th><th>Unidade</th><th class="num">Peso</th><th class="num">Pontos (30 dias)</th>${editable ? '<th>Status</th><th class="actions-col">Ações</th>' : ''}</tr></thead>
+      <thead><tr><th>Atividade</th><th>Unidade</th><th class="num">Peso</th><th class="num">Pontos (30 dias)</th>${editable ? '<th>Tarefa por regime</th><th>Status</th><th class="actions-col">Ações</th>' : ''}</tr></thead>
       <tbody>${acts.map(a => `<tr class="${a.active ? '' : 'inactive'}"><td><b>${esc(a.name)}</b></td><td>por ${esc(a.unit)}</td><td class="num strong">${F.n(a.weight, 2)}</td><td class="num">${F.n(used[a.id] || 0)}</td>
-        ${editable ? `<td>${a.active ? '<span class="badge es-aprovado">' + icon('check') + 'Ativa</span>' : '<span class="badge st-sem">' + icon('x') + 'Inativa</span>'}</td>
+        ${editable ? `<td>${P.taskRec && P.taskRec.rulesText ? P.taskRec.rulesText(a.id) : ''}</td><td>${a.active ? '<span class="badge es-aprovado">' + icon('check') + 'Ativa</span>' : '<span class="badge st-sem">' + icon('x') + 'Inativa</span>'}</td>
         <td class="actions-col"><div class="row-actions">${V.ibtn('edit', 'Editar', { act: 'editActivity', attrs: `data-id="${a.id}"` })}${V.ibtn('toggle', a.active ? 'Desativar' : 'Ativar', { act: 'toggleActivity', attrs: `data-id="${a.id}"` })}${V.ibtn('trash', 'Excluir', { act: 'deleteActivity', attrs: `data-id="${a.id}"`, cls: 'danger' })}</div></td>` : ''}</tr>`).join('')}</tbody>
     </table></div>`;
   };

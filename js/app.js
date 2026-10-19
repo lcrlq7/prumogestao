@@ -806,11 +806,16 @@
           <label class="field span2"><span>Unidade</span><input type="text" id="ac-unit" value="${esc(a.unit)}" placeholder="Ex.: cliente/mês"></label>
           <label class="field"><span>Peso (pontos)</span><input type="number" id="ac-w" value="${a.weight}" min="0.05" step="0.05"></label>
           <label class="field span3"><span>Motivo ${el.dataset.id ? '(obrigatório se o peso mudar)' : '(opcional)'}</span><input type="text" id="ac-reason" placeholder="Ex.: mediana de 2 semanas de medição: 1h30"></label></div>
-          <p class="fine">O novo peso vale para lançamentos futuros. Lançamentos existentes mantêm o peso da época.</p>`,
+          <p class="fine">O novo peso vale para lançamentos futuros. Lançamentos existentes mantêm o peso da época.</p>
+          ${P.taskRec && P.taskRec.regimeFormHtml ? P.taskRec.regimeFormHtml(el.dataset.id) : ''}`,
+        wide: true,
         onSubmit: m => {
           const d = { id: el.dataset.id, deptId: $('#ac-dept', m).value, name: $('#ac-name', m).value.trim(), unit: $('#ac-unit', m).value.trim(), weight: $('#ac-w', m).value, reason: $('#ac-reason', m).value };
           if (!d.name || !d.unit) throw new Error('Informe atividade e unidade.');
-          api.saveActivity(U(), d); S.pesoDept = d.deptId; toast('Atividade salva.'); render();
+          if (P.taskRec && P.taskRec.validateRegimeRules) P.taskRec.validateRegimeRules(m);
+          const saved = api.saveActivity(U(), d); S.pesoDept = d.deptId;
+          const extra = P.taskRec && P.taskRec.saveRegimeRules ? P.taskRec.saveRegimeRules(U(), saved, m) : '';
+          toast('Atividade salva.' + extra); render();
         }
       });
     },
