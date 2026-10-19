@@ -579,7 +579,7 @@ window.P = window.P || {};
       }
       const rows = [...map.values()].sort((a, b) => b.points - a.points);
       const total = rows.reduce((a, r) => a + r.points, 0);
-      rows.forEach(r => { r.points = round2(r.points); r.share = total ? r.points / total * 100 : 0; r.act = P.act(r.activityId); });
+      rows.forEach(r => { r.points = round2(r.points); r.share = total ? r.points / total * 100 : 0; r.act = P.act(r.activityId) || { id: r.activityId, name: 'Atividade removida', unit: '', weight: 0, deptId: null, active: false }; });
       return { rows, total: round2(total) };
     },
     compare(users, mode) {

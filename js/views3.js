@@ -305,6 +305,8 @@
       ${V.card('Auditoria', `<div class="table-wrap"><table class="tbl compact"><thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Detalhes</th></tr></thead><tbody>${logs.map(l => `<tr><td class="nowrap">${esc(l.at)}</td><td>${esc((P.user(l.by) || {}).name || '—')}</td><td><b>${esc(l.action)}</b></td><td>${esc(l.details || l.target || '')}</td></tr>`).join('')}</tbody></table></div>`, { cls: 'flush-b', sub: 'Últimos 60 eventos' })}`;
   };
 
+  // erro inesperado ao montar a página (não é falta de permissão): não acusa "acesso restrito" nem registra tentativa na auditoria
+  V.pageError = msg => `<div class="forbidden">${icon('alert')}<h1>Não foi possível abrir esta página</h1><p>${esc(msg)}</p><p class="muted">Isso é um erro do sistema, não falta de permissão. Se continuar, avise quem cuida do sistema informando esta mensagem.</p>${V.btn('Tentar de novo', { act: 'reloadPage', cls: 'primary', icon: 'refresh' })}${V.btn('Voltar ao início', { go: 'dashboard', cls: 'ghost', icon: 'left' })}</div>`;
   V.forbidden = msg => `<div class="forbidden">${icon('lock')}<h1>Acesso restrito</h1><p>${esc(msg)}</p><p class="muted">A tentativa foi registrada na auditoria.</p>${V.btn('Voltar ao início', { go: 'dashboard', cls: 'primary', icon: 'left' })}</div>`;
 
 })(window.P);

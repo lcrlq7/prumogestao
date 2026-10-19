@@ -290,7 +290,7 @@
       if (page === 'funcionario' && !S.route.id) throw new P.AccessError('Colaborador não informado.');
       html = page === 'funcionario' ? V.funcionario(u, S.route.id) : V[page](u);
     } catch (e) {
-      if (!(e instanceof P.AccessError)) { console.error(e); html = V.forbidden('Não foi possível carregar esta página: ' + e.message); }
+      if (!(e instanceof P.AccessError)) { console.error(e); html = V.pageError(e.message); }
       else { P.audit(u, 'Acesso negado', page + (S.route.id ? '/' + S.route.id : ''), e.message); P.store.save(); html = V.forbidden(e.message); }
     }
     root().innerHTML = shell(html);
@@ -508,6 +508,7 @@
     setState(el) { if (/^task/.test(el.dataset.key)) S.taskPg = {}; setPath(el.dataset.key, el.dataset.val); render(); },
     tfClear() { S.tf = { q: '', client: '', from: '', to: '', late: false }; S.taskPg = {}; render(); },
     pgGo(el) { S.taskPg = S.taskPg || {}; S.taskPg[el.dataset.key] = (S.taskPg[el.dataset.key] || 1) + Number(el.dataset.dir); render(); window.scrollTo(0, 0); },
+    reloadPage() { render(true); },
     toggleHlAll() { S.hlAll = !S.hlAll; render(); },
     toggleRecAll() { S.recAll = !S.recAll; render(); },
     /* Registrar reconhecimento: o número sugere, o gestor decide e justifica */
