@@ -185,20 +185,35 @@
       </button>`;
     };
     const match = s => !q || String(s).toLowerCase().includes(q);
+    // filtros no estilo de app de chat: Tudo | Não lidas | Privadas | Canais
+    const f = c.filter || 'all';
+    const showCh = f === 'all' || f === 'ch' || f === 'unread', showDm = f === 'all' || f === 'dm' || f === 'unread';
+    const okUnread = id => f !== 'unread' || unreadIn(u, id) > 0;
+    // fileira de pessoas no topo: quem conversou por último primeiro, depois os demais colegas (um clique abre a conversa privada)
+    const people = dms.map(d => d.other).concat(contacts).filter(Boolean).slice(0, 24);
+    const strip = !q && people.length ? `<div class="cv-strip" role="list" aria-label="Pessoas">${people.map(x => `<button type="button" role="listitem" class="cv-p" data-act="chatOpen" data-id="${esc(dmId(u.id, x.id))}" title="${esc(x.name)}">${V.avatar(x)}<span>${esc(P.firstName(x.name))}</span></button>`).join('')}</div>` : '';
+    const tabs = `<div class="cv-tabs" role="tablist">${[['all', 'Tudo'], ['unread', 'Não lidas'], ['dm', 'Privadas'], ['ch', 'Canais']].map(([k, l]) => `<button type="button" role="tab" class="${f === k ? 'on' : ''}" aria-selected="${f === k}" data-act="chatFilter" data-k="${k}">${l}</button>`).join('')}</div>`;
+    const chList = showCh ? channels.filter(ch => match(ch.name) && okUnread(ch.id)) : [];
+    const dmList = showDm ? dms.filter(d => match(d.name) && okUnread(d.id)) : [];
     const side = `<aside class="chat-side">
+      <div class="chat-side-h"><b>Conversas</b><button type="button" class="ibtn" data-act="chatNewDm" title="Nova conversa privada" aria-label="Nova conversa privada">${icon('plus')}</button></div>
       <label class="in-ic chat-q">${icon('search')}<input type="search" id="chat-q" placeholder="Buscar conversa ou pessoa" value="${esc(c.q || '')}" data-set="chat.q" data-live></label>
+      ${strip}${tabs}
       <div class="cv-list">
-        <div class="cv-g">Canais</div>
-        ${channels.filter(ch => match(ch.name)).map(ch => item(ch.id, ch.name, ch.desc, ch.icon)).join('') || '<p class="cv-none">Nenhum canal.</p>'}
-        <div class="cv-g" style="display:flex;align-items:center;justify-content:space-between;gap:6px">Conversas privadas<button type="button" class="btn sm ghost" data-act="chatNewDm" title="Conversar em privado com qualquer pessoa">${icon('plus')}<span>Nova</span></button></div>
-        ${dms.filter(d => match(d.name)).map(d => item(d.id, d.name, d.desc, 'user', d.other)).join('')}
+        ${showCh ? `<div class="cv-g">Canais</div>${chList.map(ch => item(ch.id, ch.name, ch.desc, ch.icon)).join('') || `<p class="cv-none">${f === 'unread' ? 'Nenhum canal com mensagem nova.' : 'Nenhum canal.'}</p>`}` : ''}
+        ${showDm ? `<div class="cv-g">Conversas privadas</div>` : ''}
+        ${dmList.map(d => item(d.id, d.name, d.desc, 'user', d.other)).join('')}
+        ${showDm && f === 'unread' && !dmList.length ? '<p class="cv-none">Nenhuma conversa privada com mensagem nova.</p>' : ''}
         ${(q ? contacts.filter(x => match(x.name)) : []).map(x => `<button type="button" class="cv new" data-act="chatOpen" data-id="${esc(dmId(u.id, x.id))}">${V.avatar(x)}<span class="cv-t"><b>${esc(x.name)}</b><small>${esc(P.ROLES[x.role] + (P.dept(x.deptId) && x.role !== 'admin' && x.role !== 'office' ? ' · ' + (P.dept(x.deptId) || { name: '—' }).name : ''))}</small></span><span class="cv-start">${icon('plus')}</span></button>`).join('')}
-        ${!dms.length && !q ? '<p class="cv-none">Nenhuma conversa privada ainda. Clique em <b>Nova</b> para escolher uma pessoa.</p>' : ''}
+        ${showDm && !dms.length && !q ? '<p class="cv-none">Nenhuma conversa privada ainda. Clique numa pessoa acima ou no <b>+</b> para começar.</p>' : ''}
       </div>
     </aside>`;
     let main;
     if (!cur) {
-      main = `<section class="chat-main empty">${V.empty('Escolha um canal ou uma pessoa para começar.', 'message')}
+      // tela inicial: esfera de partículas animada (js/particles.js) com o título por cima
+      main = `<section class="chat-main empty pt-stage"><canvas class="pt-canvas" aria-hidden="true"></canvas>
+        <div class="pt-title"><b>Comunicação</b><span>Prumo</span></div>
+        <p class="pt-sub">Escolha um canal ou uma pessoa para começar.</p>
         <div class="chat-rules"><b>Como funciona</b><ul>
           <li><b>Conversas privadas:</b> qualquer pessoa pode conversar com qualquer colega. Só os dois participantes leem.</li>
           <li><b>Canais:</b> grupos por departamento e por nível (gestores, gerência, diretoria)</li>
@@ -218,11 +233,13 @@
         const cont = !sep && lastFrom === m.from && m.ts - lastTs < 5 * 60000;
         lastDay = dl; lastFrom = m.from; lastTs = m.ts;
         const seen = geral && u.role === 'admin' && (!P.isLive || geralReads) ? members.filter(x => x.id !== m.from && lastRead(x, cur.id) >= m.ts).length : null;
-        return `${sep}<div class="msg ${mine ? 'me' : ''} ${cont ? 'cont' : ''} ${geral ? 'notice' : ''}">
-          ${mine || cont ? '<span class="msg-av"></span>' : `<span class="msg-av">${V.avatar(who)}</span>`}
-          <div class="msg-b">${cont ? '' : `<div class="msg-h"><b>${mine ? 'Você' : esc(who.name)}</b>${!cur.dm ? `<small>${esc(P.ROLES[who.role] || '')}</small>` : ''}<time>${hm(m.ts)}</time></div>`}
+        // conversa privada: só balões, com o horário embaixo (estilo app de chat); canais: avatar e nome de quem escreveu
+        return `${sep}<div class="msg ${mine ? 'me' : ''} ${cont ? 'cont' : ''} ${geral ? 'notice' : ''} ${cur.dm ? 'dm' : ''}">
+          ${cur.dm ? '' : mine || cont ? '<span class="msg-av"></span>' : `<span class="msg-av">${V.avatar(who)}</span>`}
+          <div class="msg-b">${cont || cur.dm ? '' : `<div class="msg-h"><b>${mine ? 'Você' : esc(who.name)}</b><small>${esc(P.ROLES[who.role] || '')}</small><time>${hm(m.ts)}</time></div>`}
             ${!m.deleted && stickerOf(m.text) ? `<div class="msg-stk">${stickerHtml(stickerOf(m.text))}</div>`
               : `<div class="msg-txt ${m.deleted ? 'del' : ''} ${!m.deleted && /^(\p{Extended_Pictographic}|‍|️|\s){1,8}$/u.test(m.text) ? 'big-emoji' : ''}">${m.deleted ? icon('x') + ' Mensagem apagada' : linkify(m.text)}</div>`}
+            ${cur.dm ? `<time class="msg-t">${hm(m.ts)}</time>` : ''}
             ${seen != null ? `<small class="msg-seen">${icon('check')} Visto por ${seen} de ${total - 1}</small>` : ''}
           </div>
           ${mine && !m.deleted ? V.ibtn('trash', 'Apagar mensagem', { act: 'chatDelete', cls: 'msg-del', attrs: `data-id="${m.id}"` }) : ''}
@@ -233,10 +250,12 @@
           <button type="button" class="ibtn chat-back" data-act="chatOpen" data-id="" aria-label="Voltar para as conversas">${icon('left')}</button>
           ${cur.dm ? V.avatar(cur.other) : `<span class="cv-ic">${icon(cur.icon)}</span>`}
           <div><b>${esc(cur.name)}</b><small>${esc(cur.dm ? cur.desc : cur.desc + ' · ' + total + ' participante' + (total > 1 ? 's' : ''))}</small></div>
+          ${!cur.dm ? `<div class="chat-h-av" aria-label="${total} participantes">${members.slice(0, 4).map(x => V.avatar(x)).join('')}${total > 4 ? `<em>+${total - 4}</em>` : ''}</div>` : ''}
         </header>
         <div class="chat-msgs" id="chat-msgs">${body}</div>
         ${canPost ? `<div class="chat-in">${c.panel ? pickerHtml(c.panel) : ''}
-          <div class="chat-tools">${V.ibtn('smile', 'Emojis', { act: 'chatPanel', cls: c.panel === 'emoji' ? 'on' : '', attrs: 'data-k="emoji"' })}${V.ibtn('sticker', 'Figurinhas', { act: 'chatPanel', cls: c.panel === 'fig' ? 'on' : '', attrs: 'data-k="fig"' })}</div><textarea id="chat-text" rows="1" placeholder="${geral ? 'Escreva um comunicado para todo o escritório…' : 'Escreva uma mensagem…'}" maxlength="2000">${esc((c.drafts || {})[cur.id] || '')}</textarea>${V.btn('Enviar', { act: 'chatSend', icon: 'right', cls: 'primary' })}</div>
+          <div class="chat-pill"><div class="chat-tools">${V.ibtn('smile', 'Emojis', { act: 'chatPanel', cls: c.panel === 'emoji' ? 'on' : '', attrs: 'data-k="emoji"' })}${V.ibtn('sticker', 'Figurinhas', { act: 'chatPanel', cls: c.panel === 'fig' ? 'on' : '', attrs: 'data-k="fig"' })}</div><textarea id="chat-text" rows="1" placeholder="${geral ? 'Escreva um comunicado para todo o escritório…' : cur.dm ? 'Mensagem para ' + esc(P.firstName(cur.name)) + '…' : 'Escreva uma mensagem…'}" maxlength="2000">${esc((c.drafts || {})[cur.id] || '')}</textarea>
+          <button type="button" class="chat-send" data-act="chatSend" aria-label="Enviar" title="Enviar (Enter)">${icon('right')}</button></div></div>
           <p class="chat-hint">Enter envia · Shift+Enter quebra a linha</p>`
         : `<div class="chat-ro">${icon('lock')} ${geral ? 'Somente a diretoria publica no canal Geral.' : 'Pelas regras de comunicação, esta conversa está só para leitura.'}</div>`}
       </section>`;
@@ -303,6 +322,7 @@
     });
   };
   /* Painel de emojis / figurinhas */
+  A.chatFilter = el => { st().filter = el.dataset.k || 'all'; P.render(); };
   A.chatPanel = el => {
     const c = st(), k = el.dataset.k || null;
     c.panel = c.panel === k ? null : k; c.emojiQ = '';
@@ -357,7 +377,10 @@
   const origAfter = P.fx.afterRender;
   P.fx.afterRender = routeChanged => {
     origAfter(routeChanged);
-    if (S().user && S().route.page === 'comunicacao') { if (routeChanged) scrollEnd(); else keepScroll(); restoreComposer(); }
+    if (S().user && S().route.page === 'comunicacao') {
+      if (routeChanged) scrollEnd(); else keepScroll(); restoreComposer();
+      const cv = document.querySelector('.pt-canvas'); if (cv && P.particles) P.particles.mount(cv);
+    }
   };
 
   // Mensagens que chegam de outra aba: aviso no canto (se a conversa não estiver aberta)
