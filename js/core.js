@@ -966,6 +966,8 @@ window.P = window.P || {};
       Object.assign(c, { code, name, tradeName: (data.tradeName || '').trim() || name, cnpj, regime: data.regime, depts: data.depts || [], since: data.since || c.since, notes: (data.notes || '').trim() });
       if (data.receita && P.cnpj.digits(data.receita.cnpj) === digits) c.receita = data.receita;
       P.reindex(); audit(u, isNew ? 'Empresa cadastrada' : 'Empresa editada', c.id, c.name + ' · ' + P.REGIMES[c.regime].label + (data.receita ? ' · dados da Receita' : '')); P.store.save();
+      // empresa nova (ou que mudou de regime) já entra nas tarefas padrão do regime dela
+      if (P.taskRec && P.taskRec.onCompanySaved) P.taskRec.onCompanySaved(c);
       return c;
     },
     /* Renomear a empresa mantém a carteira e as tarefas pendentes apontando para ela */

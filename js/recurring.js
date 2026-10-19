@@ -13,7 +13,13 @@
     return D.iso(d);
   };
   // responsável do mês: fixo, ou (automático) quem tem a empresa na carteira do departamento; sem ninguém, o gestor do departamento
-  const clientsOf = r => r.clients && r.clients.length ? r.clients : [r.client || ''];
+  // por regime tributário: a lista de empresas é calculada na hora (empresa nova ou que mudou de regime entra/sai sozinha)
+  const regimeClients = r => {
+    const cart = new Set((db().clientAssignments || []).map(a => a.deptId + '|' + a.client));
+    return (db().companies || []).filter(c => c.active !== false && c.regime === r.regime && (!r.onlyCarteira || cart.has(r.deptId + '|' + c.name) || (c.depts || []).includes(r.deptId)))
+      .map(c => c.name).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true }));
+  };
+  const clientsOf = r => r.regime ? regimeClients(r) : r.clients && r.clients.length ? r.clients : [r.client || ''];
   const respOf = (r, client) => {
     if (!r.auto) return r.userId;
     client = client != null ? client : clientsOf(r)[0];
@@ -26,25 +32,44 @@
    * O banco só conhece recorrência mensal, então as trimestrais ficam com active:false para ele ignorar e são geradas aqui, pelo navegador
    * de quem gerencia o departamento. "Pausada" para elas é o campo paused. */
   const isQ = r => r.freq === 'trimestral';
-  const isOn = r => isQ(r) ? !r.paused : r.active !== false;
+  // geradas aqui (não pelo banco): as trimestrais e as por regime tributário; o banco as ignora (active:false) e "pausada" é o campo paused
+  const isLocal = r => isQ(r) || !!r.regime;
+  const isOn = r => isLocal(r) ? !r.paused : r.active !== false;
   const QMONTHS = [0, 3, 6, 9];
   const quarterOf = m => { const mo = m.getMonth(), y = m.getFullYear(); return mo === 0 ? '4º tri/' + (y - 1) : (mo / 3 + 0) + 'º tri/' + y; };
-  // onlyQ: em produção o banco gera as mensais; aqui só as trimestrais
-  function localGenerate(onlyQ) {
+  // onlyLocal: em produção o banco gera as mensais comuns; aqui só as trimestrais e as por regime
+  function localGenerate(onlyLocal) {
     const cur = D.monthStart(P.today()); let n = 0;
-    const multi = r => !!(r.clients && r.clients.length);
-    recs().filter(r => isOn(r) && (!onlyQ || isQ(r)) && (!onlyQ || canManage(U(), r.deptId))).forEach(r => (isQ(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => clientsOf(r).forEach(client => {
+    const multi = r => !!(r.regime || (r.clients && r.clients.length));
+    const have = new Set(db().tasks.map(t => t.recKey).filter(Boolean));
+    const scope = recs().filter(r => isOn(r) && (!onlyLocal || isLocal(r)) && (!onlyLocal || canManage(U(), r.deptId)));
+    scope.forEach(r => (isQ(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => clientsOf(r).forEach(client => {
       if (isQ(r) && !QMONTHS.includes(m.getMonth())) return;
       const k = ym(m); if (k < (r.start || '0000') || (r.end && k > r.end)) return;
       // uma tarefa por empresa e por mês (ou por trimestre)
-      const key = multi(r) ? r.id + '|' + client + '|' + k : r.id + '|' + k, uid = respOf(r, client), who = P.user(uid);
-      if (!who || who.active === false || db().tasks.some(t => t.recKey === key)) return;
+      const key = multi(r) ? r.id + '|' + client + '|' + k : r.id + '|' + k;
+      if (have.has(key)) return;
+      const uid = respOf(r, client), who = P.user(uid);
+      if (!who || who.active === false) return;
       const title = (multi(r) ? r.title + (isQ(r) ? ' (' + quarterOf(m) + ')' : '') + (client ? ' — ' + client : '') : r.title + (isQ(r) ? ' (' + quarterOf(m) + ')' : ''));
-      // id fixo nas trimestrais: se dois navegadores gerarem ao mesmo tempo, o banco recusa o repetido em vez de duplicar
-      const id = isQ(r) ? 'tq_' + key.replace(/[^A-Za-z0-9]+/g, '_') : P.uid('t');
-      db().tasks.push({ id, userId: uid, deptId: r.deptId, title, activityId: r.activityId || null, client: client || '', due: dueOf(r, m), status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); n++;
+      // id fixo nas geradas aqui: se dois navegadores gerarem ao mesmo tempo, o repetido é ignorado em vez de duplicar
+      const id = isLocal(r) ? 'tq_' + key.replace(/[^A-Za-z0-9]+/g, '_') : P.uid('t');
+      db().tasks.push({ id, userId: uid, deptId: r.deptId, title, activityId: r.activityId || null, client: client || '', due: dueOf(r, m), status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); have.add(key); n++;
     })));
+    // empresa que saiu do regime (ou foi inativada): some a tarefa pendente que ainda não foi mexida
+    if ((db().companies || []).length) scope.filter(r => r.regime).forEach(r => {
+      const now = new Set(clientsOf(r)), before = db().tasks.length;
+      db().tasks = db().tasks.filter(t => !(t.recId === r.id && t.status === 'pendente' && !t.edits && !t.postponed && t.client && !now.has(t.client)));
+      n += before - db().tasks.length;
+    });
     return n;
+  }
+  // chamado ao cadastrar ou editar uma empresa: ela já entra nas tarefas padrão do regime dela
+  function onCompanySaved(c) {
+    if (!c) return;
+    const std = recs().filter(r => r.regime === c.regime && isOn(r) && canManage(U(), r.deptId));
+    setTimeout(() => generate(true), 300);
+    if (std.length && P.toast) P.toast(c.name + ': ' + std.length + ' tarefa(s) padrão do regime ' + ((P.REGIMES[c.regime] || {}).label || c.regime) + ' serão criadas.');
   }
   let lastRun = 0;
   async function generate(force) {
@@ -56,7 +81,7 @@
       if (localGenerate(true)) { P.store.save(); P.render(); }
     } else if (localGenerate()) { P.store.save(); P.render(); }
   }
-  P.taskRec = { generate, dueOf, localGenerate };
+  P.taskRec = { generate, dueOf, localGenerate, onCompanySaved };
   setInterval(() => generate(), 60e3); window.addEventListener('focus', () => generate());
   setTimeout(() => generate(true), 3000);
 
@@ -123,7 +148,7 @@
       <span class="fine tf-count">${list.length} de ${total} recorrência(s)</span></div>`;
   };
   const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"><input type="checkbox" data-act="recSelAll" aria-label="Selecionar todas" ${list.every(r => recSel().has(r.id)) ? 'checked' : ''}></th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
-    ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1; return `<tr class="${!isOn(r) ? 'inactive' : ''}"><td class="chk-col"><input type="checkbox" data-act="recSel" data-id="${esc(r.id)}" aria-label="Selecionar" ${recSel().has(r.id) ? 'checked' : ''}></td><td><b>${esc(r.title)}</b>${many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
+    ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1 || !!r.regime; return `<tr class="${!isOn(r) ? 'inactive' : ''}"><td class="chk-col"><input type="checkbox" data-act="recSel" data-id="${esc(r.id)}" aria-label="Selecionar" ${recSel().has(r.id) ? 'checked' : ''}></td><td><b>${esc(r.title)}</b>${r.regime ? `<small class="obs" title="${esc(cl.join(', '))}">Regime ${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${cl.length} empresas (automático)</small>` : many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
       <td class="nowrap">${isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
       <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
       <td>${!isOn(r) ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
@@ -179,9 +204,15 @@
         <label class="field"><span>Peso (pontos)</span><input type="number" id="ar-w" min="0.05" step="0.05"></label>
         <label class="field span2 ar-new" style="display:none"><span>Nome da nova atividade</span><input id="ar-name" placeholder="Ex.: Apuração do Simples Nacional"></label>
         <label class="field ar-new" style="display:none"><span>Unidade</span><input id="ar-unit" placeholder="Ex.: empresa/mês"></label>
-        <div class="field span3"><span>Empresas (uma, duas ou mais)</span>${P.companyPickerHtml('ar-co')}</div>
-        <div class="span3"><button type="button" class="link" id="ar-all">Adicionar todas as empresas da carteira deste departamento</button></div>
-        <div class="span3 ar-chips" id="ar-chips"><p class="fine">Nenhuma empresa escolhida.</p></div>
+        <label class="field span3"><span>Aplicar a</span><select id="ar-mode"><option value="pick">Empresas que eu escolher</option>${Object.entries(P.REGIMES).map(([k, v]) => `<option value="regime:${k}">Todas as empresas do regime: ${esc(v.label)}</option>`).join('')}</select></label>
+        <div class="span3 ar-regime" id="ar-regime" style="display:none">
+          <label class="check-inline"><input type="checkbox" id="ar-cart" checked> Só empresas atendidas por este departamento (carteira ou cadastro da empresa)</label>
+          <p class="fine" id="ar-regime-n"></p>
+          <p class="fine">${V.icon('info')} A lista é automática: empresa nova nesse regime, ou que mudar para ele, já recebe esta tarefa. Se sair do regime, a tarefa pendente dela some.</p>
+        </div>
+        <div class="field span3 ar-pick"><span>Empresas (uma, duas ou mais)</span>${P.companyPickerHtml('ar-co')}</div>
+        <div class="span3 ar-pick"><button type="button" class="link" id="ar-all">Adicionar todas as empresas da carteira deste departamento</button></div>
+        <div class="span3 ar-chips ar-pick" id="ar-chips"><p class="fine">Nenhuma empresa escolhida.</p></div>
         <label class="field span3"><span>Repetição</span><select id="ar-freq"><option value="mensal">Todo mês</option><option value="trimestral">Trimestral: o prazo cai em jan, abr, jul e out (mês seguinte ao fim de cada trimestre)</option></select></label>
         <label class="field"><span>Dia do prazo</span><input type="number" id="ar-day" min="1" max="31" value="20"></label>
         <label class="field"><span>Começa em</span><input type="month" id="ar-start" value="${ym(P.today())}"></label>
@@ -191,11 +222,12 @@
       onSubmit: m => {
         const deptId = $('#ar-dept').value, actSel = $('#ar-act').value, w = $('#ar-w').value;
         if (!canManage(u, deptId)) throw new P.AccessError('Você só cadastra tarefas do seu departamento.');
-        if (!sel.length) throw new Error('Escolha pelo menos uma empresa.');
+        const mode = $('#ar-mode').value, regime = mode.startsWith('regime:') ? mode.slice(7) : '';
+        if (!regime && !sel.length) throw new Error('Escolha pelo menos uma empresa.');
         // evita cadastrar duas vezes a mesma recorrência (cada cadastro gera uma tarefa por empresa)
         const wantQ = $('#ar-freq').value === 'trimestral', nm = ((actSel === '__new' ? $('#ar-name').value : (P.act(actSel) || {}).name) || '').trim().toLowerCase();
-        const dupe = nm && recs().find(x => x.deptId === deptId && isOn(x) && isQ(x) === wantQ && String(x.title || '').trim().toLowerCase() === nm);
-        if (dupe) throw new Error('Já existe uma recorrência ativa "' + dupe.title + '" neste departamento (' + (isQ(dupe) ? 'trimestral' : 'mensal') + ', dia ' + dupe.day + '). Exclua ou pause a existente antes de criar outra.');
+        const dupe = nm && recs().find(x => x.deptId === deptId && isOn(x) && isQ(x) === wantQ && (x.regime || '') === regime && String(x.title || '').trim().toLowerCase() === nm);
+        if (dupe) throw new Error('Já existe uma recorrência ativa "' + dupe.title + '" neste departamento' + (regime ? ' para este regime' : '') + ' (' + (isQ(dupe) ? 'trimestral' : 'mensal') + ', dia ' + dupe.day + '). Exclua ou pause a existente antes de criar outra.');
         const day = Number($('#ar-day').value), start = $('#ar-start').value, end = $('#ar-end').value;
         if (!(day >= 1 && day <= 31)) throw new Error('Informe o dia do prazo (1 a 31).');
         if (!start) throw new Error('Informe o mês de início.');
@@ -210,13 +242,16 @@
           if (Number(String(w).replace(',', '.')) !== act.weight) P.api.saveActivity(u, { id: act.id, deptId, name: act.name, unit: act.unit, weight: w, reason: 'Ajustado no cadastro de tarefa recorrente' });
         }
         if (!act) throw new Error('Não foi possível salvar a atividade.');
-        const quarterly = $('#ar-freq').value === 'trimestral';
-        const r = { id: P.uid('tr'), auto: true, userId: null, deptId, title: act.name, activityId: act.id, clients: sel.slice(), day, businessDay: $('#ar-bd').checked, start, end: end || '', active: !quarterly, createdBy: u.id, createdAt: D.stamp() };
-        if (quarterly) { r.freq = 'trimestral'; r.paused = false; }
-        recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, r.title + (quarterly ? ' (trimestral, dia ' : ' (dia ') + day + ')');
-        if (!P.isLive || quarterly) localGenerate(P.isLive);
-        P.store.save(); if (P.isLive && !quarterly) setTimeout(() => generate(true), 1500);
-        P.toast('Tarefa recorrente criada para ' + sel.length + ' empresa(s): ' + (quarterly ? 'trimestral, dia ' + day + ' de jan, abr, jul e out' : 'todo dia ' + day) + ', para o responsável de cada uma.'); P.render();
+        const quarterly = $('#ar-freq').value === 'trimestral', local = quarterly || !!regime;
+        const r = { id: P.uid('tr'), auto: true, userId: null, deptId, title: act.name, activityId: act.id, clients: regime ? [] : sel.slice(), day, businessDay: $('#ar-bd').checked, start, end: end || '', active: !local, createdBy: u.id, createdAt: D.stamp() };
+        if (quarterly) r.freq = 'trimestral';
+        if (regime) { r.regime = regime; r.onlyCarteira = $('#ar-cart').checked; }
+        if (local) r.paused = false;
+        recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, r.title + (regime ? ' · regime ' + P.REGIMES[regime].label : '') + (quarterly ? ' (trimestral, dia ' : ' (dia ') + day + ')');
+        if (!P.isLive || local) localGenerate(P.isLive);
+        P.store.save(); if (P.isLive && !local) setTimeout(() => generate(true), 1500);
+        const nCo = clientsOf(r).length;
+        P.toast('Tarefa recorrente criada para ' + nCo + ' empresa(s)' + (regime ? ' do regime ' + P.REGIMES[regime].label : '') + ': ' + (quarterly ? 'trimestral, dia ' + day + ' de jan, abr, jul e out' : 'todo dia ' + day) + ', para o responsável de cada uma.'); P.render();
       }
     });
     const sel = [];
@@ -232,6 +267,14 @@
     $('#ar-act').addEventListener('change', syncW); syncW();
     $('#ar-dept').addEventListener('change', () => { $('#ar-act').innerHTML = actOpts($('#ar-dept').value); syncW(); drawChips(); });
     P.companyPicker(comps, 'ar-co', add);
+    // "Aplicar a": empresas escolhidas à mão ou todas de um regime tributário (lista automática)
+    const syncMode = () => {
+      const mode = $('#ar-mode').value, regime = mode.startsWith('regime:') ? mode.slice(7) : '';
+      document.querySelectorAll('.ar-pick').forEach(x => { x.style.display = regime ? 'none' : ''; });
+      $('#ar-regime').style.display = regime ? '' : 'none';
+      if (regime) { const n = regimeClients({ regime, deptId: $('#ar-dept').value, onlyCarteira: $('#ar-cart').checked }).length; $('#ar-regime-n').innerHTML = `<b>${n}</b> empresa(s) ativa(s) do regime ${esc(P.REGIMES[regime].label)} hoje.`; }
+    };
+    ['ar-mode', 'ar-dept', 'ar-cart'].forEach(id => $('#' + id).addEventListener('change', syncMode)); syncMode();
   };
 
   /* ---------- Adiar ou dispensar uma tarefa (com motivo) ---------- */
@@ -425,7 +468,7 @@
 
   A.toggleTaskRec = el => {
     const r = recs().find(x => x.id === el.dataset.id); if (!r || !canManage(U(), r.deptId)) return;
-    if (isQ(r)) r.paused = !r.paused; else r.active = r.active === false;
+    if (isLocal(r)) r.paused = !r.paused; else r.active = r.active === false;
     const on = isOn(r); P.audit(U(), 'Tarefa recorrente ' + (on ? 'reativada' : 'pausada'), r.id, r.title);
     if (on && !P.isLive) localGenerate();
     P.store.save(); if (on && P.isLive) setTimeout(() => generate(true), 1500);
@@ -453,7 +496,7 @@
     const u = U(), what = el.dataset.do, chosen = recFiltered(u).filter(r => recSel().has(r.id));
     if (!chosen.length) return P.toast('Selecione ao menos uma recorrência.', 'err');
     if (what === 'pause' || what === 'resume') {
-      chosen.forEach(r => { const pause = what === 'pause'; if (isQ(r)) r.paused = pause; else r.active = !pause; });
+      chosen.forEach(r => { const pause = what === 'pause'; if (isLocal(r)) r.paused = pause; else r.active = !pause; });
       P.audit(u, 'Recorrências ' + (what === 'pause' ? 'pausadas' : 'reativadas') + ' em lote', 'lote', chosen.length + ' recorrência(s)');
       P.store.save(); if (what === 'resume' && P.isLive) setTimeout(() => generate(true), 1500); else if (what === 'resume') localGenerate();
       recSel().clear(); P.toast(chosen.length + ' recorrência(s) ' + (what === 'pause' ? 'pausada(s)' : 'reativada(s)') + '.'); P.render(); return;
