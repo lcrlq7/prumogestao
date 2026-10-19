@@ -53,11 +53,11 @@
   };
   V.taskFilterBar = (base, shown) => {
     const f = P.state.tf || {}, clients = [...new Set(base.map(t => t.client).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    // sugestões da busca: nomes das tarefas (atividade/recorrência), sem repetir
-    const names = [...new Set(base.map(t => (P.act(t.activityId) || {}).name || t.title).filter(Boolean))].sort((a, b) => a.localeCompare(b)).slice(0, 400);
+    // sugestões de tarefa: nomes das atividades (sem o sufixo "— empresa") e títulos avulsos
+    const names = [...new Set(base.map(t => (P.act(t.activityId) || {}).name || String(t.title || '').split(' — ')[0]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const on = !!(f.q || f.client || f.from || f.to || f.late);
     return `<div class="toolbar tfilter">
-      <label class="picker grow">${icon('search')}<input type="search" id="tf-q" list="tf-names" data-set="tf.q" data-live value="${esc(f.q || '')}" placeholder="Buscar por tarefa, empresa ou responsável" aria-label="Buscar tarefas" autocomplete="off"><datalist id="tf-names">${names.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist></label>
+      <label class="picker grow">${icon('search')}<input type="search" id="tf-q" list="tf-names" data-set="tf.q" data-live value="${esc(f.q || '')}" placeholder="Tarefa: digite para buscar (ou empresa, responsável)" aria-label="Buscar tarefas" autocomplete="off"><datalist id="tf-names">${names.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist></label>
       <label class="picker grow">${icon('building')}<input type="search" id="tf-client" list="tf-clients" data-set="tf.client" data-live value="${esc(f.client || '')}" placeholder="Empresa: digite para buscar" aria-label="Empresa" autocomplete="off"><datalist id="tf-clients">${clients.map(c => `<option value="${esc(c)}"></option>`).join('')}</datalist></label>
       <label class="picker"><span>Prazo de</span><input type="date" data-set="tf.from" value="${esc(f.from || '')}" aria-label="Prazo a partir de"></label>
       <label class="picker"><span>até</span><input type="date" data-set="tf.to" value="${esc(f.to || '')}" aria-label="Prazo até"></label>
@@ -99,14 +99,15 @@
       <div class="toolbar">${V.tabs([['lista', 'Lista'], ['quadro', 'Quadro da equipe']], S.taskView || 'lista', 'taskView')}${S.taskView === 'quadro' ? '' : V.tabs([['pendente', 'Pendentes'], ['concluida', 'Concluídas']], tab, 'taskTab')}
         <label class="picker">${icon('users')}<select id="task-user" data-set="taskUser" aria-label="Responsável"><option value="">Toda a equipe</option>${emps.map(e => `<option value="${e.id}" ${S.taskUser === e.id ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label></div>
       ${S.taskView === 'quadro' ? '' : V.taskFilterBar(tabbed, tasks.length)}
-      ${S.taskView === 'quadro' ? V.taskBoard(u, P.isGlobal(u) && !V.scopeDept(u) ? [] : emps, all.filter(t => t.status === 'pendente')) : V.card('', V.taskList(u, tasks, today, true, 'team'), { cls: 'flush' })}
+      ${S.taskView === 'quadro' ? V.taskBoard(u, P.isGlobal(u) && !V.scopeDept(u) ? [] : emps, all.filter(t => t.status === 'pendente')) : V.card('', V.taskList(u, tasks, today, true), { cls: 'flush' })}
       ${V.scopeDept(u) ? V.card('Atividades e pesos · ' + esc(P.dept(V.scopeDept(u)).name), V.weightTable(u, V.scopeDept(u), false), { sub: 'Para cadastrar atividades ou mudar pesos, use a aba "Atividades e pesos".', actions: V.btn('Atividades e pesos', { act: 'setState', icon: 'scale', cls: 'ghost sm', attrs: 'data-key="atvTab" data-val="pesos"' }) }) : ''}`;
   };
   V.tabs = (items, cur, key) => `<div class="tabs" role="tablist">${items.map(([k, l, n]) => `<button type="button" role="tab" class="${cur === k ? 'on' : ''}" aria-selected="${cur === k}" data-act="setState" data-key="${key}" data-val="${k}">${l}${n != null ? `<span class="count">${n}</span>` : ''}</button>`).join('')}</div>`;
-  V.taskList = (u, tasks, today, showWho, key) => {
+  V.taskList = (u, tasks, today, showWho) => {
     if (!tasks.length) return V.empty('Nenhuma tarefa nesta lista.', 'check');
-    // listas longas (ex.: depois de importar tarefas) são paginadas: 20, 50 ou 100 por página
-    const pg = V.pageSlice(tasks, key || 'main'); tasks = pg.items;
+    // listas longas (ex.: depois de importar tarefas) desenham só o começo; o resto entra em "Mostrar mais"
+    const limit = P.state.taskLimit || 80, rest = tasks.length - limit;
+    if (rest > 0) tasks = tasks.slice(0, limit);
     return `<ul class="tasks">${tasks.map(t => {
       const a = t.activityId ? P.act(t.activityId) : null, who = P.user(t.userId) || { name: 'Pessoa removida' };
       const late = t.status === 'pendente' && t.due < today;
@@ -119,21 +120,7 @@
         ${t.status === 'pendente' && u.id === t.userId ? V.btn('Concluir e registrar', { act: 'completeTask', cls: 'sm primary', icon: 'check', attrs: `data-id="${t.id}"` }) : ''}
         ${V.taskExtra ? V.taskExtra(u, t) : ''}
       </li>`;
-    }).join('')}</ul>${pg.bar}`;
-  };
-  // fatia a lista na página atual e monta a barra: itens por página (20/50/100) e Anterior/Próxima
-  V.pageSlice = (list, key) => {
-    const S = P.state, per = [20, 50, 100].includes(S.taskPer) ? S.taskPer : 20;
-    S.taskPg = S.taskPg || {};
-    const pages = Math.max(1, Math.ceil(list.length / per)), pg = Math.min(Math.max(S.taskPg[key] || 1, 1), pages);
-    S.taskPg[key] = pg;
-    const from = (pg - 1) * per, items = list.slice(from, from + per);
-    if (list.length <= 20) return { items, bar: '' };
-    const nav = (dir, label, off) => V.btn(label, { act: 'pgGo', cls: 'sm ghost', attrs: `data-key="${key}" data-dir="${dir}" ${off ? 'disabled' : ''}` });
-    const bar = `<div class="pager"><label>Mostrar <select data-set="taskPer" aria-label="Itens por página">${[20, 50, 100].map(n => `<option value="${n}" ${n === per ? 'selected' : ''}>${n}</option>`).join('')}</select> por página</label>
-      <span class="fine">${from + 1}–${from + items.length} de ${list.length}</span>
-      <span class="pager-nav">${nav(-1, '‹ Anterior', pg <= 1)}<span class="fine">Página ${pg} de ${pages}</span>${nav(1, 'Próxima ›', pg >= pages)}</span></div>`;
-    return { items, bar };
+    }).join('')}</ul>${rest > 0 ? `<div class="more-row">${V.btn('Mostrar mais (' + rest + ' restantes)', { act: 'moreTasks', cls: 'sm ghost', icon: 'plus' })}</div>` : ''}`;
   };
   V.weightTable = (u, deptId, editable) => {
     const acts = api.activities(u, deptId, editable);
