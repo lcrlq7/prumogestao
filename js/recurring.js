@@ -167,6 +167,10 @@
         const deptId = $('#ar-dept').value, actSel = $('#ar-act').value, w = $('#ar-w').value;
         if (!canManage(u, deptId)) throw new P.AccessError('Você só cadastra tarefas do seu departamento.');
         if (!sel.length) throw new Error('Escolha pelo menos uma empresa.');
+        // evita cadastrar duas vezes a mesma recorrência (cada cadastro gera uma tarefa por empresa)
+        const wantQ = $('#ar-freq').value === 'trimestral', nm = ((actSel === '__new' ? $('#ar-name').value : (P.act(actSel) || {}).name) || '').trim().toLowerCase();
+        const dupe = nm && recs().find(x => x.deptId === deptId && isOn(x) && isQ(x) === wantQ && String(x.title || '').trim().toLowerCase() === nm);
+        if (dupe) throw new Error('Já existe uma recorrência ativa "' + dupe.title + '" neste departamento (' + (isQ(dupe) ? 'trimestral' : 'mensal') + ', dia ' + dupe.day + '). Exclua ou pause a existente antes de criar outra.');
         const day = Number($('#ar-day').value), start = $('#ar-start').value, end = $('#ar-end').value;
         if (!(day >= 1 && day <= 31)) throw new Error('Informe o dia do prazo (1 a 31).');
         if (!start) throw new Error('Informe o mês de início.');
@@ -404,8 +408,15 @@
   };
   A.deleteTaskRec = el => {
     const r = recs().find(x => x.id === el.dataset.id); if (!r || !canManage(U(), r.deptId)) return;
-    if (!confirm(`Excluir a recorrência "${r.title}"? Ela deixa de ser criada nos próximos meses. As tarefas já criadas continuam.`)) return;
-    db().taskRecurrences = recs().filter(x => x.id !== r.id); P.audit(U(), 'Tarefa recorrente excluída', r.id, r.title); P.store.save(); P.render();
+    if (!confirm(`Excluir a recorrência "${r.title}"? Ela deixa de ser criada nos próximos meses.`)) return;
+    // as tarefas pendentes que ela já criou podem sair junto (útil quando o cadastro foi feito em duplicidade)
+    const pend = db().tasks.filter(t => t.recId === r.id && t.status === 'pendente');
+    let removed = 0;
+    if (pend.length && confirm(`Apagar também as ${pend.length} tarefa(s) PENDENTE(S) criadas por esta recorrência?\n\nOK = apagar as pendentes. Cancelar = manter as tarefas já criadas.`)) {
+      const ids = new Set(pend.map(t => t.id)); db().tasks = db().tasks.filter(t => !ids.has(t.id)); removed = ids.size;
+    }
+    db().taskRecurrences = recs().filter(x => x.id !== r.id); P.audit(U(), 'Tarefa recorrente excluída', r.id, r.title + (removed ? ' · ' + removed + ' tarefa(s) pendente(s) apagada(s)' : '')); P.store.save();
+    P.toast('Recorrência excluída' + (removed ? ' e ' + removed + ' tarefa(s) pendente(s) apagada(s)' : '') + '.'); P.render();
   };
 
 })(window.P);
