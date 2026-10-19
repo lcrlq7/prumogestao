@@ -33,7 +33,7 @@
   function localGenerate(onlyQ) {
     const cur = D.monthStart(P.today()); let n = 0;
     const multi = r => !!(r.clients && r.clients.length);
-    recs().filter(r => isOn(r) && (!onlyQ || isQ(r)) && (!onlyQ || canManage(U(), r.deptId))).forEach(r => [cur, D.addMonths(cur, 1)].forEach(m => clientsOf(r).forEach(client => {
+    recs().filter(r => isOn(r) && (!onlyQ || isQ(r)) && (!onlyQ || canManage(U(), r.deptId))).forEach(r => (isQ(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => clientsOf(r).forEach(client => {
       if (isQ(r) && !QMONTHS.includes(m.getMonth())) return;
       const k = ym(m); if (k < (r.start || '0000') || (r.end && k > r.end)) return;
       // uma tarefa por empresa e por mês (ou por trimestre)
@@ -114,7 +114,7 @@
     const taskRows = (l, key) => { const pg = V.pageSlice(l, key); return l.length ? taskTable(pg.items) + pg.bar : V.empty('Nenhuma tarefa pendente.', 'check'); };
     const taskTable = l => `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th class="actions-col"></th></tr></thead><tbody>${l.map(t => `<tr><td><b>${esc(t.title)}</b>${t.client && !t.title.includes(t.client) ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due < today ? ' bad' : ''}">${D.fmt(t.due)}${t.due < today ? ' <small>(atrasada)</small>' : ''}${t.postponed && t.postponed.length ? ' <small title="' + esc(t.postponed.map(x => D.fmt(x.from) + ' → ' + D.fmt(x.to) + ': ' + x.reason).join('\n')) + '">(adiada)</small>' : ''}</td><td class="actions-col"><div class="row-actions">${taskBtns(u, t)}</div></td></tr>`).join('')}</tbody></table></div>`;
     return `<div class="kpis k3">${V.kpi('Recorrências ativas', list.filter(isOn).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
-      ${V.card('Tarefas recorrentes', recTable(list), { cls: 'flush', sub: 'As tarefas são criadas automaticamente para o mês atual e o próximo. Pausar ou excluir não apaga as já criadas.' })}
+      ${V.card('Tarefas recorrentes', recTable(list), { cls: 'flush', sub: 'As mensais são criadas para o mês atual e o próximo; as trimestrais, para os próximos 12 meses. Pausar ou excluir não apaga as já criadas.' })}
       ${V.taskFilterBar(pend, avulsas.length + geradas.length)}
       <div class="grid g-1-1">${V.card('Geradas pelas recorrências (pendentes)', taskRows(geradas, 'gen'), { cls: 'flush' })}${V.card('Tarefas avulsas (pendentes)', taskRows(avulsas, 'avu'), { cls: 'flush' })}</div>`;
   };
