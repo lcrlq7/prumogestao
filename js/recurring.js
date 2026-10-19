@@ -97,8 +97,33 @@
   /* ---------- Aba "Cadastro de tarefas" ---------- */
   P.PAGES.tarefas = ['admin', 'office', 'manager'];
   const who = id => esc((P.user(id) || { name: '—' }).name);
-  const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
-    ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1; return `<tr class="${r.active === false ? 'inactive' : ''}"><td><b>${esc(r.title)}</b>${many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
+  /* ---------- Filtros e seleção em lote (recorrências e tarefas geradas) ---------- */
+  const normS = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const rf = () => (P.state.rf = P.state.rf || { q: '', freq: '', st: '' });
+  const recSel = () => (P.state.recSel = P.state.recSel || new Set());
+  const taskSel = () => (P.state.taskSel = P.state.taskSel || new Set());
+  const recFiltered = u => {
+    const f = rf(), q = normS(f.q);
+    return recs().filter(r => canManage(u, r.deptId))
+      .filter(r => (!q || normS(r.title + ' ' + clientsOf(r).join(' ') + ' ' + ((P.dept(r.deptId) || {}).name || '')).includes(q)) && (!f.freq || (f.freq === 'trimestral') === isQ(r)) && (!f.st || (f.st === 'ativa') === isOn(r)))
+      .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base', numeric: true }));
+  };
+  const cadLists = u => {
+    const pend = P.api.tasks(u).filter(t => t.status === 'pendente' && canManage(u, t.deptId));
+    return { pend, avulsas: V.taskFilter(pend.filter(t => !t.recId)).sort((a, b) => a.due.localeCompare(b.due)), geradas: V.taskFilter(pend.filter(t => t.recId)).sort((a, b) => a.due.localeCompare(b.due)) };
+  };
+  const recBar = (list, total) => {
+    const f = rf(), n = list.filter(r => recSel().has(r.id)).length, on = !!(f.q || f.freq || f.st);
+    return `<div class="toolbar tfilter">
+      <label class="picker grow">${V.icon('search')}<input type="search" data-set="rf.q" data-live value="${esc(f.q)}" placeholder="Buscar recorrência por nome, empresa ou departamento" aria-label="Buscar recorrências" autocomplete="off"></label>
+      <label class="picker"><select data-set="rf.freq" aria-label="Repetição"><option value="">Mensais e trimestrais</option><option value="mensal" ${f.freq === 'mensal' ? 'selected' : ''}>Só mensais</option><option value="trimestral" ${f.freq === 'trimestral' ? 'selected' : ''}>Só trimestrais</option></select></label>
+      <label class="picker"><select data-set="rf.st" aria-label="Situação"><option value="">Ativas e pausadas</option><option value="ativa" ${f.st === 'ativa' ? 'selected' : ''}>Só ativas</option><option value="pausada" ${f.st === 'pausada' ? 'selected' : ''}>Só pausadas</option></select></label>
+      ${on ? V.btn('Limpar filtros', { act: 'rfClear', icon: 'x', cls: 'sm ghost' }) : ''}
+      ${n ? `<span class="fine"><b>${n}</b> selecionada(s)</span>${V.btn('Pausar', { act: 'recBulk', icon: 'clock', cls: 'sm ghost', attrs: 'data-do="pause"' })}${V.btn('Reativar', { act: 'recBulk', icon: 'check', cls: 'sm ghost', attrs: 'data-do="resume"' })}${V.btn('Excluir selecionadas', { act: 'recBulk', icon: 'trash', cls: 'sm ghost danger', attrs: 'data-do="delete"' })}` : ''}
+      <span class="fine tf-count">${list.length} de ${total} recorrência(s)</span></div>`;
+  };
+  const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"><input type="checkbox" data-act="recSelAll" aria-label="Selecionar todas" ${list.every(r => recSel().has(r.id)) ? 'checked' : ''}></th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
+    ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1; return `<tr class="${!isOn(r) ? 'inactive' : ''}"><td class="chk-col"><input type="checkbox" data-act="recSel" data-id="${esc(r.id)}" aria-label="Selecionar" ${recSel().has(r.id) ? 'checked' : ''}></td><td><b>${esc(r.title)}</b>${many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
       <td class="nowrap">${isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
       <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
       <td>${!isOn(r) ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
@@ -106,17 +131,17 @@
     </tbody></table></div>` : V.empty('Nenhuma tarefa recorrente. Use "Nova tarefa" e marque "Repetir todo mês".', 'refresh');
   // corpo da aba "Cadastro de tarefas" (dentro de Atividades)
   const cadastro = u => {
-    const list = recs().filter(r => canManage(u, r.deptId)).sort((a, b) => (P.user(a.userId) || {}).name > (P.user(b.userId) || {}).name ? 1 : -1);
+    const allRecs = recs().filter(r => canManage(u, r.deptId)), list = recFiltered(u);
     const today = D.iso(P.today());
-    const pend = P.api.tasks(u).filter(t => t.status === 'pendente' && canManage(u, t.deptId));
-    const avulsas = V.taskFilter(pend.filter(t => !t.recId)).sort((a, b) => a.due.localeCompare(b.due));
-    const geradas = V.taskFilter(pend.filter(t => t.recId)).sort((a, b) => a.due.localeCompare(b.due));
-    const taskRows = (l, key) => { const pg = V.pageSlice(l, key); return l.length ? taskTable(pg.items) + pg.bar : V.empty('Nenhuma tarefa pendente.', 'check'); };
-    const taskTable = l => `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th class="actions-col"></th></tr></thead><tbody>${l.map(t => `<tr><td><b>${esc(t.title)}</b>${t.client && !t.title.includes(t.client) ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due < today ? ' bad' : ''}">${D.fmt(t.due)}${t.due < today ? ' <small>(atrasada)</small>' : ''}${t.postponed && t.postponed.length ? ' <small title="' + esc(t.postponed.map(x => D.fmt(x.from) + ' → ' + D.fmt(x.to) + ': ' + x.reason).join('\n')) + '">(adiada)</small>' : ''}</td><td class="actions-col"><div class="row-actions">${taskBtns(u, t)}</div></td></tr>`).join('')}</tbody></table></div>`;
-    return `<div class="kpis k3">${V.kpi('Recorrências ativas', list.filter(isOn).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
+    const { pend, avulsas, geradas } = cadLists(u);
+    const delBtn = l => { const n = l.filter(t => taskSel().has(t.id)).length; return n ? V.btn('Excluir selecionadas (' + n + ')', { act: 'taskBulkDelete', icon: 'trash', cls: 'sm ghost danger' }) : ''; };
+    const taskRows = (l, key) => { const pg = V.pageSlice(l, key); return l.length ? taskTable(pg.items, key) + pg.bar : V.empty('Nenhuma tarefa pendente.', 'check'); };
+    const taskTable = (l, key) => `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"><input type="checkbox" data-act="taskSelAll" data-list="${key}" aria-label="Selecionar todas as filtradas" ${(key === 'gen' ? geradas : avulsas).every(t => taskSel().has(t.id)) ? 'checked' : ''}></th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th class="actions-col"></th></tr></thead><tbody>${l.map(t => `<tr><td class="chk-col"><input type="checkbox" data-act="taskSel" data-id="${t.id}" aria-label="Selecionar" ${taskSel().has(t.id) ? 'checked' : ''}></td><td><b>${esc(t.title)}</b>${t.client && !t.title.includes(t.client) ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due < today ? ' bad' : ''}">${D.fmt(t.due)}${t.due < today ? ' <small>(atrasada)</small>' : ''}${t.postponed && t.postponed.length ? ' <small title="' + esc(t.postponed.map(x => D.fmt(x.from) + ' → ' + D.fmt(x.to) + ': ' + x.reason).join('\n')) + '">(adiada)</small>' : ''}</td><td class="actions-col"><div class="row-actions">${taskBtns(u, t)}</div></td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="kpis k3">${V.kpi('Recorrências ativas', allRecs.filter(isOn).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
+      ${recBar(list, allRecs.length)}
       ${V.card('Tarefas recorrentes', recTable(list), { cls: 'flush', sub: 'As mensais são criadas para o mês atual e o próximo; as trimestrais, para os próximos 12 meses. Pausar ou excluir não apaga as já criadas.' })}
       ${V.taskFilterBar(pend, avulsas.length + geradas.length)}
-      <div class="grid g-1-1">${V.card('Geradas pelas recorrências (pendentes)', taskRows(geradas, 'gen'), { cls: 'flush' })}${V.card('Tarefas avulsas (pendentes)', taskRows(avulsas, 'avu'), { cls: 'flush' })}</div>`;
+      <div class="grid g-1-1">${V.card('Geradas pelas recorrências (pendentes)', taskRows(geradas, 'gen'), { cls: 'flush', actions: delBtn(geradas) })}${V.card('Tarefas avulsas (pendentes)', taskRows(avulsas, 'avu'), { cls: 'flush', actions: delBtn(avulsas) })}</div>`;
   };
   A.taskRecurrences = () => { P.state.atvTab = 'cadastro'; P.go('atividades'); };
 
@@ -417,6 +442,42 @@
     }
     db().taskRecurrences = recs().filter(x => x.id !== r.id); P.audit(U(), 'Tarefa recorrente excluída', r.id, r.title + (removed ? ' · ' + removed + ' tarefa(s) pendente(s) apagada(s)' : '')); P.store.save();
     P.toast('Recorrência excluída' + (removed ? ' e ' + removed + ' tarefa(s) pendente(s) apagada(s)' : '') + '.'); P.render();
+  };
+
+  /* ---------- Ações em lote ---------- */
+  const flip = (set, id) => { set.has(id) ? set.delete(id) : set.add(id); };
+  A.recSel = el => { flip(recSel(), el.dataset.id); P.render(); };
+  A.recSelAll = () => { const list = recFiltered(U()), s = recSel(), all = list.every(r => s.has(r.id)); list.forEach(r => all ? s.delete(r.id) : s.add(r.id)); P.render(); };
+  A.rfClear = () => { P.state.rf = { q: '', freq: '', st: '' }; P.render(); };
+  A.recBulk = el => {
+    const u = U(), what = el.dataset.do, chosen = recFiltered(u).filter(r => recSel().has(r.id));
+    if (!chosen.length) return P.toast('Selecione ao menos uma recorrência.', 'err');
+    if (what === 'pause' || what === 'resume') {
+      chosen.forEach(r => { const pause = what === 'pause'; if (isQ(r)) r.paused = pause; else r.active = !pause; });
+      P.audit(u, 'Recorrências ' + (what === 'pause' ? 'pausadas' : 'reativadas') + ' em lote', 'lote', chosen.length + ' recorrência(s)');
+      P.store.save(); if (what === 'resume' && P.isLive) setTimeout(() => generate(true), 1500); else if (what === 'resume') localGenerate();
+      recSel().clear(); P.toast(chosen.length + ' recorrência(s) ' + (what === 'pause' ? 'pausada(s)' : 'reativada(s)') + '.'); P.render(); return;
+    }
+    if (!confirm(`Excluir ${chosen.length} recorrência(s)? Elas deixam de ser criadas nos próximos meses.`)) return;
+    const ids = new Set(chosen.map(r => r.id)), pend = db().tasks.filter(t => ids.has(t.recId) && t.status === 'pendente');
+    let removed = 0;
+    if (pend.length && confirm(`Apagar também as ${pend.length} tarefa(s) PENDENTE(S) criadas por elas?\n\nOK = apagar as pendentes. Cancelar = manter as tarefas já criadas.`)) {
+      const tids = new Set(pend.map(t => t.id)); db().tasks = db().tasks.filter(t => !tids.has(t.id)); removed = tids.size;
+    }
+    db().taskRecurrences = recs().filter(r => !ids.has(r.id));
+    P.audit(u, 'Recorrências excluídas em lote', 'lote', ids.size + ' recorrência(s)' + (removed ? ' e ' + removed + ' tarefa(s) pendente(s)' : ''));
+    P.store.save(); recSel().clear(); taskSel().clear();
+    P.toast(ids.size + ' recorrência(s) excluída(s)' + (removed ? ' e ' + removed + ' tarefa(s) pendente(s) apagada(s)' : '') + '.'); P.render();
+  };
+  A.taskSel = el => { flip(taskSel(), el.dataset.id); P.render(); };
+  A.taskSelAll = el => { const l = cadLists(U())[el.dataset.list === 'gen' ? 'geradas' : 'avulsas'], s = taskSel(), all = l.every(t => s.has(t.id)); l.forEach(t => all ? s.delete(t.id) : s.add(t.id)); P.render(); };
+  A.taskBulkDelete = () => {
+    const u = U(), { pend } = cadLists(u), ids = new Set(pend.filter(t => taskSel().has(t.id)).map(t => t.id));
+    if (!ids.size) return P.toast('Selecione ao menos uma tarefa.', 'err');
+    if (!confirm(`Apagar ${ids.size} tarefa(s) pendente(s)? Isso não pode ser desfeito.`)) return;
+    db().tasks = db().tasks.filter(t => !ids.has(t.id));
+    P.audit(u, 'Tarefas excluídas em lote', 'lote', ids.size + ' tarefa(s) pendente(s)');
+    P.store.save(); taskSel().clear(); P.toast(ids.size + ' tarefa(s) apagada(s).'); P.render();
   };
 
 })(window.P);
