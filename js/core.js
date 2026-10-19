@@ -1571,6 +1571,7 @@ window.P = window.P || {};
       const used = db().entries.some(e => e.activityId === id);
       assert(!used, 'Esta atividade possui lançamentos. Desative-a para preservar o histórico.');
       const a = P.act(id);
+      if (a && P.trash) P.trash.put(u, 'activity', [a]); // vai para a Lixeira (restaurável por 30 dias)
       db().activities = db().activities.filter(x => x.id !== id);
       P.reindex(); audit(u, 'Atividade excluída', id, a ? a.name : ''); P.store.save();
     },
@@ -1684,6 +1685,7 @@ window.P = window.P || {};
     removeRecognition(u, id) {
       const r = (db().recognitions || []).find(x => x.id === id);
       assert(r && (r.by === u.id || P.isGlobal(u)), 'Só quem registrou (ou o gerente e a diretoria) pode remover este reconhecimento.');
+      if (P.trash) P.trash.put(u, 'recognition', [r]); // vai para a Lixeira (restaurável por 30 dias)
       db().recognitions = db().recognitions.filter(x => x.id !== id);
       audit(u, 'Reconhecimento removido', r.userId, (P.user(r.userId) || {}).name || ''); P.store.save();
     }
