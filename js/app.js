@@ -31,6 +31,43 @@
   const effectiveDark = () => S.theme === 'dark' || (S.theme === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
   applyTheme();
 
+  /* ---------- Cores personalizadas (cada pessoa escolhe as suas; ficam salvas neste navegador) ---------- */
+  const COLOR_PRESETS = [
+    ['Padrão', null, null, null], ['Verde', '#1b7f5c', '#0d2a22', null], ['Roxo', '#6a43c4', '#201536', null],
+    ['Laranja', '#c4570f', '#2e1a0d', null], ['Rosa', '#c23a74', '#2d1420', null], ['Grafite', '#3f4a56', '#14181d', null]
+  ];
+  const COLOR_VARS = ['--accent', '--accent-2', '--accent-ink', '--accent-soft', '--side-bg', '--side-hl', '--side-ink', '--side-muted', '--side-on', '--bg'];
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const rgbOf = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const hexOf = c => '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  const mixHex = (a, b, t) => { const x = rgbOf(a), y = rgbOf(b); return hexOf(x.map((v, i) => v + (y[i] - v) * t)); };
+  const isLight = h => { const [r, g, b] = rgbOf(h); return (0.299 * r + 0.587 * g + 0.114 * b) > 150; };
+  const colorsKey = u => 'prumo.colors.' + u.id;
+  const getColors = u => { try { const o = JSON.parse(ls.get(colorsKey(u)) || '{}'); return { accent: HEX.test(o.accent) ? o.accent : '', side: HEX.test(o.side) ? o.side : '', bg: HEX.test(o.bg) ? o.bg : '' }; } catch (e) { return { accent: '', side: '', bg: '' }; } };
+  function applyColors(u) {
+    const st = document.documentElement.style;
+    COLOR_VARS.forEach(v => st.removeProperty(v));
+    if (!u) return;
+    const c = getColors(u), set = (k, v) => st.setProperty(k, v);
+    if (c.accent) {
+      set('--accent', c.accent); set('--accent-2', mixHex(c.accent, '#ffffff', .18));
+      set('--accent-ink', isLight(c.accent) ? '#0b1620' : '#ffffff');
+      set('--accent-soft', 'color-mix(in srgb, ' + c.accent + ' 14%, var(--surface))');
+    }
+    if (c.side) {
+      const light = isLight(c.side);
+      set('--side-bg', c.side); set('--side-hl', mixHex(c.side, light ? '#000000' : '#ffffff', .1));
+      set('--side-ink', light ? '#1d2b38' : '#c9d6e2'); set('--side-muted', light ? '#5d7183' : '#7f95a8'); set('--side-on', light ? '#0b1620' : '#ffffff');
+    }
+    if (c.bg) set('--bg', c.bg);
+  }
+  P.colors = { presets: COLOR_PRESETS, get: getColors };
+  const saveColors = (u, patch) => {
+    const c = Object.assign(getColors(u), patch);
+    ls.set(colorsKey(u), c.accent || c.side || c.bg ? JSON.stringify(c) : null);
+    applyColors(u);
+  };
+
   /* ---------- Rotas ---------- */
   const PAGE_LABEL = {
     dashboard: 'Dashboard', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
@@ -232,6 +269,7 @@
     const sel = document.activeElement && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
     P.charts.reset();
     const u = S.user;
+    applyColors(u);
     if (!u) { root().innerHTML = loginView(S.loginErr); S.authSeen = true; return; }
     let page = S.route.page;
     if (!P.PAGES[page]) page = S.route.page = 'dashboard';
@@ -436,6 +474,8 @@
     },
     toggleTheme() { S.theme = effectiveDark() ? 'light' : 'dark'; ls.set('prumo.theme', S.theme); applyTheme(); render(); },
     theme(el) { S.theme = el.dataset.key; ls.set('prumo.theme', S.theme); applyTheme(); render(); },
+    colorPreset(el) { const p = COLOR_PRESETS[Number(el.dataset.i)]; if (!p) return; saveColors(U(), { accent: p[1] || '', side: p[2] || '', bg: p[3] || '' }); render(); toast('Cores aplicadas: ' + p[0] + '.'); },
+    colorReset() { saveColors(U(), { accent: '', side: '', bg: '' }); render(); toast('Cores restauradas para o padrão.'); },
     logout,
     quickLogin(el) { login(P.user(el.dataset.id)); },
     authMode(el) { S.authMode = el.dataset.mode; S.loginErr = null; S.authSeen = false; render(); const f = $('#forgot-email') || $('#login-email'); if (f) f.focus(); },
@@ -1583,6 +1623,7 @@
   let liveTimer;
   document.addEventListener('input', ev => {
     const t = ev.target;
+    if (t.dataset && t.dataset.colorPick && S.user) { saveColors(S.user, { [t.dataset.colorPick]: t.value }); return; }
     const form = t.closest('[data-entry-form]');
     if (form && (t.dataset.ef === 'qty' || t.dataset.ef === 'act')) updateCalc(form);
     const vf = t.closest('[data-vac-form]');

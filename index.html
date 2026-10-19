@@ -1115,6 +1115,15 @@ kbd{font:600 10.5px/1 var(--f-mono);padding:3px 6px;border:1px solid var(--line-
 .board-note{margin:0}
 /* Configurações */
 .pref-rows{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.color-box{display:flex;flex-direction:column;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.color-picks{display:flex;flex-wrap:wrap;gap:10px 18px}
+.color-pick{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);cursor:pointer}
+.color-pick input{width:34px;height:28px;padding:0;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);cursor:pointer}
+.color-presets{display:flex;flex-wrap:wrap;gap:8px}
+.swatch{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 5px;border:1px solid var(--line-2);border-radius:999px;background:var(--surface);color:var(--ink-2);font-size:12.5px;cursor:pointer}
+.swatch:hover{border-color:var(--accent);color:var(--ink)}
+.swatch i{width:14px;height:14px;border-radius:50%;display:inline-block}
+.swatch i+i{margin-left:-9px;box-shadow:0 0 0 2px var(--surface)}
 .pref-btns{display:flex;flex-wrap:wrap;gap:8px}
 /* Mini avatar (calendário de férias) */
 .avatar.xs{width:15px;height:15px;font-size:7px;margin-right:3px;vertical-align:-3px;display:inline-grid}

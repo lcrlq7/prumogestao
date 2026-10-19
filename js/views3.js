@@ -150,6 +150,13 @@
           ${u.role === 'manager' ? `<div><dt>Capacidade semanal</dt><dd>${F.n(u.capacity)} pontos</dd></div>` : ''}
         </dl>`)}
         ${V.card('Aparência', `<div class="seg" role="group">${[['light', 'Claro', 'sun'], ['dark', 'Escuro', 'moon'], ['system', 'Sistema', 'monitor']].map(([k, l, i]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-act="theme" data-key="${k}">${icon(i)}${l}</button>`).join('')}</div>
+          ${(() => {
+            const cs = P.colors.get(u), pick = (k, label, def) => `<label class="color-pick"><input type="color" data-color-pick="${k}" value="${cs[k] || def}" aria-label="${label}"><span>${label}</span></label>`;
+            return `<div class="color-box"><b>Minhas cores</b><small class="muted">Só você vê estas cores, neste navegador.</small>
+              <div class="color-picks">${pick('accent', 'Destaque (botões e links)', '#17587d')}${pick('side', 'Menu lateral', '#0f2231')}${pick('bg', 'Fundo das páginas', '#f2f5f8')}</div>
+              <div class="color-presets">${P.colors.presets.map((p, i) => `<button type="button" class="swatch" data-act="colorPreset" data-i="${i}" title="${p[0]}" aria-label="Paleta ${p[0]}"><i style="background:${p[1] || '#17587d'}"></i><i style="background:${p[2] || '#0f2231'}"></i><span>${p[0]}</span></button>`).join('')}</div>
+              ${V.btn('Restaurar cores padrão', { act: 'colorReset', icon: 'refresh', cls: 'sm ghost' })}</div>`;
+          })()}
           <div class="pref-rows">
             <label class="check-inline"><input type="checkbox" data-act="toggleDense" ${document.body.classList.contains('dense') ? 'checked' : ''}> Tabelas compactas (menos espaço entre as linhas)</label>
             <div class="pref-btns">${V.btn('Rever o tour', { act: 'startTour', icon: 'zap', cls: 'sm ghost' })}${V.btn('Atalhos de teclado', { act: 'shortcuts', icon: 'help', cls: 'sm ghost' })}</div>
