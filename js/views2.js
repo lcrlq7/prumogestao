@@ -314,11 +314,11 @@
   V.recList = (u, list, o = {}) => list.length ? `<ul class="rec-list">${list.map(r => { const x = P.user(r.userId), by = P.user(r.by); return `<li class="rec-item">
       ${o.self ? `<span class="rec-ic">${icon('medal')}</span>` : V.avatar(x)}
       <div class="rec-b">
-        <div class="rec-h">${o.self ? '' : `<b>${esc(x ? x.name : '—')}</b>`}<span class="chip-s">${esc(P.REC_CATEGORIES[r.category] || r.category)}</span>${!o.self ? (r.shared ? '<span class="chip-s chip-wall">' + (r.wall === 'all' ? 'no mural de todos' : 'no mural da equipe') + '</span>' : !r.visible ? '<small class="muted">· só para a gestão</small>' : '<small class="muted">· visível ao colaborador</small>') : ''}</div>
+        <div class="rec-h">${o.self ? '' : `<b>${esc(x ? x.name : '—')}</b>`}<span class="chip-s">${esc(P.REC_CATEGORIES[r.category] || r.category)}</span>${!o.self ? (r.shared ? '<span class="chip-s chip-wall">no mural</span>' : !r.visible ? '<small class="muted">· só para a gestão</small>' : '<small class="muted">· visível ao colaborador</small>') : ''}</div>
         <p>${esc(r.text)}</p>
         <small class="muted">${esc(by ? by.name : '—')} · ${D.fmt(r.date)}</small>
       </div>
-      ${!o.self && (r.by === u.id || P.isGlobal(u)) ? `<div class="rec-acts">${V.ibtn('users', !r.shared ? 'Compartilhar no mural da equipe' : r.wall === 'all' ? 'Retirar do mural' : 'Mostrar para todo mundo (todos os departamentos)', { act: 'shareRecognition', cls: r.shared ? 'on' : '', attrs: `data-id="${r.id}"` })}${V.ibtn('trash', 'Remover reconhecimento', { act: 'removeRecognition', attrs: `data-id="${r.id}"` })}</div>` : ''}
+      ${!o.self && (r.by === u.id || P.isGlobal(u)) ? `<div class="rec-acts">${V.ibtn('users', !r.shared ? 'Compartilhar no mural (todo mundo vê)' : 'Retirar do mural', { act: 'shareRecognition', cls: r.shared ? 'on' : '', attrs: `data-id="${r.id}"` })}${V.ibtn('trash', 'Remover reconhecimento', { act: 'removeRecognition', attrs: `data-id="${r.id}"` })}</div>` : ''}
     </li>`; }).join('')}</ul>` : V.empty(o.empty || 'Nenhum reconhecimento registrado ainda.', 'medal');
   /* Mural da equipe: pessoa, categoria e mensagem (sem notas, ranking ou números de desempenho) */
   V.wallItems = (list, o = {}) => `<ul class="wall">${list.map(r => { const x = P.user(r.userId) || { id: '?', name: 'Pessoa removida' }, by = P.user(r.by), d = P.dept(r.deptId); return `<li class="wall-item">
@@ -334,12 +334,13 @@
     return list.length ? V.card('Mural de reconhecimentos', V.wallItems(list), { cls: 'flush-b', sub: 'Reconhecimentos compartilhados com a equipe', actions: V.btn('Ver mural', { go: 'mural', cls: 'ghost sm', icon: 'right' }) }) : '';
   };
   V.mural = u => {
-    const global = P.isGlobal(u), scope = global ? (P.state.dept || '') : u.deptId;
+    // o mural é da empresa toda: todo mundo vê os reconhecimentos de todos os departamentos; o filtro é opcional
+    const global = P.isGlobal(u), scope = P.state.muralDept || '';
     const list = api.teamWall(u, scope || undefined);
-    const d = P.dept(u.deptId);
-    return `${V.pageHead('Mural de reconhecimentos', global ? 'Reconhecimentos que os gestores compartilharam com as equipes.' : `Reconhecimentos compartilhados com a equipe${d ? ' de ' + esc(d.name) : ''}. Aqui não aparecem notas, ranking nem números de desempenho.`, (global ? V.deptPicker(u) : '') + V.btn('Reconhecer um colega', { act: 'recognize', icon: 'medal', cls: 'primary' }))}
+    const filter = `<label class="picker">${icon('building')}<select data-set="muralDept" aria-label="Departamento"><option value="">Todos os departamentos</option>${P.store.db.departments.filter(x => x.active !== false).sort((a, b) => a.name.localeCompare(b.name)).map(x => `<option value="${x.id}" ${scope === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>`;
+    return `${V.pageHead('Mural de reconhecimentos', 'Reconhecimentos de toda a empresa, de todos os departamentos. Aqui não aparecem notas, ranking nem números de desempenho.', filter + V.btn('Reconhecer um colega', { act: 'recognize', icon: 'medal', cls: 'primary' }))}
       ${P.isLive && P.muralMissing && P.isGlobal(u) ? `<div class="banner warn">${icon('alert')}<div><b>Curtidas e comentários ainda não estão ativos.</b> Falta criar a tabela <code>mural_reactions</code> no banco (SQL enviado no chat). Enquanto isso, o mural funciona sem eles.</div></div>` : ''}
-      ${V.card('', list.length ? V.wallItems(list, { dept: global && !scope, react: true }) : V.empty(u.role === 'employee' ? 'Ainda não há reconhecimentos compartilhados com a sua equipe.' : 'Nenhum reconhecimento compartilhado ainda. Ao registrar um reconhecimento, marque "Compartilhar com a equipe" para ele aparecer aqui.', 'medal'), { cls: 'flush' })}`;
+      ${V.card('', list.length ? V.wallItems(list, { dept: !scope, react: true }) : V.empty(scope ? 'Nenhum reconhecimento compartilhado deste departamento ainda.' : 'Nenhum reconhecimento compartilhado ainda. Ao registrar um reconhecimento, deixe marcado "Aparecer no mural para todo mundo" para ele aparecer aqui.', 'medal'), { cls: 'flush' })}`;
   };
   V.recognitionsCard = (u, scope) => {
     const S = P.state;

@@ -528,18 +528,18 @@
           <label class="field"><span>Categoria</span><select id="rc-cat">${Object.entries(P.REC_CATEGORIES).map(([k, l]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="field span3"><span>Justificativa <small>(o que a pessoa fez e por que importa)</small></span><textarea id="rc-text" rows="4" maxlength="600" placeholder="Ex.: assumiu o fechamento de dois clientes durante as férias da colega, sem atrasos e sem retrabalho.">${esc(el.dataset.text || '')}</textarea></label>
           ${emp ? '<input type="checkbox" id="rc-visible" checked hidden>' : '<label class="field check span3"><input type="checkbox" id="rc-visible" checked><span>Mostrar ao colaborador (ele vê a mensagem no próprio painel e recebe um alerta)</span></label>'}
-          <label class="field span3"><span>Mural de reconhecimentos (sem notas nem números)</span><select id="rc-share"><option value="">Não compartilhar no mural</option><option value="dept">Compartilhar com a equipe (Mural do departamento)</option><option value="all" selected>Aparecer para todo mundo (Mural de todos os departamentos)</option></select></label>
+          <label class="field span3"><span>Mural de reconhecimentos (sem notas nem números)</span><select id="rc-share"><option value="all" selected>Aparecer no mural para todo mundo (todos os departamentos)</option><option value="">Não compartilhar no mural</option></select></label>
         </div><p class="fine">Os números servem de apoio. Colaboração, iniciativa e atendimento ao cliente só aparecem nos destaques por meio destas indicações.</p></form>`,
         onSubmit: m => {
           const r = api.addRecognition(U(), { userId: $('#rc-user', m).value, category: $('#rc-cat', m).value, text: $('#rc-text', m).value, visible: $('#rc-visible', m).checked, shared: !!$('#rc-share', m).value, wall: $('#rc-share', m).value, source: el.dataset.id ? 'sugestao' : 'manual' });
-          toast('Reconhecimento registrado para ' + (P.user(r.userId) || { name: '—' }).name + (r.shared ? (r.wall === 'all' ? ' e compartilhado com todos.' : ' e compartilhado no mural da equipe.') : '.')); render();
+          toast('Reconhecimento registrado para ' + (P.user(r.userId) || { name: '—' }).name + (r.shared ? ' e compartilhado no mural para todo mundo.' : '.')); render();
         }
       });
     },
     shareRecognition(el) {
-      // ciclo: sem compartilhar → mural da equipe → mural de todos → sem compartilhar
-      guard(() => { const cur = P.store.db.recognitions.find(x => x.id === el.dataset.id) || {}, next = !cur.shared ? 'dept' : cur.wall === 'all' ? '' : 'all';
-        const r = api.shareRecognition(U(), el.dataset.id, !!next, next); toast(!r.shared ? 'Retirado do mural.' : r.wall === 'all' ? 'Agora aparece para todo mundo.' : 'Compartilhado no mural da equipe.'); render(); });
+      // liga/desliga: o mural é da empresa toda
+      guard(() => { const cur = P.store.db.recognitions.find(x => x.id === el.dataset.id) || {};
+        const r = api.shareRecognition(U(), el.dataset.id, !cur.shared, 'all'); toast(r.shared ? 'Agora aparece no mural para todo mundo.' : 'Retirado do mural.'); render(); });
     },
     unshareRecognition(el) {
       guard(() => { api.shareRecognition(U(), el.dataset.id, false); toast('Retirado do mural. O reconhecimento continua registrado.'); render(); });

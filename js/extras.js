@@ -74,7 +74,7 @@
     if (r.shared) P.notify(wallAudience(r).filter(id => id !== r.userId && id !== u.id), { type: 'mural', icon: 'medal', title: 'Novo reconhecimento no mural', text: `${(P.user(r.userId) || { name: '—' }).name} foi reconhecido(a) em ${P.REC_CATEGORIES[r.category]}.`, link: 'mural' });
   });
   // quem recebe o aviso do mural: a equipe do departamento, ou todo mundo quando o reconhecimento é "para todos"
-  const wallAudience = r => r.wall === 'all' ? P.store.db.users.filter(x => x.active !== false).map(x => x.id) : teamOf(r.deptId);
+  const wallAudience = () => P.store.db.users.filter(x => x.active !== false).map(x => x.id); // o mural é da empresa toda
   wrap('shareRecognition', (r, u) => { if (r.shared) P.notify(wallAudience(r).filter(id => id !== r.userId && id !== u.id), { type: 'mural', icon: 'medal', title: 'Novo reconhecimento no mural', text: `${(P.user(r.userId) || { name: '—' }).name} foi reconhecido(a) em ${P.REC_CATEGORIES[r.category]}.`, link: 'mural' }); });
   wrap('saveTask', (t, u) => { if (t.userId !== u.id) P.notify([t.userId], { type: 'tarefa', icon: 'clipboard', title: 'Nova tarefa para você', text: `${t.title} · prazo ${D.fmt(t.due)} (atribuída por ${u.name}).`, link: 'atividades' }); });
 
