@@ -222,10 +222,20 @@
     for (const [table, idsSet] of Object.entries(work)) {
       const c = byTable[table]; if (!c) continue;
       const ids = [...idsSet];
-      const { data, error } = await sb.from(c.table).select('id, doc').in('id', ids);
+      // em lotes de 100 ids: uma importação grande gera milhares de ids e estouraria o tamanho da URL
+      const selectIn = async table => {
+        const rows = [];
+        for (let i = 0; i < ids.length; i += 100) {
+          const r = await sb.from(table).select('id, doc').in('id', ids.slice(i, i + 100));
+          if (r.error) return { data: null, error: r.error };
+          rows.push(...r.data);
+        }
+        return { data: rows, error: null };
+      };
+      const { data, error } = await selectIn(c.table);
       if (error) { console.warn(error); continue; }
       let privMap = new Map();
-      if (c.priv) { const r = await sb.from(c.priv.table).select('id, doc').in('id', ids); if (!r.error) privMap = new Map(r.data.map(x => [x.id, x.doc])); }
+      if (c.priv) { const r = await selectIn(c.priv.table); if (!r.error) privMap = new Map(r.data.map(x => [x.id, x.doc])); }
       const got = new Map(data.map(r => [r.id, c.priv && privMap.get(r.id) ? Object.assign({}, r.doc, privMap.get(r.id)) : r.doc]));
       const s = snap[c.key] = snap[c.key] || new Map();
       if (c.single) {
@@ -237,16 +247,19 @@
         ids.forEach(id => { if (got.has(id)) { const d = got.get(id); obj[id] = Array.isArray(d.ids) ? d.ids : d; s.set(id, sj(d)); } });
         continue;
       }
-      const list = P.store.db[c.key] = P.store.db[c.key] || [];
+      // índice por id: antes cada registro recebido varria a lista inteira (lento com milhares de tarefas)
+      const cur = P.store.db[c.key] || [];
+      const byId = new Map(cur.map(x => [String(x.id), x]));
       ids.forEach(id => {
-        const i = list.findIndex(x => String(x.id) === id);
         if (got.has(id)) {
           const doc = got.get(id);
-          if (i >= 0) list[i] = doc; else { list.push(doc); if (added[c.key]) added[c.key].push(doc); }
+          if (!byId.has(id) && added[c.key]) added[c.key].push(doc);
+          byId.set(id, doc);
           s.set(id, sj(split(c, doc).pub));
           if (c.priv) { (privSnap[c.key] = privSnap[c.key] || new Map()).set(id, sj(split(c, doc).priv)); }
-        } else if (i >= 0) { list.splice(i, 1); s.delete(id); }
+        } else if (byId.has(id)) { byId.delete(id); s.delete(id); }
       });
+      P.store.db[c.key] = [...byId.values()];
     }
     P.reindex(); refreshUser();
     // chegou registro de alguém que este navegador ainda não conhece (ex.: cadastro novo): busca os perfis

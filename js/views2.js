@@ -72,6 +72,9 @@
   V.tabs = (items, cur, key) => `<div class="tabs" role="tablist">${items.map(([k, l, n]) => `<button type="button" role="tab" class="${cur === k ? 'on' : ''}" aria-selected="${cur === k}" data-act="setState" data-key="${key}" data-val="${k}">${l}${n != null ? `<span class="count">${n}</span>` : ''}</button>`).join('')}</div>`;
   V.taskList = (u, tasks, today, showWho) => {
     if (!tasks.length) return V.empty('Nenhuma tarefa nesta lista.', 'check');
+    // listas longas (ex.: depois de importar tarefas) desenham só o começo; o resto entra em "Mostrar mais"
+    const limit = P.state.taskLimit || 80, rest = tasks.length - limit;
+    if (rest > 0) tasks = tasks.slice(0, limit);
     return `<ul class="tasks">${tasks.map(t => {
       const a = t.activityId ? P.act(t.activityId) : null, who = P.user(t.userId) || { name: 'Pessoa removida' };
       const late = t.status === 'pendente' && t.due < today;
@@ -84,7 +87,7 @@
         ${t.status === 'pendente' && u.id === t.userId ? V.btn('Concluir e registrar', { act: 'completeTask', cls: 'sm primary', icon: 'check', attrs: `data-id="${t.id}"` }) : ''}
         ${V.taskExtra ? V.taskExtra(u, t) : ''}
       </li>`;
-    }).join('')}</ul>`;
+    }).join('')}</ul>${rest > 0 ? `<div class="more-row">${V.btn('Mostrar mais (' + rest + ' restantes)', { act: 'moreTasks', cls: 'sm ghost', icon: 'plus' })}</div>` : ''}`;
   };
   V.weightTable = (u, deptId, editable) => {
     const acts = api.activities(u, deptId, editable);

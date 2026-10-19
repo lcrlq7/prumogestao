@@ -503,7 +503,8 @@
     },
     period(el) { S.period.key = el.dataset.key; render(); },
     cmp(el) { S.cmp = el.dataset.key; render(); },
-    setState(el) { setPath(el.dataset.key, el.dataset.val); render(); },
+    setState(el) { if (/^task/.test(el.dataset.key)) S.taskLimit = 0; setPath(el.dataset.key, el.dataset.val); render(); },
+    moreTasks() { S.taskLimit = (S.taskLimit || 80) + 150; render(); },
     toggleHlAll() { S.hlAll = !S.hlAll; render(); },
     toggleRecAll() { S.recAll = !S.recAll; render(); },
     /* Registrar reconhecimento: o número sugere, o gestor decide e justifica */
