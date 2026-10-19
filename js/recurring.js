@@ -144,7 +144,8 @@
     if (!depts.length) return P.toast('Somente diretoria, gerência e gestores cadastram tarefas recorrentes.', 'err');
     const d0 = depts.find(d => d.id === (V.scopeDept(u) || u.deptId)) || depts[0];
     const comps = (db().companies || []).filter(c => c.active !== false).sort((a, b) => a.name.localeCompare(b.name));
-    const actOpts = deptId => P.api.activities(u, deptId).map(a => `<option value="${a.id}" data-w="${a.weight}">${esc(a.name)} · ${P.fmt.n(a.weight, 2)} pt</option>`).join('') + '<option value="__new">+ Nova atividade…</option>';
+    // "+ Nova atividade" fica no topo da lista (no fim ninguém achava); a primeira atividade continua selecionada
+    const actOpts = deptId => '<option value="__new">+ Nova atividade…</option>' + P.api.activities(u, deptId).map((a, i) => `<option value="${a.id}" data-w="${a.weight}" ${i === 0 ? 'selected' : ''}>${esc(a.name)} · ${P.fmt.n(a.weight, 2)} pt</option>`).join('');
     P.ui.modal({
       title: 'Nova tarefa recorrente', wide: true, submit: 'Salvar',
       body: `<div class="fgrid">

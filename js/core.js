@@ -733,7 +733,8 @@ window.P = window.P || {};
     activities(u, deptId, includeInactive) {
       const id = deptId || (P.isGlobal(u) ? null : u.deptId);
       if (!P.isGlobal(u)) assert(!deptId || deptId === u.deptId, 'Tabela de pesos de outro departamento.');
-      return db().activities.filter(a => (!id || a.deptId === id) && (includeInactive || a.active));
+      // sempre em ordem alfabética (sem diferenciar acentos nem maiúsculas)
+      return db().activities.filter(a => (!id || a.deptId === id) && (includeInactive || a.active)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }));
     },
     createEntry(u, data) {
       const emp = P.user(data.userId);
