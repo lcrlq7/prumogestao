@@ -79,19 +79,37 @@
       <td>${r.active === false ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
       <td class="actions-col">${V.ibtn(r.active === false ? 'check' : 'clock', r.active === false ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`).join('')}
     </tbody></table></div>` : V.empty('Nenhuma tarefa recorrente. Use "Nova tarefa" e marque "Repetir todo mês".', 'refresh');
-  V.tarefas = u => {
-    if (!P.PAGES.tarefas.includes(u.role)) throw new P.AccessError('Acesso restrito.');
+  // corpo da aba "Cadastro de tarefas" (dentro de Atividades)
+  const cadastro = u => {
     const list = recs().filter(r => canManage(u, r.deptId)).sort((a, b) => (P.user(a.userId) || {}).name > (P.user(b.userId) || {}).name ? 1 : -1);
     const today = D.iso(P.today());
     const avulsas = P.api.tasks(u).filter(t => !t.recId && t.status === 'pendente').sort((a, b) => a.due.localeCompare(b.due));
     const geradas = P.api.tasks(u).filter(t => t.recId && t.status === 'pendente').sort((a, b) => a.due.localeCompare(b.due));
     const taskRows = l => l.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th></tr></thead><tbody>${l.map(t => `<tr><td><b>${esc(t.title)}</b>${t.client ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due < today ? ' bad' : ''}">${D.fmt(t.due)}${t.due < today ? ' <small>(atrasada)</small>' : ''}</td></tr>`).join('')}</tbody></table></div>` : V.empty('Nenhuma tarefa pendente.', 'check');
-    return `${V.pageHead('Cadastro de tarefas', 'Cadastre tarefas avulsas ou recorrentes (um cadastro gera a tarefa todo mês).', V.btn('Nova tarefa', { act: 'newTask', icon: 'plus', cls: 'primary' }))}
-      <div class="kpis k3">${V.kpi('Recorrências ativas', list.filter(r => r.active !== false).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
+    return `<div class="kpis k3">${V.kpi('Recorrências ativas', list.filter(r => r.active !== false).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
       ${V.card('Tarefas recorrentes', recTable(list), { cls: 'flush', sub: 'As tarefas são criadas automaticamente para o mês atual e o próximo. Pausar ou excluir não apaga as já criadas.' })}
       <div class="grid g-1-1">${V.card('Geradas pelas recorrências (pendentes)', taskRows(geradas), { cls: 'flush' })}${V.card('Tarefas avulsas (pendentes)', taskRows(avulsas), { cls: 'flush' })}</div>`;
   };
-  A.taskRecurrences = () => P.go('tarefas');
+  A.taskRecurrences = () => { P.state.atvTab = 'cadastro'; P.go('atividades'); };
+
+  /* ---------- Abas dentro de Atividades: Tarefas | Cadastro de tarefas | Atividades e pesos ---------- */
+  // criar atividades e definir pesos: só diretoria, gerência e gestores (o gestor, no próprio departamento)
+  const origAtv = V.atividades;
+  V.atividades = u => {
+    if (u.role === 'employee' || !P.PAGES.tarefas.includes(u.role)) return origAtv(u);
+    const S = P.state, tab = S.atvTab || 'tarefas';
+    const dept = V.scopeDept(u) || (u.role === 'manager' ? u.deptId : '');
+    const tabs = `<div class="toolbar atv-tabs">${V.tabs([['tarefas', 'Tarefas da equipe'], ['cadastro', 'Cadastro de tarefas', recs().filter(r => canManage(u, r.deptId) && r.active !== false).length], ['pesos', 'Atividades e pesos']], tab, 'atvTab')}</div>`;
+    if (tab === 'tarefas') { const html = origAtv(u), i = html.indexOf('<div class="strip">'); return i > 0 ? html.slice(0, i) + tabs + html.slice(i) : tabs + html; }
+    const head = tab === 'cadastro'
+      ? V.pageHead('Cadastro de tarefas', 'Tarefas avulsas ou recorrentes: um cadastro com "Repetir todo mês" gera a tarefa em todos os meses.', V.deptPicker(u) + V.btn('Nova tarefa', { act: 'newTask', icon: 'plus', cls: 'primary' }))
+      : V.pageHead('Atividades e pesos', 'Cadastre os tipos de tarefa e o peso de cada um. 1 ponto ≈ 1 hora média de trabalho.', V.deptPicker(u) + (dept ? V.btn('Nova atividade', { act: 'atvNewActivity', icon: 'plus', cls: 'primary' }) : ''));
+    const body = tab === 'cadastro' ? cadastro(u)
+      : dept ? V.card('Atividades e pesos · ' + esc((P.dept(dept) || {}).name || ''), V.weightTable(u, dept, true), { cls: 'flush', sub: 'O novo peso vale para os lançamentos futuros; os já feitos mantêm o peso da época. Somente diretoria, gerência e o gestor do departamento alteram.' })
+      : V.empty('Escolha um departamento no seletor acima para ver e cadastrar as atividades e os pesos.', 'scale');
+    return head + tabs + body;
+  };
+  A.atvNewActivity = () => { const u = U(); P.state.pesoDept = V.scopeDept(u) || u.deptId; A.editActivity({ dataset: {} }); };
   A.toggleTaskRec = el => {
     const r = recs().find(x => x.id === el.dataset.id); if (!r || !canManage(U(), r.deptId)) return;
     r.active = r.active === false; P.audit(U(), 'Tarefa recorrente ' + (r.active ? 'reativada' : 'pausada'), r.id, r.title);

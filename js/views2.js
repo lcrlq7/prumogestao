@@ -66,7 +66,7 @@
       <div class="toolbar">${V.tabs([['lista', 'Lista'], ['quadro', 'Quadro da equipe']], S.taskView || 'lista', 'taskView')}${S.taskView === 'quadro' ? '' : V.tabs([['pendente', 'Pendentes'], ['concluida', 'Concluídas']], tab, 'taskTab')}
         <label class="picker">${icon('users')}<select id="task-user" data-set="taskUser" aria-label="Responsável"><option value="">Toda a equipe</option>${emps.map(e => `<option value="${e.id}" ${S.taskUser === e.id ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label></div>
       ${S.taskView === 'quadro' ? V.taskBoard(u, P.isGlobal(u) && !V.scopeDept(u) ? [] : emps, all.filter(t => t.status === 'pendente')) : V.card('', V.taskList(u, tasks, today, true), { cls: 'flush' })}
-      ${V.scopeDept(u) ? V.card('Atividades e pesos · ' + esc(P.dept(V.scopeDept(u)).name), V.weightTable(u, V.scopeDept(u), false), { sub: 'Somente o administrador altera pesos.', actions: V.btn('Banco de atividades', { go: 'pesos', icon: 'scale', cls: 'ghost sm' }) }) : ''}`;
+      ${V.scopeDept(u) ? V.card('Atividades e pesos · ' + esc(P.dept(V.scopeDept(u)).name), V.weightTable(u, V.scopeDept(u), false), { sub: 'Para cadastrar atividades ou mudar pesos, use a aba "Atividades e pesos".', actions: V.btn('Atividades e pesos', { act: 'setState', icon: 'scale', cls: 'ghost sm', attrs: 'data-key="atvTab" data-val="pesos"' }) }) : ''}`;
   };
   V.tabs = (items, cur, key) => `<div class="tabs" role="tablist">${items.map(([k, l, n]) => `<button type="button" role="tab" class="${cur === k ? 'on' : ''}" aria-selected="${cur === k}" data-act="setState" data-key="${key}" data-val="${k}">${l}${n != null ? `<span class="count">${n}</span>` : ''}</button>`).join('')}</div>`;
   V.taskList = (u, tasks, today, showWho) => {
