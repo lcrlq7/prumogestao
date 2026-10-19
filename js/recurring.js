@@ -13,21 +13,26 @@
     return D.iso(d);
   };
   // responsável do mês: fixo, ou (automático) quem tem a empresa na carteira do departamento; sem ninguém, o gestor do departamento
-  const respOf = r => {
+  const clientsOf = r => r.clients && r.clients.length ? r.clients : [r.client || ''];
+  const respOf = (r, client) => {
     if (!r.auto) return r.userId;
+    client = client != null ? client : clientsOf(r)[0];
     const ok = id => { const x = P.user(id); return x && x.active !== false; };
-    const a = (db().clientAssignments || []).find(x => x.deptId === r.deptId && x.client === r.client && ok(x.userId));
+    const a = (db().clientAssignments || []).find(x => x.deptId === r.deptId && x.client === client && ok(x.userId));
     if (a) return a.userId;
     const d = P.dept(r.deptId); return d && ok(d.managerId) ? d.managerId : null;
   };
   function localGenerate() {
     const cur = D.monthStart(P.today()); let n = 0;
-    recs().filter(r => r.active !== false).forEach(r => [cur, D.addMonths(cur, 1)].forEach(m => {
+    const multi = r => !!(r.clients && r.clients.length);
+    recs().filter(r => r.active !== false).forEach(r => [cur, D.addMonths(cur, 1)].forEach(m => clientsOf(r).forEach(client => {
       const k = ym(m); if (k < (r.start || '0000') || (r.end && k > r.end)) return;
-      const key = r.id + '|' + k, uid = respOf(r), who = P.user(uid);
+      // uma tarefa por empresa e por mês
+      const key = multi(r) ? r.id + '|' + client + '|' + k : r.id + '|' + k, uid = respOf(r, client), who = P.user(uid);
       if (!who || who.active === false || db().tasks.some(t => t.recKey === key)) return;
-      db().tasks.push({ id: P.uid('t'), userId: uid, deptId: r.deptId, title: r.title, activityId: r.activityId || null, client: r.client || '', due: dueOf(r, m), status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); n++;
-    }));
+      const title = multi(r) ? r.title + (client ? ' — ' + client : '') : r.title;
+      db().tasks.push({ id: P.uid('t'), userId: uid, deptId: r.deptId, title, activityId: r.activityId || null, client: client || '', due: dueOf(r, m), status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); n++;
+    })));
     return n;
   }
   let lastRun = 0;
@@ -81,11 +86,11 @@
   P.PAGES.tarefas = ['admin', 'office', 'manager'];
   const who = id => esc((P.user(id) || { name: '—' }).name);
   const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
-    ${list.map(r => `<tr class="${r.active === false ? 'inactive' : ''}"><td><b>${esc(r.title)}</b>${r.client ? `<small class="obs">${esc(r.client)}</small>` : ''}</td><td>${r.auto ? `${who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
+    ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1; return `<tr class="${r.active === false ? 'inactive' : ''}"><td><b>${esc(r.title)}</b>${many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
       <td class="nowrap">Todo dia ${r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}</td>
       <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
       <td>${r.active === false ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
-      <td class="actions-col">${V.ibtn(r.active === false ? 'check' : 'clock', r.active === false ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`).join('')}
+      <td class="actions-col">${V.ibtn(r.active === false ? 'check' : 'clock', r.active === false ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`; }).join('')}
     </tbody></table></div>` : V.empty('Nenhuma tarefa recorrente. Use "Nova tarefa" e marque "Repetir todo mês".', 'refresh');
   // corpo da aba "Cadastro de tarefas" (dentro de Atividades)
   const cadastro = u => {
@@ -133,17 +138,18 @@
         <label class="field"><span>Peso (pontos)</span><input type="number" id="ar-w" min="0.05" step="0.05"></label>
         <label class="field span2 ar-new" style="display:none"><span>Nome da nova atividade</span><input id="ar-name" placeholder="Ex.: Apuração do Simples Nacional"></label>
         <label class="field ar-new" style="display:none"><span>Unidade</span><input id="ar-unit" placeholder="Ex.: empresa/mês"></label>
-        <div class="field span3"><span>Empresa</span>${P.companyPickerHtml('ar-co')}</div>
-        <p class="fine span3" id="ar-resp">Escolha a empresa para ver quem recebe a tarefa.</p>
+        <div class="field span3"><span>Empresas (uma, duas ou mais)</span>${P.companyPickerHtml('ar-co')}</div>
+        <div class="span3"><button type="button" class="link" id="ar-all">Adicionar todas as empresas da carteira deste departamento</button></div>
+        <div class="span3 ar-chips" id="ar-chips"><p class="fine">Nenhuma empresa escolhida.</p></div>
         <label class="field"><span>Dia do prazo (todo mês)</span><input type="number" id="ar-day" min="1" max="31" value="20"></label>
         <label class="field"><span>Começa em</span><input type="month" id="ar-start" value="${ym(P.today())}"></label>
         <label class="field"><span>Termina em (opcional)</span><input type="month" id="ar-end"></label>
         <label class="field check span3"><input type="checkbox" id="ar-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
       </div><p class="fine">${V.icon('info')} Todo mês a tarefa é criada para quem tem a empresa na carteira do departamento (Atividades → Carteira de empresas). Se ninguém tiver, vai para o gestor do departamento. Mudou o responsável na carteira? Os próximos meses já vão para a pessoa nova.</p>`,
       onSubmit: m => {
-        const deptId = $('#ar-dept').value, actSel = $('#ar-act').value, client = $('#ar-co').value.trim(), w = $('#ar-w').value;
+        const deptId = $('#ar-dept').value, actSel = $('#ar-act').value, w = $('#ar-w').value;
         if (!canManage(u, deptId)) throw new P.AccessError('Você só cadastra tarefas do seu departamento.');
-        if (!comps.some(c => c.name === client)) throw new Error('Escolha uma empresa do cadastro.');
+        if (!sel.length) throw new Error('Escolha pelo menos uma empresa.');
         const day = Number($('#ar-day').value), start = $('#ar-start').value, end = $('#ar-end').value;
         if (!(day >= 1 && day <= 31)) throw new Error('Informe o dia do prazo (1 a 31).');
         if (!start) throw new Error('Informe o mês de início.');
@@ -158,20 +164,26 @@
           if (Number(String(w).replace(',', '.')) !== act.weight) P.api.saveActivity(u, { id: act.id, deptId, name: act.name, unit: act.unit, weight: w, reason: 'Ajustado no cadastro de tarefa recorrente' });
         }
         if (!act) throw new Error('Não foi possível salvar a atividade.');
-        const r = { id: P.uid('tr'), auto: true, userId: null, deptId, title: act.name + ' — ' + client, activityId: act.id, client, day, businessDay: $('#ar-bd').checked, start, end: end || '', active: true, createdBy: u.id, createdAt: D.stamp() };
+        const r = { id: P.uid('tr'), auto: true, userId: null, deptId, title: act.name, activityId: act.id, clients: sel.slice(), day, businessDay: $('#ar-bd').checked, start, end: end || '', active: true, createdBy: u.id, createdAt: D.stamp() };
         recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, r.title + ' (dia ' + day + ')');
         if (!P.isLive) localGenerate();
         P.store.save(); if (P.isLive) setTimeout(() => generate(true), 1500);
-        const resp = P.user(respOf(r));
-        P.toast('Tarefa recorrente criada: todo dia ' + day + (resp ? ', para ' + resp.name : '') + '.'); P.render();
+        P.toast('Tarefa recorrente criada para ' + sel.length + ' empresa(s): todo dia ' + day + ', para o responsável de cada uma.'); P.render();
       }
     });
+    const sel = [];
+    const drawChips = () => {
+      const dep = $('#ar-dept').value;
+      $('#ar-chips').innerHTML = sel.length ? `<p class="fine">${sel.length} empresa(s). Quem recebe cada tarefa:</p><ul class="ar-list">${sel.map((c, i) => { const id = respOf({ auto: true, deptId: dep, client: c }), x = P.user(id), inCart = (db().clientAssignments || []).some(a => a.deptId === dep && a.client === c);
+        return `<li><span>${esc(c)}</span><small class="${inCart ? '' : 'warn'}">${x ? esc(x.name) + (inCart ? '' : ' (gestor: ninguém na carteira)') : 'sem responsável'}</small><button type="button" class="link" data-i="${i}" aria-label="Remover ${esc(c)}">×</button></li>`; }).join('')}</ul>` : '<p class="fine">Nenhuma empresa escolhida.</p>';
+      $('#ar-chips').querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { sel.splice(Number(b.dataset.i), 1); drawChips(); }));
+    };
+    const add = name => { if (name && !sel.includes(name)) { sel.push(name); drawChips(); } const i = $('#ar-co'); if (i) { i.value = ''; const x = $('#ar-co-x'); if (x) x.hidden = true; } };
+    $('#ar-all').addEventListener('click', () => { const dep = $('#ar-dept').value; (db().clientAssignments || []).filter(a => a.deptId === dep).map(a => a.client).sort().forEach(c => { if (!sel.includes(c)) sel.push(c); }); drawChips(); });
     const syncW = () => { const o = $('#ar-act').selectedOptions[0], isNew = o.value === '__new'; document.querySelectorAll('.ar-new').forEach(x => { x.style.display = isNew ? '' : 'none'; }); $('#ar-w').value = isNew ? 1 : o.dataset.w; };
-    const showResp = () => { const c = $('#ar-co').value.trim(); if (!c) return; const id = respOf({ auto: true, deptId: $('#ar-dept').value, client: c }), x = P.user(id), assigned = (db().clientAssignments || []).some(a => a.deptId === $('#ar-dept').value && a.client === c);
-      $('#ar-resp').innerHTML = x ? `Responsável hoje: <b>${esc(x.name)}</b>${assigned ? ' (carteira do departamento)' : ' — <b>ninguém tem esta empresa na carteira</b>; vai para o gestor até alguém ser vinculado'}.` : 'Ninguém tem esta empresa na carteira e o departamento não tem gestor: a tarefa só é criada quando houver um responsável.'; };
     $('#ar-act').addEventListener('change', syncW); syncW();
-    $('#ar-dept').addEventListener('change', () => { $('#ar-act').innerHTML = actOpts($('#ar-dept').value); syncW(); showResp(); });
-    P.companyPicker(comps, 'ar-co', showResp);
+    $('#ar-dept').addEventListener('change', () => { $('#ar-act').innerHTML = actOpts($('#ar-dept').value); syncW(); drawChips(); });
+    P.companyPicker(comps, 'ar-co', add);
   };
 
   A.toggleTaskRec = el => {
