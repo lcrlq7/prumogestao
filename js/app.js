@@ -266,7 +266,8 @@
   /* ---------- Render ---------- */
   const root = () => $('#app');
   function render(scrollTop, opts = {}) {
-    const focusId = document.activeElement && document.activeElement.id;
+    // campo em foco: reencontrado depois de redesenhar a tela (pelo id ou, sem id, pelo data-set), senão a próxima letra vira atalho de teclado
+    const ae = document.activeElement, focusId = ae && ae.id, focusSet = !focusId && ae && ae.dataset ? ae.dataset.set : null;
     const sel = document.activeElement && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
     P.charts.reset();
     const u = S.user;
@@ -297,7 +298,7 @@
     if (P.fx) P.fx.afterRender(!!scrollTop);
     P.charts.hydrate();
     if (scrollTop) window.scrollTo(0, 0);
-    if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) { } } }
+    if (focusId || focusSet) { const el = focusId ? document.getElementById(focusId) : document.querySelector('[data-set="' + focusSet.replace(/"/g, '\\"') + '"]'); if (el) { el.focus(); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) { } } }
   }
   P.render = render;
 

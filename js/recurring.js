@@ -376,7 +376,7 @@
         if (day && !(day >= 1 && day <= 31)) throw new Error('O dia do prazo vai de 1 a 31.');
         const newUser = userId ? P.user(userId) : null;
         if (userId && !newUser) throw new Error('Responsável não encontrado.');
-        if (list.length > 20 && !confirm('Alterar ' + list.length + ' tarefas de uma vez?')) return;
+        if (list.length > 20 && !confirm('Alterar ' + list.length + ' tarefas de uma vez?')) return false; // false: mantém o modal aberto
         const stamp = D.stamp(), notes = new Map(); const recDone = new Set(); let n = 0, skipped = 0;
         list.forEach(t => {
           const rec = t.recId ? recs().find(r => r.id === t.recId) : null, ch = [];
@@ -395,7 +395,7 @@
             if (newUser && !rec.auto && newUser.deptId === rec.deptId) rec.userId = newUser.id;
           }
         });
-        if (!n) { P.toast('Nada mudou: as tarefas já estão assim.'); return; }
+        if (!n) { P.toast('Nada mudou: as tarefas já estão assim.'); return false; }
         P.audit(u, 'Tarefas editadas em lote', 'lote', n + ' tarefa(s)' + (recDone.size ? ' e ' + recDone.size + ' recorrência(s)' : '') + ' · ' + [day ? 'dia ' + day : due ? 'prazo ' + D.fmt(due) : '', newUser ? 'responsável ' + newUser.name : ''].filter(Boolean).join(' · '));
         if (P.notify && notes.size) notes.forEach((c, id) => P.notify([id], { type: 'tarefa', icon: 'clipboard', title: 'Tarefas alteradas', text: `${u.name} alterou ${c} tarefa(s) sua(s) em lote. Veja os novos prazos.`, link: 'atividades' }));
         P.store.save();

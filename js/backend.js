@@ -132,7 +132,8 @@
   let timer = null, saving = null, again = false;
   const chunk = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
   async function writeTable(table, ins, upd, del, ups = []) {
-    for (const part of chunk(ins, 500)) { const { error } = await sb.from(table).insert(part); if (error) throw new Error(table + ': ' + error.message); }
+    // tarefas trimestrais têm id fixo: se dois navegadores as gerarem juntos, o repetido é ignorado em vez de dar erro e recarregar tudo
+    for (const part of chunk(ins, 500)) { const { error } = table === 'tasks' ? await sb.from(table).upsert(part, { onConflict: 'id', ignoreDuplicates: true }) : await sb.from(table).insert(part); if (error) throw new Error(table + ': ' + error.message); }
     // registros da própria pessoa que nascem no primeiro uso (leituras do chat, alertas lidos, configurações): criar ou atualizar
     for (const part of chunk(ups, 500)) { const { error } = await sb.from(table).upsert(part); if (error) throw new Error(table + ': ' + error.message); }
     // Alterações usam UPDATE (não upsert): o upsert também exige permissão de INSERT, que perfis e férias de outras pessoas não têm
