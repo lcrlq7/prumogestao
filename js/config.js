@@ -22,3 +22,20 @@ window.PRUMO_CONFIG = {
   // Enquanto vazio, o captcha fica desligado.
   hcaptchaSiteKey: 'ee70c472-f97c-4b86-8216-a04e42d2e1e0'
 };
+
+/*
+ * Ambiente de teste (à prova de erro): SÓ os endereços de produção abaixo usam o banco real.
+ * Qualquer outro endereço (preview de branch do Vercel, link de deploy antigo, localhost) abre em modo demo,
+ * com dados fictícios salvos só no navegador, e mostra a faixa "AMBIENTE DE TESTE". Assim dá para testar uma mudança
+ * numa branch sem risco para os dados reais.
+ * Se um dia o site ganhar domínio próprio, ADICIONE o endereço nesta lista; senão ele abre em modo teste.
+ */
+(function () {
+  var PRODUCAO = ['prumogestao-lilac.vercel.app', 'prumogestao-lucas-projects-551525c8.vercel.app', 'prumogestao-git-main-lucas-projects-551525c8.vercel.app'];
+  var host = location.hostname;
+  if (PRODUCAO.indexOf(host) === -1) {
+    window.PRUMO_CONFIG.mode = 'demo';
+    window.PRUMO_CONFIG.testEnv = true;
+    document.documentElement.classList.add('test-env');
+  }
+})();

@@ -31,6 +31,8 @@
   /* Recorrência trimestral (ex.: fechamento de IRPJ e CSLL): a tarefa vence no mês seguinte ao fim de cada trimestre (jan, abr, jul, out).
    * O banco só conhece recorrência mensal, então as trimestrais ficam com active:false para ele ignorar e são geradas aqui, pelo navegador
    * de quem gerencia o departamento. "Pausada" para elas é o campo paused. */
+  // exclusões vão para a Lixeira (trash.js) quando ela está ativa
+  const toBin = (kind, items) => (P.trash && items.length ? P.trash.put(U(), kind, items) : 0);
   const isQ = r => r.freq === 'trimestral';
   const isUnica = r => r.freq === 'unica'; // tarefa que não se repete: uma vez só, na data r.date (por regime)
   // geradas aqui (não pelo banco): as trimestrais e as por regime tributário; o banco as ignora (active:false) e "pausada" é o campo paused
@@ -141,7 +143,8 @@
     if (gone.length) {
       const ids = new Set(gone.map(g => g.id)), pend = db().tasks.filter(t => ids.has(t.recId) && t.status === 'pendente');
       const dropTasks = pend.length && confirm(`Você desmarcou ${gone.length} regime(s). Apagar também as ${pend.length} tarefa(s) pendente(s) já criadas para ele(s)?\n\nOK = apagar as pendentes. Cancelar = manter as já criadas.`);
-      if (dropTasks) { const tids = new Set(pend.map(t => t.id)); db().tasks = db().tasks.filter(t => !tids.has(t.id)); removed = tids.size; }
+      if (dropTasks) { const tids = new Set(pend.map(t => t.id)); toBin('task', pend); db().tasks = db().tasks.filter(t => !tids.has(t.id)); removed = tids.size; }
+      toBin('recurrence', gone);
       db().taskRecurrences = recs().filter(r => !ids.has(r.id));
     }
     P.audit(u, 'Tarefa por regime configurada', act.id, act.name + ' · ' + (x.regimes.map(k => (P.REGIMES[k] || {}).label).join(', ') || 'nenhum regime') + (x.regimes.length ? (x.freq === 'unica' ? ' · uma vez, ' + D.fmt(x.date) : (x.freq === 'trimestral' ? ' · trimestral' : ' · mensal') + ', dia ' + x.day) : ''));
@@ -551,8 +554,9 @@
     const pend = db().tasks.filter(t => t.recId === r.id && t.status === 'pendente');
     let removed = 0;
     if (pend.length && confirm(`Apagar também as ${pend.length} tarefa(s) PENDENTE(S) criadas por esta recorrência?\n\nOK = apagar as pendentes. Cancelar = manter as tarefas já criadas.`)) {
-      const ids = new Set(pend.map(t => t.id)); db().tasks = db().tasks.filter(t => !ids.has(t.id)); removed = ids.size;
+      const ids = new Set(pend.map(t => t.id)); toBin('task', pend); db().tasks = db().tasks.filter(t => !ids.has(t.id)); removed = ids.size;
     }
+    toBin('recurrence', [r]);
     db().taskRecurrences = recs().filter(x => x.id !== r.id); P.audit(U(), 'Tarefa recorrente excluída', r.id, r.title + (removed ? ' · ' + removed + ' tarefa(s) pendente(s) apagada(s)' : '')); P.store.save();
     P.toast('Recorrência excluída' + (removed ? ' e ' + removed + ' tarefa(s) pendente(s) apagada(s)' : '') + '.'); P.render();
   };
@@ -575,8 +579,9 @@
     const ids = new Set(chosen.map(r => r.id)), pend = db().tasks.filter(t => ids.has(t.recId) && t.status === 'pendente');
     let removed = 0;
     if (pend.length && confirm(`Apagar também as ${pend.length} tarefa(s) PENDENTE(S) criadas por elas?\n\nOK = apagar as pendentes. Cancelar = manter as tarefas já criadas.`)) {
-      const tids = new Set(pend.map(t => t.id)); db().tasks = db().tasks.filter(t => !tids.has(t.id)); removed = tids.size;
+      const tids = new Set(pend.map(t => t.id)); toBin('task', pend); db().tasks = db().tasks.filter(t => !tids.has(t.id)); removed = tids.size;
     }
+    toBin('recurrence', chosen);
     db().taskRecurrences = recs().filter(r => !ids.has(r.id));
     P.audit(u, 'Recorrências excluídas em lote', 'lote', ids.size + ' recorrência(s)' + (removed ? ' e ' + removed + ' tarefa(s) pendente(s)' : ''));
     P.store.save(); recSel().clear(); taskSel().clear();
@@ -589,7 +594,9 @@
   A.taskBulkDelete = () => {
     const u = U(), { pend } = cadLists(u), ids = new Set(pend.filter(t => taskSel().has(t.id)).map(t => t.id));
     if (!ids.size) return P.toast('Selecione ao menos uma tarefa.', 'err');
-    if (!confirm(`Apagar ${ids.size} tarefa(s) pendente(s)? Isso não pode ser desfeito.`)) return;
+    const lixeira = P.trash && P.trash.available();
+    if (!confirm(lixeira ? `Apagar ${ids.size} tarefa(s) pendente(s)? Elas vão para a Lixeira por 30 dias e podem ser restauradas.` : `Apagar ${ids.size} tarefa(s) pendente(s)? Isso não pode ser desfeito.`)) return;
+    toBin('task', pend.filter(t => ids.has(t.id)));
     db().tasks = db().tasks.filter(t => !ids.has(t.id));
     P.audit(u, 'Tarefas excluídas em lote', 'lote', ids.size + ' tarefa(s) pendente(s)');
     P.store.save(); taskSel().clear(); P.toast(ids.size + ' tarefa(s) apagada(s).'); P.render();

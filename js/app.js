@@ -71,7 +71,7 @@
 
   /* ---------- Rotas ---------- */
   const PAGE_LABEL = {
-    dashboard: 'Dashboard', carteira: 'Carteira de empresas', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
+    dashboard: 'Dashboard', carteira: 'Carteira de empresas', lixeira: 'Lixeira', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
     configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR'
   };
@@ -137,8 +137,8 @@
     // Administração conforme o nível: gerente e diretoria veem tudo; o gestor cuida dos funcionários e dos pesos do departamento
     const admin = P.isGlobal(u) ? [
       ['departamentos', 'Departamentos', 'building'], ['funcionarios', 'Funcionários', 'userplus'], ['gestores', 'Gestores e diretoria', 'shield'],
-      ['pesos', 'Pesos das Atividades', 'scale'], ['gerais', 'Configurações Gerais', 'sliders']
-    ] : u.role === 'manager' ? [['funcionarios', 'Funcionários', 'userplus'], ['pesos', 'Pesos das Atividades', 'scale']] : [];
+      ['pesos', 'Pesos das Atividades', 'scale'], ['lixeira', 'Lixeira', 'trash'], ['gerais', 'Configurações Gerais', 'sliders']
+    ] : u.role === 'manager' ? [['funcionarios', 'Funcionários', 'userplus'], ['pesos', 'Pesos das Atividades', 'scale'], ['lixeira', 'Lixeira', 'trash']] : [];
     return { main, admin };
   }
   function navLink([k, label, ic, count]) {

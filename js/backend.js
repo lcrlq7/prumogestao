@@ -48,7 +48,9 @@
     { key: 'vacations', table: 'vacations', priv: { table: 'vacations_private', fields: ['comment'] } },
     { key: 'recognitions', table: 'recognitions' },
     // curtidas e comentários do mural: se a tabela ainda não existe no banco, o sistema segue sem eles (optional)
-    { key: 'muralReactions', table: 'mural_reactions', optional: true },
+    { key: 'muralReactions', table: 'mural_reactions', optional: true, flag: 'muralMissing' },
+    // lixeira: o que é excluído fica 30 dias e pode ser restaurado (se a tabela não existir, a exclusão segue definitiva)
+    { key: 'trash', table: 'trash', optional: true, flag: 'trashMissing' },
     { key: 'notifications', table: 'notifications' },
     { key: 'messages', table: 'messages' },
     { key: 'reportSchedules', table: 'report_schedules' },
@@ -114,8 +116,8 @@
     await Promise.all(COLLECTIONS.map(async c => {
       let rows;
       try { c.missing = false; rows = await fetchAll(c.table, { limit: c.limit }); }
-      catch (e) { if (!c.optional) throw e; c.missing = true; db[c.key] = []; snap[c.key] = new Map(); if (c.key === 'muralReactions') P.muralMissing = true; return; }
-      if (c.key === 'muralReactions') P.muralMissing = false;
+      catch (e) { if (!c.optional) throw e; c.missing = true; db[c.key] = []; snap[c.key] = new Map(); if (c.flag) P[c.flag] = true; return; }
+      if (c.flag) P[c.flag] = false;
       let privRows = [];
       if (c.priv) {
         privRows = await fetchAll(c.priv.table);
