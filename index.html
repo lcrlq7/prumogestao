@@ -884,6 +884,29 @@ button.me:hover .me-txt b{color:var(--accent)}
 .wall-item{display:flex;gap:14px;align-items:flex-start;padding:16px;border-top:1px solid var(--line)}
 .wall-item:first-child{border-top:0}
 .wall-item .avatar{flex:none}
+.wall-item .wall-b{flex:1;min-width:0}
+.wall-react{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.rbtn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--line-2);border-radius:999px;background:var(--surface);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer}
+.rbtn:hover{border-color:var(--accent);color:var(--ink)}
+.rbtn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.wr-who{margin-left:4px}
+.wr-thread{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.wr-list{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:10px}
+.wr-list li{display:flex;gap:10px;align-items:flex-start}
+.wr-c{flex:1;min-width:0}
+.wr-ch{display:flex;align-items:center;gap:8px}
+.wr-ch .wr-del{margin-left:auto}
+.wr-c p{margin:2px 0 0;overflow-wrap:anywhere}
+.wr-form{display:flex;gap:8px;align-items:center}
+.wr-form input{flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit}
+.emoji-btn{border:1px solid var(--line-2);background:var(--surface);color:var(--ink);border-radius:9px;height:36px;padding:0 10px;cursor:pointer;font:inherit}
+.emoji-btn.txt{height:30px;margin-top:6px;font-size:13px;display:inline-block}
+.emoji-pop{position:fixed;z-index:9999;width:320px;max-height:260px;overflow:auto;padding:10px;border:1px solid var(--line-2);border-radius:12px;background:var(--surface);box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.ep-cat small{display:block;margin:6px 0 2px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.ep-grid{display:flex;flex-wrap:wrap;gap:2px}
+.ep-e{width:34px;height:34px;border:0;background:transparent;border-radius:8px;font-size:20px;cursor:pointer}
+.ep-e:hover{background:var(--surface-2)}
+.wall-item .wall-acts{margin-left:auto;display:flex;gap:4px;flex:none}
 .wall-b{flex:1;min-width:0}
 .wall-h{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .wall-h .chip-s{display:inline-flex;align-items:center;gap:4px}
@@ -1520,6 +1543,7 @@ body.dense .tbl small{font-size:11px}
 <script src="js/app.js"></script>
 <script src="js/recurring.js"></script>
 <script src="js/carteira.js"></script>
+<script src="js/mural.js"></script>
 
 </body>
 </html>

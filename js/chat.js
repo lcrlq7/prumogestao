@@ -137,6 +137,7 @@
     ['Comemoração', 'medal', '🎉 🎊 🥳 🎂 🍰 🎁 🎈 🍾 🥂 🍻 ☕ 🍵 🍕 🍔 🍟 🍫 🍩 🍪 🍿 🌮 🥗 🍎 🍉 🏖️ 🌴 ✈️ 🏝️ ⛱️ 🌞 🌈 ☀️ 🌧️ ⛈️ ❄️ 🌙'],
     ['Símbolos', 'check', '✔️ ➕ ➖ ✖️ ➗ ❓ ❗ ‼️ ⁉️ 💬 💭 🗨️ 🔔 🔕 🆗 🆕 🆙 🔝 ⬆️ ⬇️ ➡️ ⬅️ 🔄 🔁 ▶️ ⏸️ ⏹️ 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪']
   ];
+  P.chat.EMOJI = EMOJI; // o mural usa a mesma lista no seletor de emojis
   const STICKERS = [
     ['bom-trabalho', '👏', 'Bom trabalho!', '#2f8f5b'], ['obrigado', '🙏', 'Obrigado(a)!', '#1f6f9c'], ['parabens', '🎉', 'Parabéns!', '#c2410c'],
     ['prazo', '⏰', 'Prazo cumprido', '#2f8f5b'], ['fechamento', '📊', 'Fechamento OK', '#1f6f9c'], ['missao', '🚀', 'Missão cumprida', '#7c3aed'],

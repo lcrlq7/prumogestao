@@ -47,6 +47,8 @@
     { key: 'companies', table: 'companies' },
     { key: 'vacations', table: 'vacations', priv: { table: 'vacations_private', fields: ['comment'] } },
     { key: 'recognitions', table: 'recognitions' },
+    // curtidas e comentários do mural: se a tabela ainda não existe no banco, o sistema segue sem eles (optional)
+    { key: 'muralReactions', table: 'mural_reactions', optional: true },
     { key: 'notifications', table: 'notifications' },
     { key: 'messages', table: 'messages' },
     { key: 'reportSchedules', table: 'report_schedules' },
@@ -110,7 +112,10 @@
   async function loadAll() {
     const db = P.emptyDb();
     await Promise.all(COLLECTIONS.map(async c => {
-      const rows = await fetchAll(c.table, { limit: c.limit });
+      let rows;
+      try { c.missing = false; rows = await fetchAll(c.table, { limit: c.limit }); }
+      catch (e) { if (!c.optional) throw e; c.missing = true; db[c.key] = []; snap[c.key] = new Map(); if (c.key === 'muralReactions') P.muralMissing = true; return; }
+      if (c.key === 'muralReactions') P.muralMissing = false;
       let privRows = [];
       if (c.priv) {
         privRows = await fetchAll(c.priv.table);
@@ -151,6 +156,7 @@
     if (!session || !P.store.db || !P.store.db.live) return;
     const me = P.state && P.state.user;
     for (const c of COLLECTIONS) {
+      if (c.missing) continue; // tabela opcional que não existe no banco
       // configurações gerais: só gerente e diretoria gravam
       if (c.single && !P.isGlobal(me)) continue;
       const rows = rowsOf(c), old = snap[c.key] || new Map(), oldP = privSnap[c.key] || new Map();
@@ -206,7 +212,7 @@
   function subscribe() {
     unsubscribe();
     channel = sb.channel('prumo-live');
-    LIVE.forEach(table => channel.on('postgres_changes', { event: '*', schema: 'public', table }, payload => {
+    LIVE.filter(table => !(byTable[table] && byTable[table].missing)).forEach(table => channel.on('postgres_changes', { event: '*', schema: 'public', table }, payload => {
       const id = (payload.new && payload.new.id) || (payload.old && payload.old.id);
       if (!id) return;
       (pending[table] = pending[table] || new Set()).add(id);

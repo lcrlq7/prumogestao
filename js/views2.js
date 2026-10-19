@@ -326,8 +326,9 @@
       <div class="wall-b">
         <div class="wall-h"><b>${esc(x.name)}</b>${o.dept && d ? `<small class="muted">${esc(d.name)}</small>` : ''}<span class="chip-s">${icon('medal')}${esc(P.REC_CATEGORIES[r.category] || r.category)}</span></div>
         <p>${esc(r.text)}</p>
-        <small class="muted">Reconhecido(a) por ${esc(by ? by.name : 'Gestão')} · ${D.fmt(r.date)}</small>
-      </div></li>`; }).join('')}</ul>`;
+        <small class="muted">Reconhecido(a) por ${esc(by ? by.name : 'Gestão')} · ${D.fmt(r.date)}${r.wall === 'all' ? ' · para todos' : ''}</small>
+        ${o.react && P.mural ? P.mural.footer(r) : ''}
+      </div>${(() => { const me = P.state.user; return o.manage !== false && me && (r.by === me.id || P.isGlobal(me)) ? `<div class="wall-acts">${V.ibtn('x', 'Retirar do mural (o reconhecimento continua registrado)', { act: 'unshareRecognition', attrs: `data-id="${r.id}"` })}${V.ibtn('trash', 'Excluir reconhecimento', { act: 'removeRecognition', attrs: `data-id="${r.id}"` })}</div>` : ''; })()}</li>`; }).join('')}</ul>`;
   V.wallPreview = u => {
     const list = api.teamWall(u).slice(0, 3);
     return list.length ? V.card('Mural de reconhecimentos', V.wallItems(list), { cls: 'flush-b', sub: 'Reconhecimentos compartilhados com a equipe', actions: V.btn('Ver mural', { go: 'mural', cls: 'ghost sm', icon: 'right' }) }) : '';
@@ -337,7 +338,8 @@
     const list = api.teamWall(u, scope || undefined);
     const d = P.dept(u.deptId);
     return `${V.pageHead('Mural de reconhecimentos', global ? 'Reconhecimentos que os gestores compartilharam com as equipes.' : `Reconhecimentos compartilhados com a equipe${d ? ' de ' + esc(d.name) : ''}. Aqui não aparecem notas, ranking nem números de desempenho.`, (global ? V.deptPicker(u) : '') + V.btn('Reconhecer um colega', { act: 'recognize', icon: 'medal', cls: 'primary' }))}
-      ${V.card('', list.length ? V.wallItems(list, { dept: global && !scope }) : V.empty(u.role === 'employee' ? 'Ainda não há reconhecimentos compartilhados com a sua equipe.' : 'Nenhum reconhecimento compartilhado ainda. Ao registrar um reconhecimento, marque "Compartilhar com a equipe" para ele aparecer aqui.', 'medal'), { cls: 'flush' })}`;
+      ${P.isLive && P.muralMissing && P.isGlobal(u) ? `<div class="banner warn">${icon('alert')}<div><b>Curtidas e comentários ainda não estão ativos.</b> Falta criar a tabela <code>mural_reactions</code> no banco (SQL enviado no chat). Enquanto isso, o mural funciona sem eles.</div></div>` : ''}
+      ${V.card('', list.length ? V.wallItems(list, { dept: global && !scope, react: true }) : V.empty(u.role === 'employee' ? 'Ainda não há reconhecimentos compartilhados com a sua equipe.' : 'Nenhum reconhecimento compartilhado ainda. Ao registrar um reconhecimento, marque "Compartilhar com a equipe" para ele aparecer aqui.', 'medal'), { cls: 'flush' })}`;
   };
   V.recognitionsCard = (u, scope) => {
     const S = P.state;
