@@ -1121,6 +1121,17 @@ select option,select optgroup{background:var(--surface);color:var(--ink)}
 .tfilter .picker input{border:0;background:transparent;height:100%;color:var(--ink);font:inherit;min-width:0;flex:1;outline:0}
 .tfilter .picker input[type=date]{flex:none;font-size:13px}
 .tfilter .tf-count{margin-left:auto}
+.cart-grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+.cart-people{padding:14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:12px;max-height:calc(100vh - 100px);overflow:auto}
+.cart-h{font-size:13px;color:var(--ink-2);margin:0 0 4px}
+.cart-person{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--ink);cursor:pointer;font:inherit}
+.cart-person:hover{background:var(--surface-2)}
+.cart-person.on{background:var(--accent-soft);border-color:var(--accent)}
+.cart-person span{display:flex;flex-direction:column;min-width:0;font-weight:500}
+.cart-person small{color:var(--muted);font-weight:400}
+.cart-bulk{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:8px 0 12px}
+.tbl tr.dim td{color:var(--ink-2)}
+@media (max-width:860px){.cart-grid{grid-template-columns:1fr}.cart-people{position:static;max-height:none}}
 .reg-box{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 .reg-checks{display:flex;flex-wrap:wrap;gap:8px 18px}
 .chk-col{width:34px;text-align:center}
@@ -1508,6 +1519,7 @@ body.dense .tbl small{font-size:11px}
 <script src="js/backend.js"></script>
 <script src="js/app.js"></script>
 <script src="js/recurring.js"></script>
+<script src="js/carteira.js"></script>
 
 </body>
 </html>

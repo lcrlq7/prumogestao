@@ -71,7 +71,7 @@
 
   /* ---------- Rotas ---------- */
   const PAGE_LABEL = {
-    dashboard: 'Dashboard', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
+    dashboard: 'Dashboard', carteira: 'Carteira de empresas', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
     configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR'
   };
@@ -122,6 +122,7 @@
       ['ferias', 'Férias', 'palm', vacCount],
       ['mural', 'Mural', 'medal'],
       ['empresas', 'Empresas', 'briefcase'],
+      ['carteira', 'Carteira de empresas', 'users'],
       ['inadimplencia', 'Inadimplência', 'alert'],
       ['plr', 'PLR', 'wallet'],
       ['solicitacoes', 'Solicitações', 'cart', P.purchases ? P.purchases.badge(u) : 0],
@@ -1627,6 +1628,7 @@
     for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]];
     o[parts[parts.length - 1]] = value;
     if (path.startsWith('hist.') && path !== 'hist.page') S.hist.page = 1;
+    if (path.startsWith('cart.') && S.cart) S.cart.limit = 100;
     if (path.startsWith('tf.') || path === 'taskUser' || path === 'taskPer' || path === 'dept') S.taskPg = {};
     if (path === 'taskPer') { S.taskPer = Number(value) || 20; ls.set('prumo.taskper', String(S.taskPer)); }
     if (path === 'dept') { S.taskUser = ''; S.cal.userId = ''; }
