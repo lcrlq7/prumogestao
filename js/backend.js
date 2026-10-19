@@ -58,6 +58,7 @@
     { key: 'purchases', table: 'purchase_requests' },
     { key: 'serviceOrders', table: 'service_orders' },
     { key: 'companyFees', table: 'company_fees' },
+    { key: 'taskRecurrences', table: 'task_recurrences' },
     { key: 'delinquency', table: 'delinquency', priv: { table: 'delinquency_private', fields: ['items', 'total', 'obs', 'history'] } },
     { key: 'alertsRead', table: 'alerts_read', map: true },
     { key: 'chatReads', table: 'chat_reads', map: true },
