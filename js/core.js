@@ -387,6 +387,8 @@ window.P = window.P || {};
     }
   };
   const db = () => P.store.db;
+  // listas de pessoas, departamentos e atividades saem sempre em ordem alfabética (sem diferenciar acentos nem maiúsculas)
+  const byName = P.byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
 
   /* Índices em memória (reconstruídos a cada escrita) */
   P.idx = { byUser: new Map(), byId: new Map(), users: new Map(), acts: new Map(), depts: new Map() };
@@ -689,10 +691,11 @@ window.P = window.P || {};
     // withSupport: inclui departamentos de apoio (cadastros e filtros); sem ele, só os que entram nos indicadores
     departments(u, withSupport) {
       const all = db().departments.filter(d => d.active !== false && (withSupport || !d.support));
-      return P.isGlobal(u) ? all : all.filter(d => d.id === u.deptId);
+      return (P.isGlobal(u) ? all : all.filter(d => d.id === u.deptId)).sort(byName);
     },
     department(u, id) { const d = P.dept(id); assert(d && api.canSeeDept(u, id), 'Este departamento não pertence ao seu escopo de acesso.'); return d; },
-    employees(u, deptId) {
+    employees(u, deptId) { return api._employees(u, deptId).sort(byName); },
+    _employees(u, deptId) {
       // quem é de departamento de apoio não entra nos indicadores (só aparece se o próprio departamento for pedido)
       const all = db().users.filter(x => x.role === 'employee' && x.active !== false && (deptId || x.id === u.id || !P.isSupport(x)));
       if (P.isGlobal(u)) return deptId ? all.filter(x => x.deptId === deptId) : all;
@@ -700,7 +703,8 @@ window.P = window.P || {};
       assert(!deptId || deptId === u.deptId, 'Acesso restrito.');
       return all.filter(x => x.id === u.id);
     },
-    workers(u, deptId) {
+    workers(u, deptId) { return api._workers(u, deptId).sort(byName); },
+    _workers(u, deptId) {
       const all = db().users.filter(x => (x.role === 'employee' || x.role === 'manager') && x.active !== false && (deptId || x.id === u.id || !P.isSupport(x)));
       if (P.isGlobal(u)) return deptId ? all.filter(x => x.deptId === deptId) : all;
       if (u.role === 'manager') {
@@ -713,7 +717,7 @@ window.P = window.P || {};
     allEmployees(u) {
       // Gerente e diretoria veem todos os funcionários; o gestor, os do próprio departamento
       assert(P.isGlobal(u) || u.role === 'manager', 'Somente gestores, gerente e diretoria gerenciam o cadastro de funcionários.');
-      return db().users.filter(x => x.role === 'employee' && (P.isGlobal(u) || x.deptId === u.deptId));
+      return db().users.filter(x => x.role === 'employee' && (P.isGlobal(u) || x.deptId === u.deptId)).sort(byName);
     },
     employee(u, id) { const e = P.user(id); assert(e && api.canSeeEmployee(u, e), 'Você não tem permissão para visualizar os dados deste colaborador.'); return e; },
     entries(u, f = {}) {
@@ -734,7 +738,7 @@ window.P = window.P || {};
       const id = deptId || (P.isGlobal(u) ? null : u.deptId);
       if (!P.isGlobal(u)) assert(!deptId || deptId === u.deptId, 'Tabela de pesos de outro departamento.');
       // sempre em ordem alfabética (sem diferenciar acentos nem maiúsculas)
-      return db().activities.filter(a => (!id || a.deptId === id) && (includeInactive || a.active)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }));
+      return db().activities.filter(a => (!id || a.deptId === id) && (includeInactive || a.active)).sort(byName);
     },
     createEntry(u, data) {
       const emp = P.user(data.userId);
