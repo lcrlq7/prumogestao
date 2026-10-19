@@ -98,7 +98,7 @@
     const today = D.iso(P.today());
     const avulsas = P.api.tasks(u).filter(t => !t.recId && t.status === 'pendente').sort((a, b) => a.due.localeCompare(b.due));
     const geradas = P.api.tasks(u).filter(t => t.recId && t.status === 'pendente').sort((a, b) => a.due.localeCompare(b.due));
-    const taskRows = l => l.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th></tr></thead><tbody>${l.map(t => `<tr><td><b>${esc(t.title)}</b>${t.client ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due < today ? ' bad' : ''}">${D.fmt(t.due)}${t.due < today ? ' <small>(atrasada)</small>' : ''}</td></tr>`).join('')}</tbody></table></div>` : V.empty('Nenhuma tarefa pendente.', 'check');
+    const taskRows = l => l.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th class="actions-col"></th></tr></thead><tbody>${l.map(t => `<tr><td><b>${esc(t.title)}</b>${t.client && !t.title.includes(t.client) ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due < today ? ' bad' : ''}">${D.fmt(t.due)}${t.due < today ? ' <small>(atrasada)</small>' : ''}${t.postponed && t.postponed.length ? ' <small title="' + esc(t.postponed.map(x => D.fmt(x.from) + ' → ' + D.fmt(x.to) + ': ' + x.reason).join('\n')) + '">(adiada)</small>' : ''}</td><td class="actions-col"><div class="row-actions">${taskBtns(u, t)}</div></td></tr>`).join('')}</tbody></table></div>` : V.empty('Nenhuma tarefa pendente.', 'check');
     return `<div class="kpis k3">${V.kpi('Recorrências ativas', list.filter(r => r.active !== false).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
       ${V.card('Tarefas recorrentes', recTable(list), { cls: 'flush', sub: 'As tarefas são criadas automaticamente para o mês atual e o próximo. Pausar ou excluir não apaga as já criadas.' })}
       <div class="grid g-1-1">${V.card('Geradas pelas recorrências (pendentes)', taskRows(geradas), { cls: 'flush' })}${V.card('Tarefas avulsas (pendentes)', taskRows(avulsas), { cls: 'flush' })}</div>`;
@@ -242,12 +242,15 @@
     P.store.save(); P.render();
   };
   // lista de tarefas: botões Adiar/Dispensar e o registro do motivo
+  // botões com texto (não só ícone), para ficarem fáceis de achar
+  const taskBtns = (u, t) => t.status === 'pendente' && canHandle(u, t)
+    ? V.btn('Adiar', { act: 'postponeTask', icon: 'clock', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) + V.btn('Dispensar', { act: 'dismissTask', icon: 'x', cls: 'sm ghost', attrs: `data-id="${t.id}"` })
+    : t.status === 'dispensada' && canManage(u, t.deptId) ? V.btn('Reabrir', { act: 'reopenTask', icon: 'refresh', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) : '';
   V.taskExtra = (u, t) => {
       const extra = [];
       if (t.status === 'dispensada' && t.dismissed) extra.push(`<span class="badge st-sem">${V.icon('x')}Dispensada</span><small class="task-why">${esc(t.dismissed.reason)} · ${esc((P.user(t.dismissed.by) || {}).name || '')}</small>`);
       if (t.status === 'pendente' && t.postponed && t.postponed.length) { const p = t.postponed[t.postponed.length - 1]; extra.push(`<small class="task-why" title="${esc(t.postponed.map(x => D.fmt(x.from) + ' → ' + D.fmt(x.to) + ': ' + x.reason).join('\n'))}">Adiada${t.postponed.length > 1 ? ' ' + t.postponed.length + 'x' : ''} (era ${D.fmt(t.originalDue || p.from)}): ${esc(p.reason)}</small>`); }
-      const btns = t.status === 'pendente' && canHandle(u, t) ? V.ibtn('clock', 'Adiar', { act: 'postponeTask', attrs: `data-id="${t.id}"` }) + V.ibtn('x', 'Dispensar', { act: 'dismissTask', attrs: `data-id="${t.id}"` })
-        : t.status === 'dispensada' && canManage(u, t.deptId) ? V.ibtn('refresh', 'Reabrir', { act: 'reopenTask', attrs: `data-id="${t.id}"` }) : '';
+      const btns = taskBtns(u, t);
       return `${btns ? `<div class="task-acts">${btns}</div>` : ''}${extra.length ? `<div class="task-extra">${extra.join(' ')}</div>` : ''}`;
   };
 
