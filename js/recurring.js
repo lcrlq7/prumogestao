@@ -22,16 +22,27 @@
     if (a) return a.userId;
     const d = P.dept(r.deptId); return d && ok(d.managerId) ? d.managerId : null;
   };
-  function localGenerate() {
+  /* Recorrência trimestral (ex.: fechamento de IRPJ e CSLL): a tarefa vence no mês seguinte ao fim de cada trimestre (jan, abr, jul, out).
+   * O banco só conhece recorrência mensal, então as trimestrais ficam com active:false para ele ignorar e são geradas aqui, pelo navegador
+   * de quem gerencia o departamento. "Pausada" para elas é o campo paused. */
+  const isQ = r => r.freq === 'trimestral';
+  const isOn = r => isQ(r) ? !r.paused : r.active !== false;
+  const QMONTHS = [0, 3, 6, 9];
+  const quarterOf = m => { const mo = m.getMonth(), y = m.getFullYear(); return mo === 0 ? '4º tri/' + (y - 1) : (mo / 3 + 0) + 'º tri/' + y; };
+  // onlyQ: em produção o banco gera as mensais; aqui só as trimestrais
+  function localGenerate(onlyQ) {
     const cur = D.monthStart(P.today()); let n = 0;
     const multi = r => !!(r.clients && r.clients.length);
-    recs().filter(r => r.active !== false).forEach(r => [cur, D.addMonths(cur, 1)].forEach(m => clientsOf(r).forEach(client => {
+    recs().filter(r => isOn(r) && (!onlyQ || isQ(r)) && (!onlyQ || canManage(U(), r.deptId))).forEach(r => [cur, D.addMonths(cur, 1)].forEach(m => clientsOf(r).forEach(client => {
+      if (isQ(r) && !QMONTHS.includes(m.getMonth())) return;
       const k = ym(m); if (k < (r.start || '0000') || (r.end && k > r.end)) return;
-      // uma tarefa por empresa e por mês
+      // uma tarefa por empresa e por mês (ou por trimestre)
       const key = multi(r) ? r.id + '|' + client + '|' + k : r.id + '|' + k, uid = respOf(r, client), who = P.user(uid);
       if (!who || who.active === false || db().tasks.some(t => t.recKey === key)) return;
-      const title = multi(r) ? r.title + (client ? ' — ' + client : '') : r.title;
-      db().tasks.push({ id: P.uid('t'), userId: uid, deptId: r.deptId, title, activityId: r.activityId || null, client: client || '', due: dueOf(r, m), status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); n++;
+      const title = (multi(r) ? r.title + (isQ(r) ? ' (' + quarterOf(m) + ')' : '') + (client ? ' — ' + client : '') : r.title + (isQ(r) ? ' (' + quarterOf(m) + ')' : ''));
+      // id fixo nas trimestrais: se dois navegadores gerarem ao mesmo tempo, o banco recusa o repetido em vez de duplicar
+      const id = isQ(r) ? 'tq_' + key.replace(/[^A-Za-z0-9]+/g, '_') : P.uid('t');
+      db().tasks.push({ id, userId: uid, deptId: r.deptId, title, activityId: r.activityId || null, client: client || '', due: dueOf(r, m), status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); n++;
     })));
     return n;
   }
@@ -41,7 +52,8 @@
     lastRun = Date.now();
     if (P.isLive && P.backend && P.backend.client) {
       const { data, error } = await P.backend.client.rpc('generate_recurring_tasks');
-      if (!error && data > 0 && P.backend.reload) P.backend.reload();
+      if (!error && data > 0 && P.backend.reload) await P.backend.reload();
+      if (localGenerate(true)) { P.store.save(); P.render(); }
     } else if (localGenerate()) { P.store.save(); P.render(); }
   }
   P.taskRec = { generate, dueOf, localGenerate };
@@ -87,10 +99,10 @@
   const who = id => esc((P.user(id) || { name: '—' }).name);
   const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
     ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1; return `<tr class="${r.active === false ? 'inactive' : ''}"><td><b>${esc(r.title)}</b>${many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
-      <td class="nowrap">Todo dia ${r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}</td>
+      <td class="nowrap">${isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
       <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
-      <td>${r.active === false ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
-      <td class="actions-col">${V.ibtn(r.active === false ? 'check' : 'clock', r.active === false ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`; }).join('')}
+      <td>${!isOn(r) ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
+      <td class="actions-col">${V.ibtn(!isOn(r) ? 'check' : 'clock', !isOn(r) ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`; }).join('')}
     </tbody></table></div>` : V.empty('Nenhuma tarefa recorrente. Use "Nova tarefa" e marque "Repetir todo mês".', 'refresh');
   // corpo da aba "Cadastro de tarefas" (dentro de Atividades)
   const cadastro = u => {
@@ -101,7 +113,7 @@
     const geradas = V.taskFilter(pend.filter(t => t.recId)).sort((a, b) => a.due.localeCompare(b.due));
     const taskRows = (l, key) => { const pg = V.pageSlice(l, key); return l.length ? taskTable(pg.items) + pg.bar : V.empty('Nenhuma tarefa pendente.', 'check'); };
     const taskTable = l => `<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th class="actions-col"></th></tr></thead><tbody>${l.map(t => `<tr><td><b>${esc(t.title)}</b>${t.client && !t.title.includes(t.client) ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due < today ? ' bad' : ''}">${D.fmt(t.due)}${t.due < today ? ' <small>(atrasada)</small>' : ''}${t.postponed && t.postponed.length ? ' <small title="' + esc(t.postponed.map(x => D.fmt(x.from) + ' → ' + D.fmt(x.to) + ': ' + x.reason).join('\n')) + '">(adiada)</small>' : ''}</td><td class="actions-col"><div class="row-actions">${taskBtns(u, t)}</div></td></tr>`).join('')}</tbody></table></div>`;
-    return `<div class="kpis k3">${V.kpi('Recorrências ativas', list.filter(r => r.active !== false).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
+    return `<div class="kpis k3">${V.kpi('Recorrências ativas', list.filter(isOn).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
       ${V.card('Tarefas recorrentes', recTable(list), { cls: 'flush', sub: 'As tarefas são criadas automaticamente para o mês atual e o próximo. Pausar ou excluir não apaga as já criadas.' })}
       ${V.taskFilterBar(pend, avulsas.length + geradas.length)}
       <div class="grid g-1-1">${V.card('Geradas pelas recorrências (pendentes)', taskRows(geradas, 'gen'), { cls: 'flush' })}${V.card('Tarefas avulsas (pendentes)', taskRows(avulsas, 'avu'), { cls: 'flush' })}</div>`;
@@ -115,7 +127,7 @@
     if (u.role === 'employee' || !P.PAGES.tarefas.includes(u.role)) return origAtv(u);
     const S = P.state, tab = S.atvTab || 'tarefas';
     const dept = V.scopeDept(u) || (u.role === 'manager' ? u.deptId : '');
-    const tabs = `<div class="toolbar atv-tabs">${V.tabs([['tarefas', 'Tarefas da equipe'], ['cadastro', 'Cadastro de tarefas', recs().filter(r => canManage(u, r.deptId) && r.active !== false).length], ['pesos', 'Atividades e pesos']], tab, 'atvTab')}</div>`;
+    const tabs = `<div class="toolbar atv-tabs">${V.tabs([['tarefas', 'Tarefas da equipe'], ['cadastro', 'Cadastro de tarefas', recs().filter(r => canManage(u, r.deptId) && isOn(r)).length], ['pesos', 'Atividades e pesos']], tab, 'atvTab')}</div>`;
     if (tab === 'tarefas') { const html = origAtv(u), i = html.indexOf('<div class="strip">'); return i > 0 ? html.slice(0, i) + tabs + html.slice(i) : tabs + html; }
     const head = tab === 'cadastro'
       ? V.pageHead('Cadastro de tarefas', 'Atividade, peso, empresa e recorrência num só cadastro. Todo mês a tarefa aparece para quem cuida da empresa no departamento.', V.deptPicker(u) + V.btn('Editar em lote', { act: 'batchEditTasks', icon: 'edit', cls: 'ghost' }) + V.btn('Tarefa avulsa', { act: 'newTask', icon: 'plus', cls: 'ghost' }) + V.btn('Nova tarefa recorrente', { act: 'newActRec', icon: 'refresh', cls: 'primary' }))
@@ -144,7 +156,8 @@
         <div class="field span3"><span>Empresas (uma, duas ou mais)</span>${P.companyPickerHtml('ar-co')}</div>
         <div class="span3"><button type="button" class="link" id="ar-all">Adicionar todas as empresas da carteira deste departamento</button></div>
         <div class="span3 ar-chips" id="ar-chips"><p class="fine">Nenhuma empresa escolhida.</p></div>
-        <label class="field"><span>Dia do prazo (todo mês)</span><input type="number" id="ar-day" min="1" max="31" value="20"></label>
+        <label class="field span3"><span>Repetição</span><select id="ar-freq"><option value="mensal">Todo mês</option><option value="trimestral">Trimestral: o prazo cai em jan, abr, jul e out (mês seguinte ao fim de cada trimestre)</option></select></label>
+        <label class="field"><span>Dia do prazo</span><input type="number" id="ar-day" min="1" max="31" value="20"></label>
         <label class="field"><span>Começa em</span><input type="month" id="ar-start" value="${ym(P.today())}"></label>
         <label class="field"><span>Termina em (opcional)</span><input type="month" id="ar-end"></label>
         <label class="field check span3"><input type="checkbox" id="ar-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
@@ -167,11 +180,13 @@
           if (Number(String(w).replace(',', '.')) !== act.weight) P.api.saveActivity(u, { id: act.id, deptId, name: act.name, unit: act.unit, weight: w, reason: 'Ajustado no cadastro de tarefa recorrente' });
         }
         if (!act) throw new Error('Não foi possível salvar a atividade.');
-        const r = { id: P.uid('tr'), auto: true, userId: null, deptId, title: act.name, activityId: act.id, clients: sel.slice(), day, businessDay: $('#ar-bd').checked, start, end: end || '', active: true, createdBy: u.id, createdAt: D.stamp() };
-        recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, r.title + ' (dia ' + day + ')');
-        if (!P.isLive) localGenerate();
-        P.store.save(); if (P.isLive) setTimeout(() => generate(true), 1500);
-        P.toast('Tarefa recorrente criada para ' + sel.length + ' empresa(s): todo dia ' + day + ', para o responsável de cada uma.'); P.render();
+        const quarterly = $('#ar-freq').value === 'trimestral';
+        const r = { id: P.uid('tr'), auto: true, userId: null, deptId, title: act.name, activityId: act.id, clients: sel.slice(), day, businessDay: $('#ar-bd').checked, start, end: end || '', active: !quarterly, createdBy: u.id, createdAt: D.stamp() };
+        if (quarterly) { r.freq = 'trimestral'; r.paused = false; }
+        recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, r.title + (quarterly ? ' (trimestral, dia ' : ' (dia ') + day + ')');
+        if (!P.isLive || quarterly) localGenerate(P.isLive);
+        P.store.save(); if (P.isLive && !quarterly) setTimeout(() => generate(true), 1500);
+        P.toast('Tarefa recorrente criada para ' + sel.length + ' empresa(s): ' + (quarterly ? 'trimestral, dia ' + day + ' de jan, abr, jul e out' : 'todo dia ' + day) + ', para o responsável de cada uma.'); P.render();
       }
     });
     const sel = [];
@@ -380,9 +395,10 @@
 
   A.toggleTaskRec = el => {
     const r = recs().find(x => x.id === el.dataset.id); if (!r || !canManage(U(), r.deptId)) return;
-    r.active = r.active === false; P.audit(U(), 'Tarefa recorrente ' + (r.active ? 'reativada' : 'pausada'), r.id, r.title);
-    if (r.active && !P.isLive) localGenerate();
-    P.store.save(); if (r.active && P.isLive) setTimeout(() => generate(true), 1500);
+    if (isQ(r)) r.paused = !r.paused; else r.active = r.active === false;
+    const on = isOn(r); P.audit(U(), 'Tarefa recorrente ' + (on ? 'reativada' : 'pausada'), r.id, r.title);
+    if (on && !P.isLive) localGenerate();
+    P.store.save(); if (on && P.isLive) setTimeout(() => generate(true), 1500);
     P.render();
   };
   A.deleteTaskRec = el => {
