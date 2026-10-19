@@ -665,10 +665,12 @@
           <div class="field"><span>&nbsp;</span><button type="button" class="link" data-act="manageClientAssignments">Gerenciar carteira</button></div>
           <p class="fine span3" id="nt-client-help">${clients.length ? `${clients.length} empresa(s) vinculada(s) a ${esc(emps[0].name)}.` : `Nenhuma empresa vinculada a ${esc(emps[0].name)}. A tarefa pode ser geral ou você pode cadastrar uma empresa na carteira.`}</p>
           <label class="field"><span>Prazo</span><input type="date" id="nt-due" value="${D.iso(D.add(P.today(), 3))}"></label>
+          ${P.store.db.departments.some(d => d.deadlineOptional) ? '<label class="field check span2"><input type="checkbox" id="nt-nodue"><span>Sem prazo por enquanto (o prazo é definido quando a tarefa chegar). Só vale para departamentos que permitem.</span></label>' : ''}
           <label class="field span3"><span>Título (opcional)</span><input type="text" id="nt-title" placeholder="Gerado a partir da atividade e do cliente"></label></div>`,
         onSubmit: m => {
-          const userId = $('#nt-user', m).value, a = P.act($('#nt-act', m).value), client = $('#nt-client', m).value.trim(), due = $('#nt-due', m).value;
-          if (!due) throw new Error('Informe o prazo.');
+          const userId = $('#nt-user', m).value, a = P.act($('#nt-act', m).value), client = $('#nt-client', m).value.trim(), noDue = !!($('#nt-nodue', m) && $('#nt-nodue', m).checked), due = noDue ? '' : $('#nt-due', m).value;
+          if (!due && !noDue) throw new Error('Informe o prazo.');
+          if (noDue && !(P.dept((P.user(userId) || {}).deptId) || {}).deadlineOptional) throw new Error('O departamento deste responsável exige prazo na tarefa. Informe o prazo.');
           if (!a) throw new Error('Escolha uma atividade. O departamento deste responsável ainda não tem atividades cadastradas.');
           if (a.deptId !== (P.user(userId) || {}).deptId) throw new Error('A atividade escolhida é de outro departamento.');
           const saved = api.saveTask(U(), { userId, activityId: a.id, client, due, title: $('#nt-title', m).value.trim() || a.name + (client ? ' — ' + client : '') });
@@ -763,11 +765,12 @@
         title: el.dataset.id ? 'Editar departamento' : 'Novo departamento',
         body: `<div class="fgrid"><label class="field span2"><span>Nome</span><input type="text" id="dp-name" value="${esc(d.name)}"></label><label class="field"><span>Sigla</span><input type="text" id="dp-code" value="${esc(d.code)}" maxlength="5"></label>
           <label class="field span3"><span>Gestor(a) responsável</span><select id="dp-mgr"><option value="">Sem gestor</option><optgroup label="Gestores">${mgrs.map(opt).join('')}</optgroup><optgroup label="Diretores (acumulam a gestão)">${dirs.map(opt).join('')}</optgroup></select></label>
-          <label class="field span3"><span>Descrição</span><textarea id="dp-desc" rows="2">${esc(d.description || '')}</textarea></label></div>`,
+          <label class="field span3"><span>Descrição</span><textarea id="dp-desc" rows="2">${esc(d.description || '')}</textarea></label>
+          <label class="field check span3"><input type="checkbox" id="dp-nodue" ${d.deadlineOptional ? 'checked' : ''}><span>Prazo opcional nas tarefas: elas podem ficar sem prazo, e o gestor define o prazo quando a tarefa chegar (ex.: Legalização)</span></label></div>`,
         onSubmit: m => {
           const name = $('#dp-name', m).value.trim(), code = $('#dp-code', m).value.trim().toUpperCase();
           if (!name || !code) throw new Error('Informe nome e sigla.');
-          const nd = api.saveDept(U(), { id: el.dataset.id, name, code, description: $('#dp-desc', m).value.trim(), managerId: $('#dp-mgr', m).value || null });
+          const nd = api.saveDept(U(), { id: el.dataset.id, name, code, description: $('#dp-desc', m).value.trim(), managerId: $('#dp-mgr', m).value || null, deadlineOptional: $('#dp-nodue', m).checked });
           if (!el.dataset.id) P.store.db.activities.length; // novas tabelas de peso são criadas em "Pesos das Atividades"
           toast('Departamento salvo: ' + nd.name + '.'); render();
         }

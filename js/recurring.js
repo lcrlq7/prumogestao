@@ -106,6 +106,8 @@
     regimes: [...m.querySelectorAll('.ac-reg:checked')].map(x => x.value), freq: m.querySelector('#ac-freq').value,
     day: Number(m.querySelector('#ac-day').value), start: m.querySelector('#ac-start').value, date: m.querySelector('#ac-date').value, bd: m.querySelector('#ac-bd').checked, cart: m.querySelector('#ac-cart').checked
   });
+  // "Sem prazo por enquanto": desliga o campo de data
+  document.addEventListener('change', ev => { if (ev.target && ev.target.id === 'nt-nodue') { const d = document.getElementById('nt-due'); if (d) d.disabled = ev.target.checked; } });
   // mostra os campos certos conforme "É recorrente?"
   document.addEventListener('change', ev => {
     if (!ev.target || ev.target.id !== 'ac-freq') return;
@@ -228,7 +230,7 @@
     const { pend, avulsas, geradas } = cadLists(u);
     const delBtn = l => { const n = l.filter(t => taskSel().has(t.id)).length; return n ? V.btn('Excluir selecionadas (' + n + ')', { act: 'taskBulkDelete', icon: 'trash', cls: 'sm ghost danger' }) : ''; };
     const taskRows = (l, key) => { const pg = V.pageSlice(l, key); return l.length ? taskTable(pg.items, key) + pg.bar : V.empty('Nenhuma tarefa pendente.', 'check'); };
-    const taskTable = (l, key) => `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"><input type="checkbox" data-act="taskSelAll" data-list="${key}" aria-label="Selecionar todas as filtradas" ${(key === 'gen' ? geradas : avulsas).every(t => taskSel().has(t.id)) ? 'checked' : ''}></th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th class="actions-col"></th></tr></thead><tbody>${l.map(t => `<tr><td class="chk-col"><input type="checkbox" data-act="taskSel" data-id="${t.id}" aria-label="Selecionar" ${taskSel().has(t.id) ? 'checked' : ''}></td><td><b>${esc(t.title)}</b>${t.client && !t.title.includes(t.client) ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due < today ? ' bad' : ''}">${D.fmt(t.due)}${t.due < today ? ' <small>(atrasada)</small>' : ''}${t.postponed && t.postponed.length ? ' <small title="' + esc(t.postponed.map(x => D.fmt(x.from) + ' → ' + D.fmt(x.to) + ': ' + x.reason).join('\n')) + '">(adiada)</small>' : ''}</td><td class="actions-col"><div class="row-actions">${taskBtns(u, t)}</div></td></tr>`).join('')}</tbody></table></div>`;
+    const taskTable = (l, key) => `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"><input type="checkbox" data-act="taskSelAll" data-list="${key}" aria-label="Selecionar todas as filtradas" ${(key === 'gen' ? geradas : avulsas).every(t => taskSel().has(t.id)) ? 'checked' : ''}></th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th class="actions-col"></th></tr></thead><tbody>${l.map(t => `<tr><td class="chk-col"><input type="checkbox" data-act="taskSel" data-id="${t.id}" aria-label="Selecionar" ${taskSel().has(t.id) ? 'checked' : ''}></td><td><b>${esc(t.title)}</b>${t.client && !t.title.includes(t.client) ? `<small class="obs">${esc(t.client)}</small>` : ''}</td><td>${who(t.userId)}</td><td class="nowrap${t.due && t.due < today ? ' bad' : ''}">${t.due ? D.fmt(t.due) : '<span class="muted">Sem prazo</span>'}${t.due && t.due < today ? ' <small>(atrasada)</small>' : ''}${t.postponed && t.postponed.length ? ' <small title="' + esc(t.postponed.map(x => D.fmt(x.from) + ' → ' + D.fmt(x.to) + ': ' + x.reason).join('\n')) + '">(adiada)</small>' : ''}</td><td class="actions-col"><div class="row-actions">${taskBtns(u, t)}</div></td></tr>`).join('')}</tbody></table></div>`;
     return `<div class="kpis k3">${V.kpi('Recorrências ativas', allRecs.filter(isOn).length, { icon: 'refresh' })}${V.kpi('Geradas pendentes', geradas.length, { icon: 'clock' })}${V.kpi('Avulsas pendentes', avulsas.length, { icon: 'clipboard' })}</div>
       ${recBar(list, allRecs.length)}
       ${V.card('Tarefas recorrentes', recTable(list), { cls: 'flush', sub: 'As mensais são criadas para o mês atual e o próximo; as trimestrais, para os próximos 12 meses. Pausar ou excluir não apaga as já criadas.' })}
@@ -354,6 +356,7 @@
   A.postponeTask = el => {
     const u = U(), t = taskOf(el);
     if (!canHandle(u, t) || t.status !== 'pendente') return P.toast('Você não pode adiar esta tarefa.', 'err');
+    if (!t.due) return P.toast('Esta tarefa ainda não tem prazo. Use Editar para definir o prazo.', 'err');
     const end = D.iso(D.monthEnd(D.parse(t.due)));
     P.ui.modal({
       title: 'Adiar tarefa', submit: 'Adiar',
@@ -419,12 +422,12 @@
       onSubmit: m => {
         const title = $('#te-title').value.trim(), userId = $('#te-user').value, actId = $('#te-act').value, client = $('#te-client').value, due = $('#te-due').value;
         if (!title) throw new Error('Informe o título.');
-        if (!due) throw new Error('Informe o prazo.');
+        if (!due && !(P.dept(t.deptId) || {}).deadlineOptional) throw new Error('Informe o prazo.');
         const who2 = P.user(userId); if (!who2 || who2.deptId !== t.deptId) throw new Error('O responsável precisa ser do mesmo departamento da tarefa.');
         if (actId && (P.act(actId) || {}).deptId !== t.deptId) throw new Error('A atividade escolhida é de outro departamento.');
         const changes = [];
         if (title !== t.title) changes.push('título');
-        if (due !== t.due) { changes.push('prazo ' + D.fmt(t.due) + ' → ' + D.fmt(due)); if (!t.originalDue) t.originalDue = t.due; }
+        if (due !== t.due) { changes.push('prazo ' + (D.fmt(t.due) || 'sem prazo') + ' → ' + (D.fmt(due) || 'sem prazo')); if (!t.originalDue && t.due) t.originalDue = t.due; }
         if (userId !== t.userId) changes.push('responsável: ' + ((P.user(t.userId) || {}).name || '—') + ' → ' + who2.name);
         if ((actId || null) !== (t.activityId || null)) changes.push('atividade');
         if (client !== (t.client || '')) changes.push('empresa');
@@ -491,8 +494,8 @@
         list.forEach(t => {
           const rec = t.recId ? recs().find(r => r.id === t.recId) : null, ch = [];
           let nd = t.due;
-          if (due) nd = due; else if (day) { const d0 = D.parse(t.due); nd = dueOf({ day, businessDay: rec ? rec.businessDay : false }, new Date(d0.getFullYear(), d0.getMonth(), 1)); }
-          if (nd !== t.due) { ch.push('prazo ' + D.fmt(t.due) + ' → ' + D.fmt(nd)); if (!t.originalDue) t.originalDue = t.due; }
+          if (due) nd = due; else if (day && t.due) { const d0 = D.parse(t.due); nd = dueOf({ day, businessDay: rec ? rec.businessDay : false }, new Date(d0.getFullYear(), d0.getMonth(), 1)); }
+          if (nd !== t.due) { ch.push('prazo ' + (D.fmt(t.due) || 'sem prazo') + ' → ' + D.fmt(nd)); if (!t.originalDue && t.due) t.originalDue = t.due; }
           let nu = t.userId;
           if (newUser) { if (newUser.deptId !== t.deptId) skipped++; else if (newUser.id !== t.userId) { ch.push('responsável: ' + ((P.user(t.userId) || {}).name || '—') + ' → ' + newUser.name); nu = newUser.id; } }
           if (!ch.length) return;

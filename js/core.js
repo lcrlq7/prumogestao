@@ -1296,6 +1296,7 @@ window.P = window.P || {};
       let d = data.id && P.dept(data.id);
       if (!d) { d = { id: P.uid('d'), active: true, createdAt: D.iso(P.today()) }; db().departments.push(d); }
       Object.assign(d, { name: data.name, code: data.code, description: data.description || '' });
+      if (data.deadlineOptional !== undefined) d.deadlineOptional = !!data.deadlineOptional; // tarefas podem ficar sem prazo até chegarem (ex.: Legalização)
       if (data.managerId !== undefined) api._assignManager(d, data.managerId);
       P.reindex(); audit(u, data.id ? 'Departamento editado' : 'Departamento criado', d.id, d.name); P.store.save(); return d;
     },

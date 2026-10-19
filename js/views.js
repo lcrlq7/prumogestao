@@ -382,7 +382,7 @@
         ${load ? V.kpi('Capacidade semanal', F.n(emp.capacity), { unit: 'pts', sub: '≈ ' + Math.round(emp.capacity / (emp.hours || 40) * 100) + '% da jornada' }) : ''}
         ${load ? V.kpi('Utilização da semana', F.pct0(sw.util), { bar: sw.util, status: sw.status, sub: V.STATUS[sw.status].label }) : ''}
         ${V.kpi('Tarefas concluídas', F.n(sm.tasks), { sub: 'no mês' })}
-        ${V.kpi('Tarefas pendentes', pendTasks.length, { sub: pendTasks.filter(t => t.due < D.iso(P.today())).length + ' em atraso', go: own ? 'atividades' : null })}
+        ${V.kpi('Tarefas pendentes', pendTasks.length, { sub: pendTasks.filter(t => t.due && t.due < D.iso(P.today())).length + ' em atraso', go: own ? 'atividades' : null })}
       </div>
       <div class="grid g-2-1">
         ${V.card('Pontos produzidos por semana', C.slot({ type: 'bars', data: weeks.map(w => ({ label: w.label, value: w.points, partial: w.partial, tip: `Semana de ${w.label}${w.partial ? ' (em andamento)' : ''}: ${F.n(w.points)} pts${load ? ' · ' + F.pct0(w.util) : ''}` })), ref: load ? { values: weeks.map(w => w.capacity), label: 'Capacidade' } : null, height: 250, aria: 'Pontos por semana' }), { sub: 'Últimas 12 semanas · a semana atual é parcial' })}

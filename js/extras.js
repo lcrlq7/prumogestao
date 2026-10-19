@@ -76,7 +76,7 @@
   // quem recebe o aviso do mural: a equipe do departamento, ou todo mundo quando o reconhecimento é "para todos"
   const wallAudience = () => P.store.db.users.filter(x => x.active !== false).map(x => x.id); // o mural é da empresa toda
   wrap('shareRecognition', (r, u) => { if (r.shared) P.notify(wallAudience(r).filter(id => id !== r.userId && id !== u.id), { type: 'mural', icon: 'medal', title: 'Novo reconhecimento no mural', text: `${(P.user(r.userId) || { name: '—' }).name} foi reconhecido(a) em ${P.REC_CATEGORIES[r.category]}.`, link: 'mural' }); });
-  wrap('saveTask', (t, u) => { if (t.userId !== u.id) P.notify([t.userId], { type: 'tarefa', icon: 'clipboard', title: 'Nova tarefa para você', text: `${t.title} · prazo ${D.fmt(t.due)} (atribuída por ${u.name}).`, link: 'atividades' }); });
+  wrap('saveTask', (t, u) => { if (t.userId !== u.id) P.notify([t.userId], { type: 'tarefa', icon: 'clipboard', title: 'Nova tarefa para você', text: `${t.title} · ${t.due ? 'prazo ' + D.fmt(t.due) : 'sem prazo por enquanto'} (atribuída por ${u.name}).`, link: 'atividades' }); });
 
   /*
    * Nova versão do site publicada: atualiza sozinho, sem precisar apertar F5.
@@ -619,7 +619,7 @@
     const vacs = api.vacations(u).filter(v => v.status === 'aprovada' && ids.has(v.userId) && !(v.end < D.iso(ws) || v.start > D.iso(we)));
     const pendEntries = api.entries(u, { status: 'pendente' }).filter(e => e.userId !== u.id).length;
     const vacWaiting = (db().vacations || []).filter(v => api.canReviewVacation(u, v)).length;
-    const late = api.tasks(u).filter(x => x.status === 'pendente' && x.due < today && ids.has(x.userId)).length;
+    const late = api.tasks(u).filter(x => x.status === 'pendente' && x.due && x.due < today && ids.has(x.userId)).length;
     const obr = P.obligationsFor(u, t.getFullYear(), t.getMonth(), P.isGlobal(u) ? (S().dept || undefined) : undefined).filter(o => o.date >= D.iso(ws) && o.date <= D.iso(D.add(ws, 6)));
     const h = new Date().getHours(), hi = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
     const names = l => { const n = l.map(x => esc(first(x.name))); return n.length > 1 ? n.slice(0, -1).join(', ') + ' e ' + n[n.length - 1] : n.join(''); };
@@ -749,7 +749,7 @@
     if (!emps.length) return V.empty('Escolha um departamento para ver o quadro da equipe.', 'users');
     return `<div class="board" role="list">${emps.map(e => { const mine = tasks.filter(t => t.userId === e.id).sort((a, b) => a.due < b.due ? -1 : 1); return `<section class="bcol" data-col="${e.id}" role="listitem" aria-label="${esc(e.name)}">
         <header>${V.avatar(e)}<b>${esc(first(e.name))}</b><em>${mine.length}</em></header>
-        <div class="bcol-b">${mine.map(t => `<article class="bcard ${t.due < today ? 'late' : ''}" draggable="true" data-task="${t.id}"><b>${esc(t.title)}</b><small>${t.due < today ? icon('alert') + 'Atrasada · ' : ''}prazo ${D.fmt(t.due)}</small></article>`).join('') || '<p class="bcol-empty">Solte uma tarefa aqui</p>'}</div>
+        <div class="bcol-b">${mine.map(t => `<article class="bcard ${t.due && t.due < today ? 'late' : ''}" draggable="true" data-task="${t.id}"><b>${esc(t.title)}</b><small>${t.due && t.due < today ? icon('alert') + 'Atrasada · ' : ''}${t.due ? 'prazo ' + D.fmt(t.due) : 'sem prazo'}</small></article>`).join('') || '<p class="bcol-empty">Solte uma tarefa aqui</p>'}</div>
       </section>`; }).join('')}</div><p class="fine board-note">Arraste um cartão para a coluna de outra pessoa para reatribuir a tarefa. A pessoa recebe uma notificação.</p>`;
   };
   let tDrag = null;

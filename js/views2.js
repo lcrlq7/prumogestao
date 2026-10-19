@@ -47,7 +47,7 @@
       if (f.client && !normT(t.client).includes(normT(f.client).trim())) return false;
       if (f.from && t.due < f.from) return false;
       if (f.to && t.due > f.to) return false;
-      if (f.late && !(t.status === 'pendente' && t.due < today)) return false;
+      if (f.late && !(t.status === 'pendente' && t.due && t.due < today)) return false;
       return true;
     });
   };
@@ -88,7 +88,7 @@
     const tabbed = tasks; tasks = V.taskFilter(tasks);
     tasks.sort((a, b) => tab === 'pendente' ? (a.due < b.due ? -1 : 1) : (a.due > b.due ? -1 : 1));
     const all = api.tasks(u, { deptId: V.scopeDept(u) || undefined });
-    const overdue = all.filter(t => t.status === 'pendente' && t.due < today).length;
+    const overdue = all.filter(t => t.status === 'pendente' && t.due && t.due < today).length;
     return `${V.pageHead(u.role === 'manager' ? 'Atividades da equipe e minhas tarefas' : 'Atividades da equipe', 'Tarefas atribuídas, prazos e o catálogo de atividades com seus pesos.', V.deptPicker(u) + V.btn('Carteira de empresas', { act: 'manageClientAssignments', icon: 'building', cls: 'ghost' }) + V.btn('Atribuir tarefa', { act: 'newTask', icon: 'plus', cls: 'primary' }))}
       <div class="strip">
         <div><span>Pendentes</span><b>${all.filter(t => t.status === 'pendente').length}</b></div>
@@ -109,12 +109,12 @@
     const pg = V.pageSlice(tasks, key || 'main'); tasks = pg.items;
     return `<ul class="tasks">${tasks.map(t => {
       const a = t.activityId ? P.act(t.activityId) : null, who = P.user(t.userId) || { name: 'Pessoa removida' };
-      const late = t.status === 'pendente' && t.due < today;
-      const soon = t.status === 'pendente' && !late && t.due <= D.iso(D.add(P.today(), 2));
+      const late = t.status === 'pendente' && !!t.due && t.due < today;
+      const soon = t.status === 'pendente' && !late && !!t.due && t.due <= D.iso(D.add(P.today(), 2));
       return `<li class="task ${late ? 'late' : ''}">
         <span class="task-ic ${t.status === 'concluida' ? 'done' : ''}">${icon(t.status === 'concluida' ? 'check' : 'clock')}</span>
         <div class="task-main"><b>${esc(t.title)}</b>
-          <small>${showWho ? esc(who.name) + ' · ' : ''}${a ? F.n(a.weight, 2) + ' pt/' + esc(a.unit) + ' · ' : ''}${t.status === 'concluida' ? 'Concluída em ' + D.fmt(t.doneAt || t.due) : 'Prazo ' + D.fmt(t.due)}</small></div>
+          <small>${showWho ? esc(who.name) + ' · ' : ''}${a ? F.n(a.weight, 2) + ' pt/' + esc(a.unit) + ' · ' : ''}${t.status === 'concluida' ? 'Concluída em ' + D.fmt(t.doneAt || t.due) : t.due ? 'Prazo ' + D.fmt(t.due) : 'Sem prazo'}</small></div>
         ${late ? '<span class="badge st-sobrecarga">' + icon('alert') + 'Em atraso</span>' : soon ? '<span class="badge st-baixa">' + icon('clock') + 'Vence em breve</span>' : ''}
         ${t.status === 'pendente' && u.id === t.userId ? V.btn('Concluir e registrar', { act: 'completeTask', cls: 'sm primary', icon: 'check', attrs: `data-id="${t.id}"` }) : ''}
         ${V.taskExtra ? V.taskExtra(u, t) : ''}
