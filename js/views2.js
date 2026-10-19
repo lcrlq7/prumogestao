@@ -314,11 +314,11 @@
   V.recList = (u, list, o = {}) => list.length ? `<ul class="rec-list">${list.map(r => { const x = P.user(r.userId), by = P.user(r.by); return `<li class="rec-item">
       ${o.self ? `<span class="rec-ic">${icon('medal')}</span>` : V.avatar(x)}
       <div class="rec-b">
-        <div class="rec-h">${o.self ? '' : `<b>${esc(x ? x.name : '—')}</b>`}<span class="chip-s">${esc(P.REC_CATEGORIES[r.category] || r.category)}</span>${!o.self ? (r.shared ? '<span class="chip-s chip-wall">no mural da equipe</span>' : !r.visible ? '<small class="muted">· só para a gestão</small>' : '<small class="muted">· visível ao colaborador</small>') : ''}</div>
+        <div class="rec-h">${o.self ? '' : `<b>${esc(x ? x.name : '—')}</b>`}<span class="chip-s">${esc(P.REC_CATEGORIES[r.category] || r.category)}</span>${!o.self ? (r.shared ? '<span class="chip-s chip-wall">' + (r.wall === 'all' ? 'no mural de todos' : 'no mural da equipe') + '</span>' : !r.visible ? '<small class="muted">· só para a gestão</small>' : '<small class="muted">· visível ao colaborador</small>') : ''}</div>
         <p>${esc(r.text)}</p>
         <small class="muted">${esc(by ? by.name : '—')} · ${D.fmt(r.date)}</small>
       </div>
-      ${!o.self && (r.by === u.id || P.isGlobal(u)) ? `<div class="rec-acts">${V.ibtn('users', r.shared ? 'Retirar do mural da equipe' : 'Compartilhar no mural da equipe', { act: 'shareRecognition', cls: r.shared ? 'on' : '', attrs: `data-id="${r.id}" data-on="${r.shared ? 0 : 1}"` })}${V.ibtn('trash', 'Remover reconhecimento', { act: 'removeRecognition', attrs: `data-id="${r.id}"` })}</div>` : ''}
+      ${!o.self && (r.by === u.id || P.isGlobal(u)) ? `<div class="rec-acts">${V.ibtn('users', !r.shared ? 'Compartilhar no mural da equipe' : r.wall === 'all' ? 'Retirar do mural' : 'Mostrar para todo mundo (todos os departamentos)', { act: 'shareRecognition', cls: r.shared ? 'on' : '', attrs: `data-id="${r.id}"` })}${V.ibtn('trash', 'Remover reconhecimento', { act: 'removeRecognition', attrs: `data-id="${r.id}"` })}</div>` : ''}
     </li>`; }).join('')}</ul>` : V.empty(o.empty || 'Nenhum reconhecimento registrado ainda.', 'medal');
   /* Mural da equipe: pessoa, categoria e mensagem (sem notas, ranking ou números de desempenho) */
   V.wallItems = (list, o = {}) => `<ul class="wall">${list.map(r => { const x = P.user(r.userId) || { id: '?', name: 'Pessoa removida' }, by = P.user(r.by), d = P.dept(r.deptId); return `<li class="wall-item">

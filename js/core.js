@@ -1656,16 +1656,18 @@ window.P = window.P || {};
       // reconhecimento entre colegas é sempre mostrado a quem recebe
       if (u.role === 'employee') data.visible = true;
       const r = { id: P.uid('rc'), userId: x.id, deptId: x.deptId, by: u.id, at: D.stamp(), date: D.iso(P.today()), category: data.category, text, visible: shared || data.visible !== false, shared, source: data.source || 'manual' };
+      // wall: 'dept' = mural do departamento; 'all' = mural de todos, visível em todos os departamentos
+      if (shared) r.wall = data.wall === 'all' ? 'all' : 'dept';
       (db().recognitions = db().recognitions || []).push(r);
-      audit(u, 'Reconhecimento registrado', x.id, x.name + ' · ' + P.REC_CATEGORIES[r.category] + (shared ? ' · compartilhado no mural' : '')); P.store.save();
+      audit(u, 'Reconhecimento registrado', x.id, x.name + ' · ' + P.REC_CATEGORIES[r.category] + (shared ? (r.wall === 'all' ? ' · compartilhado no mural de todos' : ' · compartilhado no mural') : '')); P.store.save();
       return r;
     },
     /* Liga ou desliga o compartilhamento no mural (quem registrou, ou gerente e diretoria) */
-    shareRecognition(u, id, shared) {
+    shareRecognition(u, id, shared, wall) {
       const r = (db().recognitions || []).find(x => x.id === id);
       assert(r && (r.by === u.id || P.isGlobal(u)), 'Só quem registrou (ou o gerente e a diretoria) pode alterar este reconhecimento.');
-      r.shared = !!shared; if (r.shared) r.visible = true;
-      audit(u, r.shared ? 'Reconhecimento compartilhado no mural' : 'Reconhecimento retirado do mural', r.userId, (P.user(r.userId) || {}).name || ''); P.store.save();
+      r.shared = !!shared; if (r.shared) { r.visible = true; r.wall = wall === 'all' ? 'all' : 'dept'; } else delete r.wall;
+      audit(u, r.shared ? (r.wall === 'all' ? 'Reconhecimento compartilhado no mural de todos' : 'Reconhecimento compartilhado no mural') : 'Reconhecimento retirado do mural', r.userId, (P.user(r.userId) || {}).name || ''); P.store.save();
       return r;
     },
     /*
@@ -1674,9 +1676,10 @@ window.P = window.P || {};
      */
     teamWall(u, deptId) {
       let list = (db().recognitions || []).filter(r => r.shared && P.user(r.userId) && P.user(r.userId).active !== false);
-      if (!P.isGlobal(u)) list = list.filter(r => r.deptId === u.deptId);
-      else if (deptId) list = list.filter(r => r.deptId === deptId);
-      return list.sort((a, b) => a.at < b.at ? 1 : -1).map(r => ({ id: r.id, userId: r.userId, deptId: r.deptId, by: r.by, date: r.date, category: r.category, text: r.text }));
+      // 'all' aparece para todo mundo, de qualquer departamento
+      if (!P.isGlobal(u)) list = list.filter(r => r.deptId === u.deptId || r.wall === 'all');
+      else if (deptId) list = list.filter(r => r.deptId === deptId || r.wall === 'all');
+      return list.sort((a, b) => a.at < b.at ? 1 : -1).map(r => ({ id: r.id, userId: r.userId, deptId: r.deptId, by: r.by, date: r.date, category: r.category, text: r.text, wall: r.wall || 'dept' }));
     },
     removeRecognition(u, id) {
       const r = (db().recognitions || []).find(x => x.id === id);
