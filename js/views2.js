@@ -44,7 +44,7 @@
     if (!q && !f.client && !f.from && !f.to && !f.late) return list;
     return list.filter(t => {
       if (q && !normT(t.title + ' ' + (t.client || '') + ' ' + ((P.user(t.userId) || {}).name || '') + ' ' + ((P.act(t.activityId) || {}).name || '')).includes(q)) return false;
-      if (f.client && t.client !== f.client) return false;
+      if (f.client && !normT(t.client).includes(normT(f.client).trim())) return false;
       if (f.from && t.due < f.from) return false;
       if (f.to && t.due > f.to) return false;
       if (f.late && !(t.status === 'pendente' && t.due < today)) return false;
@@ -56,7 +56,7 @@
     const on = !!(f.q || f.client || f.from || f.to || f.late);
     return `<div class="toolbar tfilter">
       <label class="picker grow">${icon('search')}<input type="search" id="tf-q" data-set="tf.q" data-live value="${esc(f.q || '')}" placeholder="Buscar por tarefa, empresa ou responsável" aria-label="Buscar tarefas"></label>
-      <label class="picker">${icon('building')}<select data-set="tf.client" aria-label="Empresa"><option value="">Todas as empresas</option>${clients.map(c => `<option value="${esc(c)}" ${f.client === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+      <label class="picker grow">${icon('building')}<input type="search" id="tf-client" list="tf-clients" data-set="tf.client" data-live value="${esc(f.client || '')}" placeholder="Empresa: digite para buscar" aria-label="Empresa" autocomplete="off"><datalist id="tf-clients">${clients.map(c => `<option value="${esc(c)}"></option>`).join('')}</datalist></label>
       <label class="picker"><span>Prazo de</span><input type="date" data-set="tf.from" value="${esc(f.from || '')}" aria-label="Prazo a partir de"></label>
       <label class="picker"><span>até</span><input type="date" data-set="tf.to" value="${esc(f.to || '')}" aria-label="Prazo até"></label>
       <label class="check-inline"><input type="checkbox" data-set="tf.late" ${f.late ? 'checked' : ''}> Só atrasadas</label>
