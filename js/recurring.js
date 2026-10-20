@@ -41,9 +41,10 @@
   // exclusões vão para a Lixeira (trash.js) quando ela está ativa
   const toBin = (kind, items) => (P.trash && items.length ? P.trash.put(U(), kind, items) : 0);
   const isQ = r => r.freq === 'trimestral';
+  const isDaily = r => r.freq === 'diaria'; // tarefa que se repete todo dia útil (gerada aqui, não pelo banco)
   const isUnica = r => r.freq === 'unica'; // tarefa que não se repete: uma vez só, na data r.date (por regime)
   // geradas aqui (não pelo banco): as trimestrais e as por regime tributário; o banco as ignora (active:false) e "pausada" é o campo paused
-  const isLocal = r => isQ(r) || !!r.regime;
+  const isLocal = r => isQ(r) || isDaily(r) || !!r.regime;
   const isOn = r => isLocal(r) ? !r.paused : r.active !== false;
   const QMONTHS = [0, 3, 6, 9];
   const quarterOf = m => { const mo = m.getMonth(), y = m.getFullYear(); return mo === 0 ? '4º tri/' + (y - 1) : (mo / 3 + 0) + 'º tri/' + y; };
@@ -54,7 +55,23 @@
     const have = new Set(db().tasks.map(t => t.recKey).filter(Boolean));
     const scope = recs().filter(r => isOn(r) && (!onlyLocal || isLocal(r)) && (!onlyLocal || canManage(U(), r.deptId)));
     const cartMap = cartMapOf();
-    scope.forEach(r => { const names = clientsOf(r); (isQ(r) || isUnica(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => names.forEach(client => {
+    // recorrência diária: uma tarefa por dia útil (hoje e amanhã), para não encher a lista de dias futuros
+    scope.filter(isDaily).forEach(r => {
+      const names = clientsOf(r), todayIso = D.iso(P.today());
+      [0, 1].forEach(off => {
+        const d = D.add(P.today(), off), iso = D.iso(d), wd = d.getDay();
+        if (r.businessDay !== false && (wd === 0 || wd === 6)) return;
+        if (iso < (r.start || '0000-00-00') || (r.end && iso > r.end)) return;
+        names.forEach(client => {
+          const key = r.id + '|' + (client || '') + '|' + iso;
+          if (have.has(key)) return;
+          const uid = respOf(r, client, cartMap), who = P.user(uid); if (!who || who.active === false) return;
+          const base = r.title + (client ? ' — ' + client : '');
+          db().tasks.push({ id: 'tq_' + key.replace(/[^A-Za-z0-9]+/g, '_'), userId: uid, deptId: r.deptId, title: base, activityId: r.activityId || null, client: client || '', due: iso, status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); have.add(key); n++;
+        });
+      });
+    });
+    scope.filter(r => !isDaily(r)).forEach(r => { const names = clientsOf(r); (isQ(r) || isUnica(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => names.forEach(client => {
       if (isQ(r) && !QMONTHS.includes(m.getMonth())) return;
       if (isUnica(r) && ym(m) !== String(r.date || '').slice(0, 7)) return;
       const k = ym(m); if (k < (r.start || '0000') || (r.end && k > r.end)) return;
@@ -217,12 +234,15 @@
     origNew.apply(this, arguments);
     const due = $('#nt-due'); if (!due || $('#nt-rep')) return;
     due.closest('.field').insertAdjacentHTML('afterend', `
-      <label class="field check span3"><input type="checkbox" id="nt-rep"><span><b>Repetir todo mês</b> (um único cadastro gera a tarefa em todos os meses)</span></label>
-      <label class="field nt-rep-f" style="display:none"><span>Dia do prazo (todo mês)</span><input type="number" id="nt-rep-day" min="1" max="31" value="${D.parse(due.value).getDate()}"></label>
-      <label class="field nt-rep-f" style="display:none"><span>Começa em</span><input type="month" id="nt-rep-start" value="${ym(P.today())}"></label>
+      <label class="field check span3"><input type="checkbox" id="nt-rep"><span><b>Repetir</b> (um único cadastro gera a tarefa sozinho, sem precisar atribuir de novo)</span></label>
+      <label class="field span3 nt-rep-f" style="display:none"><span>Com que frequência?</span><select id="nt-rep-freq"><option value="mensal">Todo mês</option><option value="diaria">Todo dia útil (segunda a sexta)</option></select></label>
+      <label class="field nt-rep-f nt-rep-m" style="display:none"><span>Dia do prazo (todo mês)</span><input type="number" id="nt-rep-day" min="1" max="31" value="${D.parse(due.value).getDate()}"></label>
+      <label class="field nt-rep-f" style="display:none"><span id="nt-rep-start-l">Começa em</span><input type="month" id="nt-rep-start" value="${ym(P.today())}"></label>
       <label class="field nt-rep-f" style="display:none"><span>Termina em (opcional)</span><input type="month" id="nt-rep-end"></label>
-      <label class="field check span3 nt-rep-f" style="display:none"><input type="checkbox" id="nt-rep-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>`);
-    $('#nt-rep').addEventListener('change', e => { document.querySelectorAll('.nt-rep-f').forEach(x => { x.style.display = e.target.checked ? '' : 'none'; }); $('#nt-due').closest('.field').style.display = e.target.checked ? 'none' : ''; });
+      <label class="field check span3 nt-rep-f nt-rep-m" style="display:none"><input type="checkbox" id="nt-rep-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>`);
+    // "todo dia útil": some o dia do mês (não se aplica)
+    $('#nt-rep-freq').addEventListener('change', e => { const d = e.target.value === 'diaria'; document.querySelectorAll('.nt-rep-m').forEach(x => { x.style.display = d ? 'none' : ''; }); });
+    $('#nt-rep').addEventListener('change', e => { document.querySelectorAll('.nt-rep-f').forEach(x => { x.style.display = e.target.checked ? '' : 'none'; }); if (e.target.checked && $('#nt-rep-freq').value === 'diaria') document.querySelectorAll('.nt-rep-m').forEach(x => { x.style.display = 'none'; }); $('#nt-due').closest('.field').style.display = e.target.checked ? 'none' : ''; });
   };
   // intercepta o salvar quando "Repetir todo mês" está marcado
   const origSave = P.api.saveTask;
@@ -231,6 +251,17 @@
     if (!rep || !rep.checked) return origSave.apply(this, arguments);
     const emp = P.user(data.userId);
     if (!emp || !canManage(u, emp.deptId)) throw new P.AccessError('Apenas o gestor do departamento, o gerente ou a diretoria podem cadastrar tarefas recorrentes.');
+    if ($('#nt-rep-freq').value === 'diaria') {
+      const sm = $('#nt-rep-start').value, em = $('#nt-rep-end').value;
+      // início: hoje (ou o 1º dia do mês escolhido, se for depois); término: último dia do mês escolhido
+      const todayIso = D.iso(P.today()), start = sm && sm + '-01' > todayIso ? sm + '-01' : todayIso, end = em ? D.iso(D.monthEnd(D.parse(em + '-01'))) : '';
+      if (end && end < start) throw new Error('O mês de término precisa ser depois do início.');
+      const r = { id: P.uid('tr'), userId: emp.id, deptId: emp.deptId, title: data.title, activityId: data.activityId || null, client: data.client || '', day: 1, freq: 'diaria', businessDay: true, start, end, active: false, paused: false, auto: false, createdBy: u.id, createdAt: D.stamp() };
+      recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, emp.name + ': ' + r.title + ' (todo dia útil)');
+      localGenerate(P.isLive); P.store.save();
+      P.toast('Tarefa diária criada: uma por dia útil' + (end ? ' até ' + D.fmt(end) : '') + '.');
+      return r;
+    }
     const day = Number($('#nt-rep-day').value), start = $('#nt-rep-start').value, end = $('#nt-rep-end').value;
     if (!(day >= 1 && day <= 31)) throw new Error('Informe o dia do prazo (1 a 31).');
     if (!start) throw new Error('Informe o mês de início.');
@@ -276,7 +307,7 @@
   };
   const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"><input type="checkbox" data-act="recSelAll" aria-label="Selecionar todas" ${list.every(r => recSel().has(r.id)) ? 'checked' : ''}></th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
     ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1 || !!r.regime; return `<tr class="${!isOn(r) ? 'inactive' : ''}"><td class="chk-col"><input type="checkbox" data-act="recSel" data-id="${esc(r.id)}" aria-label="Selecionar" ${recSel().has(r.id) ? 'checked' : ''}></td><td><b>${esc(r.title)}</b>${r.regime ? `<small class="obs" title="${esc(cl.join(', '))}">Regime ${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${cl.length} empresas (automático)</small>` : many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
-      <td class="nowrap">${isUnica(r) ? 'Uma vez · ' + D.fmt(r.date) : isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
+      <td class="nowrap">${isDaily(r) ? 'Todo dia útil' : isUnica(r) ? 'Uma vez · ' + D.fmt(r.date) : isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
       <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
       <td>${!isOn(r) ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
       <td class="actions-col">${V.ibtn(!isOn(r) ? 'check' : 'clock', !isOn(r) ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`; }).join('')}
