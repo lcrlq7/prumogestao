@@ -1160,6 +1160,7 @@ select option,select optgroup{background:var(--surface);color:var(--ink)}
 .ac-co-list{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:4px 8px}
 .co-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer}
 .co-row small{margin-left:auto;color:var(--muted)}
+.modal-b>*{flex-shrink:0} /* sem isso, com listas longas (ex.: códigos de convite) os botões e campos eram espremidos até sumir */
 .reg-box{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 .reg-checks{display:flex;flex-wrap:wrap;gap:8px 18px}
 .top-back{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px 0 8px;border:1px solid var(--line-2);border-radius:999px;background:var(--surface);color:var(--ink-2);font:600 13px/1 var(--f-body);cursor:pointer;white-space:nowrap}
