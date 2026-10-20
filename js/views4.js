@@ -250,7 +250,9 @@
   // Pessoa ainda não carregada neste navegador (ex.: acabou de se cadastrar): mostra um marcador e pede nova carga
   const whoOf = id => {
     const x = P.user(id); if (x) return x;
-    if (P.backend && P.backend.reload && !whoOf.pending) { whoOf.pending = true; P.backend.reload().catch(() => {}).finally(() => { whoOf.pending = false; P.render && P.render(); }); }
+    // recarrega no máximo UMA vez por pessoa não encontrada (antes: se a pessoa nunca existisse, recarregava o banco inteiro a cada desenho da tela)
+    whoOf.tried = whoOf.tried || new Set();
+    if (P.backend && P.backend.reload && !whoOf.pending && id && !whoOf.tried.has(id)) { whoOf.tried.add(id); whoOf.pending = true; P.backend.reload().catch(() => {}).finally(() => { whoOf.pending = false; P.render && P.render(); }); }
     return { id, name: 'Carregando…', role: 'employee', email: '' };
   };
   V.vacItem = (u, v, o = {}) => {

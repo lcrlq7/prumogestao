@@ -42,7 +42,7 @@
     { key: 'goals', table: 'goals' },
     { key: 'events', table: 'events' },
     { key: 'notes', table: 'notes' },
-    { key: 'audit', table: 'audit_log', appendOnly: true, limit: 3000 },
+    { key: 'audit', table: 'audit_log', appendOnly: true, limit: 100 }, // só as mais recentes (a tela mostra 60); o histórico completo continua no banco
     { key: 'deptHistory', table: 'dept_history' },
     { key: 'companies', table: 'companies' },
     { key: 'vacations', table: 'vacations', priv: { table: 'vacations_private', fields: ['comment'] } },
@@ -98,7 +98,7 @@
     for (let from = 0; ; from += PAGE) {
       let q = sb.from(table).select('id, doc');
       if (opts.limit) q = q.order('updated_at', { ascending: false });
-      q = q.range(from, from + PAGE - 1);
+      q = q.range(from, from + Math.min(PAGE, opts.limit || PAGE) - 1);
       const { data, error } = await q;
       if (error) throw new Error(table + ': ' + error.message);
       out.push(...data);
