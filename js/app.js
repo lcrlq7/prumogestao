@@ -122,7 +122,7 @@
       ['ferias', 'Férias', 'palm', vacCount],
       ['mural', 'Mural', 'medal'],
       ['empresas', 'Empresas', 'briefcase'],
-      ['carteira', 'Carteira de empresas', 'users'],
+      ['carteira', u.role === 'employee' ? 'Minhas empresas' : 'Carteira de empresas', 'users'],
       ['inadimplencia', 'Inadimplência', 'alert'],
       ['plr', 'PLR', 'wallet'],
       ['solicitacoes', 'Solicitações', 'cart', P.purchases ? P.purchases.badge(u) : 0],
