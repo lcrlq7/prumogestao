@@ -18,7 +18,7 @@
       user('m1', 'Gestor Fiscal', 'manager', 'd1'), user('m2', 'Gestora Contábil', 'manager', 'd2'), user('m3', 'Gestor Legalização', 'manager', 'd3'),
       user('f1', 'Ana Teste', 'employee', 'd1'), user('f2', 'Bruno Teste', 'employee', 'd1'),
       user('f3', 'Carla Teste', 'employee', 'd2'), user('f4', 'Diego Teste', 'employee', 'd2'),
-      user('f5', 'Elisa Teste', 'employee', 'd3')
+      user('f5', 'Elisa Teste', 'employee', 'd3'), Object.assign(user('ftodos', 'Funcionário Teste (todos os departamentos)', 'employee', null), { email: 'todos@teste.local' })
     ];
     const act = (id, deptId, name, unit, weight) => ({ id, deptId, name, unit, weight, active: true, createdAt: iso(today) });
     db.activities = [
