@@ -163,6 +163,7 @@
       <div class="main">
         <header class="top">
           <button type="button" class="ibtn menu-btn" data-act="toggleNav" aria-label="${S.navCollapsed ? 'Expandir menu' : 'Recolher menu'}" title="${S.navCollapsed ? 'Expandir menu' : 'Recolher menu'}" aria-expanded="${!S.navCollapsed}">${icon('menu')}</button>
+          ${S.route.page !== 'dashboard' ? `<button type="button" class="top-back" data-act="goBack" aria-label="Voltar" title="Voltar para a tela anterior">${icon('left')}<span>Voltar</span></button>` : ''}
           <div class="top-title"><span>${PAGE_LABEL[S.route.page] || ''}</span>${dept ? `<em class="chip-dept">${esc(dept.name)}</em>` : P.isGlobal(u) ? '<em class="chip-dept">Todos os departamentos</em>' : ''}</div>
           <div class="top-actions">
             <button type="button" class="search-btn" data-act="openSearch" title="Buscar (Ctrl+K ou /)">${icon('search')}<span>Buscar</span><kbd>Ctrl K</kbd></button>
@@ -510,6 +511,8 @@
     tfClear() { S.tf = { q: '', client: '', from: '', to: '', late: false }; S.taskPg = {}; render(); },
     pgGo(el) { S.taskPg = S.taskPg || {}; S.taskPg[el.dataset.key] = (S.taskPg[el.dataset.key] || 1) + Number(el.dataset.dir); render(); window.scrollTo(0, 0); },
     reloadPage() { render(true); },
+    // botão Voltar do topo: volta para a tela anterior (se não houver, vai para o Dashboard)
+    goBack() { if (history.length > 1) history.back(); else P.go('dashboard'); },
     toggleHlAll() { S.hlAll = !S.hlAll; render(); },
     toggleRecAll() { S.recAll = !S.recAll; render(); },
     /* Registrar reconhecimento: o número sugere, o gestor decide e justifica */
