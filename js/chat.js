@@ -309,9 +309,20 @@
   A.chatOpen = el => {
     const c = st(), id = el.dataset.id || null;
     if (id && !resolve(S().user, id)) return P.toast('Você não participa desta conversa.', 'err');
+    // a conversa aberta vira um passo no histórico: o botão voltar do navegador/mouse (e Alt+←) fecha a conversa, como a seta da tela
+    try {
+      const inChat = history.state && history.state.chat;
+      if (id && !inChat) history.pushState({ chat: id }, '', location.href);
+      else if (id && inChat) history.replaceState({ chat: id }, '', location.href);
+      else if (!id && inChat) { history.back(); return; } // o popstate abaixo fecha a conversa
+    } catch (e) { }
     c.conv = id; c.panel = null; c.emojiQ = ''; c.atBottom = true; c.scrollTop = null; P.render();
     requestAnimationFrame(() => { scrollEnd(); const t = $('#chat-text'); if (t && innerWidth > 1020) t.focus(); });
   };
+  window.addEventListener('popstate', ev => {
+    if (!S().user || S().route.page !== 'comunicacao' || !st().conv || (ev.state && ev.state.chat)) return;
+    const c = st(); c.conv = null; c.panel = null; c.emojiQ = ''; P.render();
+  });
   A.chatSend = () => {
     const c = st(), t = $('#chat-text'); if (!t || !c.conv) return;
     P.ui.guard(() => {
