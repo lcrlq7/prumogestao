@@ -1571,6 +1571,17 @@
   });
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Escape' && !$('#modal-root').hidden) closeModal();
+    // Esc volta: fecha o painel de emojis, depois a conversa aberta, depois volta para a tela anterior (não atrapalha janelas abertas nem campos de texto)
+    else if (ev.key === 'Escape' && S.user && S.route.page !== 'dashboard') {
+      const t = ev.target, typing = t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]');
+      const open = document.querySelector('.emoji-pop, .ck-back, [role="dialog"]:not(.chat-pick), .tour');
+      if (open) return;
+      const c = S.chat;
+      if (S.route.page === 'comunicacao' && c && c.panel) { c.panel = null; render(); return; }
+      if (S.route.page === 'comunicacao' && c && c.conv) { ev.preventDefault(); A.chatOpen({ dataset: { id: '' } }); return; }
+      if (typing && !(t.id === 'chat-text')) return;
+      if (!typing) A.goBack();
+    }
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('[data-go][tabindex]')) { ev.preventDefault(); P.go(ev.target.dataset.go); }
   });
   document.addEventListener('submit', ev => {
