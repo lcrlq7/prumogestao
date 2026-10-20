@@ -16,7 +16,8 @@
   // por regime tributário: a lista de empresas é calculada na hora (empresa nova ou que mudou de regime entra/sai sozinha)
   const regimeClients = r => {
     const cart = new Set((db().clientAssignments || []).map(a => a.deptId + '|' + a.client));
-    return (db().companies || []).filter(c => c.active !== false && c.regime === r.regime && (!r.onlyCarteira || cart.has(r.deptId + '|' + c.name) || (c.depts || []).includes(r.deptId)))
+    const ex = new Set(r.exclude || []), inc = new Set(r.include || []);
+    return (db().companies || []).filter(c => c.active !== false && !ex.has(c.name) && (inc.has(c.name) || (c.regime === r.regime && (!r.onlyCarteira || cart.has(r.deptId + '|' + c.name) || (c.depts || []).includes(r.deptId)))))
       .map(c => c.name).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true }));
   };
   const clientsOf = r => r.regime ? regimeClients(r) : r.clients && r.clients.length ? r.clients : [r.client || ''];
@@ -98,6 +99,41 @@
     const rs = rulesOf(actId); if (!rs.length) return '<span class="muted">—</span>';
     return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${isUnica(r) ? 'uma vez, ' + D.fmt(r.date) : (isQ(r) ? 'trimestral' : 'mensal') + ', dia ' + r.day}</span>`).join(' ');
   };
+  // lista de todas as empresas ativas com caixinha; o estado inicial vem dos regimes marcados e das exceções já salvas
+  const cartDepts = name => [...new Set((db().clientAssignments || []).filter(a => a.client === name).map(a => a.deptId))];
+  const companyRows = (first, actId) => {
+    const rs = actId ? rulesOf(actId) : [], on = new Set(); rs.forEach(r => clientsOf(r).forEach(n => on.add(n)));
+    return (db().companies || []).filter(c => c.active !== false).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }))
+      .map(c => `<label class="co-row"><input type="checkbox" class="ac-co" data-name="${esc(c.name)}" data-regime="${esc(c.regime || '')}" data-d="${esc([...new Set(cartDepts(c.name).concat(c.depts || []))].join(','))}" ${on.has(c.name) ? 'checked' : ''}><span>${esc(c.name)}</span><small>${esc((P.REGIMES[c.regime] || {}).label || '')}</small></label>`).join('');
+  };
+  // o que as regras marcadas dariam sozinhas para uma empresa (sem exceções)
+  const autoOn = (m, row) => {
+    const regs = new Set([...m.querySelectorAll('.ac-reg:checked')].map(x => x.value)), dept = (m.querySelector('#ac-dept') || {}).value, cart = m.querySelector('#ac-cart').checked;
+    return regs.has(row.dataset.regime) && (!cart || !dept || row.dataset.d.split(',').includes(dept));
+  };
+  const syncCompanies = (m, fromRules) => {
+    const rows = [...m.querySelectorAll('.ac-co')];
+    if (fromRules) rows.forEach(r => { if (!r.dataset.touched) r.checked = autoOn(m, r); });
+    const n = rows.filter(r => r.checked).length, el = m.querySelector('#ac-co-n'), txt = '(' + n + ' empresa(s))'; if (el && el.textContent !== txt) el.textContent = txt; // só escreve se mudou (senão o observador de abertura dispara em ciclo)
+  };
+  document.addEventListener('change', ev => {
+    const t = ev.target, m = t && t.closest && t.closest('#modal-root'); if (!m || !m.querySelector('.ac-co')) return;
+    if (t.classList.contains('ac-co')) { t.dataset.touched = '1'; syncCompanies(m, false); }
+    else if (t.classList.contains('ac-reg') || t.id === 'ac-cart' || t.id === 'ac-dept') syncCompanies(m, true);
+  });
+  document.addEventListener('input', ev => {
+    const t = ev.target; if (!t || t.id !== 'ac-co-q') return;
+    const q = String(t.value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    document.querySelectorAll('.co-row').forEach(l => { l.style.display = !q || l.textContent.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(q) ? '' : 'none'; });
+  });
+  // abrir o modal: o contador já aparece
+  const origOpenCount = () => {
+    const m = document.getElementById('modal-root'); if (!m || !m.querySelector('.ac-co')) return;
+    // exceções já salvas (marcada fora da regra, ou desmarcada dentro dela) ficam "tocadas": mudar o regime não as apaga
+    const lst = m.querySelector('.ac-co-list'); if (lst && !lst.dataset.coInit) { lst.dataset.coInit = '1'; m.querySelectorAll('.ac-co').forEach(r => { if (r.checked !== autoOn(m, r)) r.dataset.touched = '1'; }); }
+    syncCompanies(m, false);
+  };
+  new MutationObserver(muts => { if (muts.some(mu => [...mu.addedNodes].some(n => n.nodeType === 1 && (n.matches('.ac-co-list, .ac-cos') || n.querySelector('.ac-co-list'))))) origOpenCount(); }).observe(document.body, { childList: true, subtree: true });
   const regimeFormHtml = actId => {
     const rs = actId ? rulesOf(actId) : [], first = rs[0] || {}, on = new Set(rs.map(r => r.regime));
     return `<div class="fgrid reg-box">
@@ -108,8 +144,17 @@
       <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Começa em</span><input type="month" id="ac-start" value="${first.start || ym(P.today())}"></label>
       <label class="field ac-once" ${isUnica(first) ? '' : 'style="display:none"'}><span>Prazo (data)</span><input type="date" id="ac-date" value="${first.date || D.iso(D.add(P.today(), 7))}"></label>
       <label class="field check span3 ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><input type="checkbox" id="ac-bd" ${first.businessDay === false ? '' : 'checked'}><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
+      <details class="span3 ac-cos"><summary>Escolher as empresas uma a uma <span class="muted" id="ac-co-n"></span></summary>
+        <p class="fine">Marque ou desmarque para tirar ou colocar empresas nesta tarefa. Começa já marcada pelos regimes escolhidos acima. Só vale se houver pelo menos um regime marcado.</p>
+        <input type="search" id="ac-co-q" placeholder="Buscar empresa" autocomplete="off" aria-label="Buscar empresa">
+        <div class="ac-co-list">${companyRows(first, actId)}</div></details>
       <label class="field check span3"><input type="checkbox" id="ac-cart" ${first.onlyCarteira === false ? '' : 'checked'}><span>Só empresas atendidas por este departamento (carteira ou cadastro da empresa)</span></label>
     </div>`;
+  };
+  const readOverrides = m => {
+    const inc = [], exc = [];
+    m.querySelectorAll('.ac-co').forEach(r => { const a = autoOn(m, r); if (r.checked && !a) inc.push(r.dataset.name); else if (!r.checked && a) exc.push(r.dataset.name); });
+    return { include: inc, exclude: exc };
   };
   const readRules = m => ({
     regimes: [...m.querySelectorAll('.ac-reg:checked')].map(x => x.value), freq: m.querySelector('#ac-freq').value,
@@ -137,11 +182,12 @@
     const x = readRules(m), old = rulesOf(act.id);
     if (!x.regimes.length && !old.length) return '';
     if (!canManage(u, act.deptId)) throw new P.AccessError('Você só cadastra tarefas do seu departamento.');
+    const readOv = m.querySelector('.ac-co') ? readOverrides(m) : { include: [], exclude: [] };
     x.regimes.forEach(reg => {
       let r = old.find(o => o.regime === reg);
       if (!r) { r = { id: P.uid('tr'), auto: true, userId: null, clients: [], end: '', active: false, paused: false, createdBy: u.id, createdAt: D.stamp() }; recs().push(r); }
       const once = x.freq === 'unica';
-      Object.assign(r, { deptId: act.deptId, title: act.name, activityId: act.id, regime: reg, onlyCarteira: x.cart, day: once ? Number(x.date.slice(8, 10)) : x.day, businessDay: once ? false : x.bd, start: once ? x.date.slice(0, 7) : x.start, active: false });
+      Object.assign(r, readOv, { deptId: act.deptId, title: act.name, activityId: act.id, regime: reg, onlyCarteira: x.cart, day: once ? Number(x.date.slice(8, 10)) : x.day, businessDay: once ? false : x.bd, start: once ? x.date.slice(0, 7) : x.start, active: false });
       if (x.freq === 'trimestral' || once) r.freq = x.freq; else delete r.freq;
       if (once) r.date = x.date; else delete r.date;
     });
