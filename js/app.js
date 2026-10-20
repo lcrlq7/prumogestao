@@ -1258,7 +1258,7 @@
         body: `<p class="prose">Gere um código para cada pessoa. Ela entra no site, clica em <b>Tenho um código de convite</b> e cria o próprio acesso com nome, e-mail e senha. Cada código vale para <b>um único cadastro</b> e já define a função e o departamento.</p>
           <div class="fgrid">
             <label class="field"><span>Função</span><select id="ic-role">${roles.map(r => `<option value="${r}" ${r === 'employee' ? 'selected' : ''}>${esc(P.ROLES[r])}</option>`).join('')}</select></label>
-            <label class="field"><span>Departamento</span><select id="ic-dept">${me.role !== 'manager' ? '<option value="">— Sem departamento (diretoria/escritório) —</option>' : ''}${depts.map(d => `<option value="${d.id}" ${d.id === me.deptId ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
+            <label class="field"><span>Departamento</span><select id="ic-dept">${me.role !== 'manager' ? '<option value="">Todos os departamentos (sem departamento fixo: diretoria, escritório ou login de teste)</option>' : ''}${depts.map(d => `<option value="${d.id}" ${d.id === me.deptId ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
             <label class="field"><span>Validade</span><select id="ic-days">${[1, 3, 7, 15, 30].map(n => `<option value="${n}" ${n === 7 ? 'selected' : ''}>${n} dia${n > 1 ? 's' : ''}</option>`).join('')}</select></label>
           </div>
           <button type="button" class="btn primary" data-act="icGen">${icon('key')}<span>Gerar código</span></button>

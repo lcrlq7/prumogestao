@@ -43,7 +43,8 @@
     const S = P.state, r = S.rep;
     if (u.role === 'employee') { r.type = 'individual'; r.userId = u.id; }
     if (u.role === 'manager') r.deptId = u.deptId;
-    if (!r.deptId) r.deptId = api.departments(u)[0].id;
+    // quem não tem departamento fixo (ex.: funcionário de teste com acesso amplo) usa o primeiro departamento da lista
+    if (!r.deptId) r.deptId = (api.departments(u)[0] || (P.store.db.departments || []).find(d => d.active !== false) || {}).id || '';
     const emps = u.role === 'employee' ? [u] : api.workers(u, P.isGlobal(u) ? r.deptId : undefined);
     if (r.type === 'individual' && !emps.some(e => e.id === r.userId)) r.userId = (emps[0] || {}).id;
     let rep, err = '';
