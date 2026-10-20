@@ -152,7 +152,7 @@
         <label class="field tt-temp"><span>Volta em</span><input type="date" id="tt-until" min="${D.iso(D.add(P.today(), 1))}" value="${D.iso(D.add(P.today(), 7))}"></label>
         <label class="field check span3 tt-def" style="display:none"><input type="checkbox" id="tt-cart"><span>Passar também as empresas dessas tarefas na carteira (as próximas tarefas recorrentes já vão para a nova pessoa)</span></label>
         <label class="field span3"><span>Motivo</span><input id="tt-why" placeholder="Ex.: atestado médico de 3 dias"></label>
-        <div class="span3"><div class="tt-head"><label class="check"><input type="checkbox" id="tt-all"> <b>Tarefas pendentes</b></label><small class="muted" id="tt-count"></small></div><div class="tt-list" id="tt-list"></div></div>
+        <div class="tt-wrap"><div class="tt-head"><label class="tt-all"><input type="checkbox" id="tt-all"><b>Marcar todas as pendentes</b></label><input type="search" id="tt-q" class="tt-q" placeholder="Filtrar por tarefa ou empresa"><small class="muted" id="tt-count"></small></div><div class="tt-list" id="tt-list"></div></div>
       </div><p class="fine">${V.icon('info')} Quem concluir a tarefa pontua normalmente. Na temporária, o que estiver pendente na data de volta retorna para a pessoa de origem.</p>`,
       onSubmit: m => {
         const from = $('#tt-from').value, to = $('#tt-to').value, kind = $('#tt-kind').value, why = $('#tt-why').value.trim(), until = $('#tt-until').value;
@@ -179,13 +179,22 @@
       const from = $('#tt-from').value, f = P.user(from);
       $('#tt-to').innerHTML = '<option value="">Escolha…</option>' + opts(peers(f.deptId, from).filter(x => manages(u, x.deptId)), '');
       const l = (db().tasks || []).filter(t => t.userId === from && t.status === 'pendente').sort((a, b) => a.due.localeCompare(b.due));
-      $('#tt-list').innerHTML = l.length ? l.map(t => `<label class="check tt-row"><input type="checkbox" value="${t.id}" ${pre && pre.id === t.id ? 'checked' : ''}><span>${esc(t.title)}</span><small class="muted">${D.fmt(t.due)}${t.coverOf ? ' · já transferida' : ''}</small></label>`).join('') : '<p class="fine">Nenhuma tarefa pendente.</p>';
-      count();
+      const td = today();
+      $('#tt-list').innerHTML = l.length ? l.map(t => {
+        const a = t.activityId && P.act(t.activityId), name = a ? a.name : (t.client ? t.title.replace(' — ' + t.client, '') : t.title);
+        return `<label class="tt-row" data-q="${esc((t.title + ' ' + (t.client || '')).toLowerCase())}"><input type="checkbox" value="${t.id}" ${pre && pre.id === t.id ? 'checked' : ''}>
+          <span class="tt-main"><b class="tt-name">${esc(name)}</b>${t.client ? `<span class="tt-co">${esc(t.client)}</span>` : ''}</span>
+          <span class="tt-meta"><span class="${t.due < td ? 'tt-late' : ''}">${D.fmt(t.due)}</span>${t.coverOf ? `<span class="tt-flag">já transferida</span>` : ''}</span></label>`;
+      }).join('') : '<p class="fine" style="padding:10px 12px">Nenhuma tarefa pendente.</p>';
+      $('#tt-q').value = ''; count();
     };
-    const count = () => { const n = document.querySelectorAll('#tt-list input:checked').length; $('#tt-count').textContent = n + ' marcada(s)'; };
+    const count = () => { const n = document.querySelectorAll('#tt-list input:checked').length, tot = document.querySelectorAll('#tt-list input').length; $('#tt-count').textContent = n + ' de ' + tot + ' marcada(s)'; };
+    const filter = () => { const q = $('#tt-q').value.trim().toLowerCase(); document.querySelectorAll('#tt-list .tt-row').forEach(r => { r.style.display = !q || r.dataset.q.includes(q) ? '' : 'none'; }); };
     $('#tt-from').addEventListener('change', draw);
     $('#tt-kind').addEventListener('change', e => { const d = e.target.value === 'def'; document.querySelectorAll('.tt-temp').forEach(x => { x.style.display = d ? 'none' : ''; }); document.querySelectorAll('.tt-def').forEach(x => { x.style.display = d ? '' : 'none'; }); });
-    $('#tt-all').addEventListener('change', e => { document.querySelectorAll('#tt-list input').forEach(i => { i.checked = e.target.checked; }); count(); });
+    // "marcar todas" respeita o filtro: só marca as que estão visíveis
+    $('#tt-all').addEventListener('change', e => { document.querySelectorAll('#tt-list .tt-row').forEach(r => { if (r.style.display !== 'none') r.querySelector('input').checked = e.target.checked; }); count(); });
+    $('#tt-q').addEventListener('input', filter);
     $('#tt-list').addEventListener('change', count);
     draw();
   };
