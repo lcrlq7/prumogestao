@@ -20,12 +20,18 @@
       .map(c => c.name).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true }));
   };
   const clientsOf = r => r.regime ? regimeClients(r) : r.clients && r.clients.length ? r.clients : [r.client || ''];
-  const respOf = (r, client) => {
+  // mapa departamento|empresa -> pessoa responsável ativa, montado uma vez por rodada (antes cada empresa varria a carteira inteira)
+  const cartMapOf = () => {
+    const m = new Map();
+    (db().clientAssignments || []).forEach(a => { const k = a.deptId + '|' + a.client; if (!m.has(k)) { const x = P.user(a.userId); if (x && x.active !== false) m.set(k, a.userId); } });
+    return m;
+  };
+  const respOf = (r, client, cartMap) => {
     if (!r.auto) return r.userId;
     client = client != null ? client : clientsOf(r)[0];
     const ok = id => { const x = P.user(id); return x && x.active !== false; };
-    const a = (db().clientAssignments || []).find(x => x.deptId === r.deptId && x.client === client && ok(x.userId));
-    if (a) return a.userId;
+    const hit = cartMap ? cartMap.get(r.deptId + '|' + client) : ((db().clientAssignments || []).find(x => x.deptId === r.deptId && x.client === client && ok(x.userId)) || {}).userId;
+    if (hit) return hit;
     const d = P.dept(r.deptId); return d && ok(d.managerId) ? d.managerId : null;
   };
   /* Recorrência trimestral (ex.: fechamento de IRPJ e CSLL): a tarefa vence no mês seguinte ao fim de cada trimestre (jan, abr, jul, out).
@@ -46,20 +52,21 @@
     const multi = r => !!(r.regime || (r.clients && r.clients.length));
     const have = new Set(db().tasks.map(t => t.recKey).filter(Boolean));
     const scope = recs().filter(r => isOn(r) && (!onlyLocal || isLocal(r)) && (!onlyLocal || canManage(U(), r.deptId)));
-    scope.forEach(r => (isQ(r) || isUnica(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => clientsOf(r).forEach(client => {
+    const cartMap = cartMapOf();
+    scope.forEach(r => { const names = clientsOf(r); (isQ(r) || isUnica(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => names.forEach(client => {
       if (isQ(r) && !QMONTHS.includes(m.getMonth())) return;
       if (isUnica(r) && ym(m) !== String(r.date || '').slice(0, 7)) return;
       const k = ym(m); if (k < (r.start || '0000') || (r.end && k > r.end)) return;
       // uma tarefa por empresa e por mês (ou por trimestre)
       const key = multi(r) ? r.id + '|' + client + '|' + k : r.id + '|' + k;
       if (have.has(key)) return;
-      const uid = respOf(r, client), who = P.user(uid);
+      const uid = respOf(r, client, cartMap), who = P.user(uid);
       if (!who || who.active === false) return;
       const title = (multi(r) ? r.title + (isQ(r) ? ' (' + quarterOf(m) + ')' : '') + (client ? ' — ' + client : '') : r.title + (isQ(r) ? ' (' + quarterOf(m) + ')' : ''));
       // id fixo nas geradas aqui: se dois navegadores gerarem ao mesmo tempo, o repetido é ignorado em vez de duplicar
       const id = isLocal(r) ? 'tq_' + key.replace(/[^A-Za-z0-9]+/g, '_') : P.uid('t');
       db().tasks.push({ id, userId: uid, deptId: r.deptId, title, activityId: r.activityId || null, client: client || '', due: isUnica(r) ? r.date : dueOf(r, m), status: 'pendente', createdBy: r.createdBy, recId: r.id, recKey: key }); have.add(key); n++;
-    })));
+    })); });
     // empresa que saiu do regime (ou foi inativada): some a tarefa pendente que ainda não foi mexida
     if ((db().companies || []).length) scope.filter(r => r.regime).forEach(r => {
       const now = new Set(clientsOf(r)), before = db().tasks.length;

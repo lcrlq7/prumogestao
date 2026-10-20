@@ -8,7 +8,7 @@
   const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
   const scopeDept = u => V.scopeDept(u) || (u.role === 'manager' ? u.deptId : '');
-  P.PAGES.carteira = ['admin', 'office', 'manager'];
+  P.PAGES.carteira = ['admin', 'office', 'manager', 'employee'];
 
   // tudo o que a tela e as ações precisam, calculado do mesmo jeito nos dois lugares
   const model = u => {
@@ -29,7 +29,25 @@
     return { s, deptId, people, assigns, byClient, counts, list, mine };
   };
 
+  // funcionário: só consulta (sem editar) as empresas que estão na carteira dele, com as tarefas pendentes de cada uma
+  const minhaCarteira = u => {
+    const s = st(), q = norm(s.q), today = D.iso(P.today());
+    const mine = db().clientAssignments.filter(a => a.userId === u.id);
+    const comps = new Map((db().companies || []).map(c => [c.name, c]));
+    const pend = new Map();
+    db().tasks.forEach(t => { if (t.userId === u.id && t.status === 'pendente' && t.client) { const e = pend.get(t.client) || { n: 0, next: '', late: 0 }; e.n++; if (t.due) { if (!e.next || t.due < e.next) e.next = t.due; if (t.due < today) e.late++; } pend.set(t.client, e); } });
+    const list = mine.map(a => ({ a, c: comps.get(a.client) || { name: a.client, regime: '' } })).filter(x => !q || norm(x.c.name + ' ' + (x.c.code || '')).includes(q)).sort((x, y) => byName(x.c, y.c));
+    const shown = list.slice(0, s.limit), rest = list.length - shown.length;
+    const rows = shown.map(({ c }) => { const p = pend.get(c.name);
+      return `<tr><td><b>${esc(c.name)}</b>${c.code ? `<small class="obs">${esc(c.code)}</small>` : ''}</td><td>${esc((P.REGIMES[c.regime] || {}).label || '—')}</td>
+        <td>${p ? p.n + (p.late ? ` <span class="badge st-sobrecarga">${p.late} em atraso</span>` : '') : '<span class="muted">nenhuma</span>'}</td><td class="nowrap">${p && p.next ? esc(D.fmt(p.next)) : '—'}</td></tr>`; }).join('');
+    return `${V.pageHead('Minhas empresas', 'As empresas pelas quais você é responsável. Para mudar a carteira, fale com o seu gestor.')}
+      <div class="toolbar tfilter"><label class="picker grow">${icon('search')}<input type="search" id="cart-q" data-set="cart.q" data-live value="${esc(s.q)}" placeholder="Buscar empresa por nome ou código" aria-label="Buscar empresa" autocomplete="off"></label><span class="fine tf-count">${list.length} empresa(s)</span></div>
+      ${V.card('Carteira de ' + esc(u.name), list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Regime</th><th>Tarefas pendentes</th><th>Próximo prazo</th></tr></thead><tbody>${rows}</tbody></table></div>${rest > 0 ? `<div class="pager">${V.btn('Mostrar mais (' + rest + ' restantes)', { act: 'cartMore', icon: 'plus', cls: 'sm ghost' })}</div>` : ''}` : V.empty(mine.length ? 'Nenhuma empresa neste filtro.' : 'Você ainda não tem empresas na carteira.', 'building'), { cls: 'flush' })}`;
+  };
+
   V.carteira = u => {
+    if (u.role === 'employee') return minhaCarteira(u);
     const m = model(u);
     const head = V.pageHead('Carteira de empresas', 'Escolha uma pessoa e marque as empresas pelas quais ela é responsável. As tarefas automáticas vão para o responsável da carteira.', V.deptPicker(u));
     if (!m.deptId) return head + V.empty('Escolha um departamento no seletor acima.', 'building');
