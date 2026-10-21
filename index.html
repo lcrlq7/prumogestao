@@ -1555,6 +1555,17 @@ body.dense .tbl small{font-size:11px}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.chat-side,.chat-main,.msg-txt,.chat-pill,.chat-pick{background:var(--surface)}}
 @media (prefers-reduced-transparency:reduce){.chat-side,.chat-main,.msg-txt,.chat-pill,.chat-pick{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface)}}
 
+/* ---------- Site inteiro: casca de vidro e Comunicação em tela cheia ---------- */
+body{background:radial-gradient(48% 42% at 4% 0%,color-mix(in srgb,var(--accent) 24%,transparent),transparent 70%),radial-gradient(40% 38% at 98% 6%,rgba(139,108,255,.18),transparent 70%),radial-gradient(45% 40% at 60% 100%,rgba(25,194,168,.14),transparent 70%),var(--bg);background-attachment:fixed}
+.side{background:color-mix(in srgb,var(--side-bg) 78%,transparent);-webkit-backdrop-filter:blur(24px) saturate(140%);backdrop-filter:blur(24px) saturate(140%);border-right:1px solid color-mix(in srgb,var(--side-on) 9%,transparent)}
+.top{background:color-mix(in srgb,var(--bg) 52%,transparent);-webkit-backdrop-filter:blur(20px) saturate(150%);backdrop-filter:blur(20px) saturate(150%);border-bottom:1px solid color-mix(in srgb,var(--ink) 8%,transparent)}
+.card{background:color-mix(in srgb,var(--surface) 66%,transparent);-webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);border:1px solid color-mix(in srgb,var(--ink) 9%,transparent);border-radius:18px;box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 14%,transparent),0 10px 28px -20px rgba(0,0,0,.45)}
+.kpi{background:color-mix(in srgb,var(--surface) 66%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.view:has(.chat){padding:14px 18px 18px;max-width:none}
+.view:has(.chat)>.page-head{display:none}
+.view:has(.chat) .chat{height:calc(100vh - 100px);min-height:520px}
+@media (max-width:1020px){.view:has(.chat){padding:8px}.view:has(.chat) .chat{height:calc(100dvh - 130px)}}
+@media (prefers-reduced-transparency:reduce){body{background:var(--bg)}.side,.top,.card,.kpi{-webkit-backdrop-filter:none;backdrop-filter:none}.side{background:var(--side-bg)}.top{background:var(--bg)}.card,.kpi{background:var(--surface)}}
 /* ---------- Abertura (splash) ---------- */
 #splash{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(120% 90% at 50% 0%,#17324a 0%,#0f2231 55%,#0a1823 100%);color:#fff;transition:opacity .55s ease,visibility .55s}
 #splash.out{opacity:0;visibility:hidden}
