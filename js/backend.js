@@ -377,7 +377,13 @@
       if (error) throw new Error(error.message);
     },
     // recarrega só com sessão válida (sem login, o banco recusaria tudo)
-    reload: async () => { if (!session) return; await loadAll(); refreshUser(); }
+    // recarrega do servidor SÓ depois de gravar o que está pendente; senão a recarga traz o valor antigo por cima da edição que acabou de ser feita
+    reload: async () => {
+      if (!session) return;
+      if (timer) { clearTimeout(timer); timer = null; await runSave(); }
+      while (saving) await saving;
+      await loadAll(); refreshUser();
+    }
   };
   sb.auth.onAuthStateChange((event, s) => {
     if (event === 'PASSWORD_RECOVERY') { session = s; P.backend.flow = 'recovery'; if (P.state) { P.state.user = null; P.state.authMode = 'newpass'; P.render && P.render(); } }
