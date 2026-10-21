@@ -37,7 +37,7 @@
     { key: 'activities', table: 'activities' },
     { key: 'weightHistory', table: 'weight_history' },
     { key: 'entries', table: 'entries' },
-    { key: 'tasks', table: 'tasks' },
+    { key: 'tasks', table: 'tasks', recent: true }, // no login vêm só as pendentes e as dos últimos meses (as antigas sob demanda)
     { key: 'clientAssignments', table: 'client_assignments' },
     { key: 'goals', table: 'goals' },
     { key: 'events', table: 'events' },
@@ -70,6 +70,13 @@
   ];
   const byTable = Object.fromEntries(COLLECTIONS.flatMap(c => [[c.table, c]].concat(c.priv ? [[c.priv.table, c]] : [])));
   const PAGE = 1000;
+  // tarefas: as pendentes, as com prazo nos últimos RECENT_MONTHS meses e as alteradas nesse período
+  const RECENT_MONTHS = 3;
+  const recentFilter = () => {
+    const d = new Date(); d.setMonth(d.getMonth() - RECENT_MONTHS);
+    const day = d.toISOString().slice(0, 10);
+    return 'doc->>status.eq.pendente,doc->>due.gte.' + day + ',updated_at.gte.' + day + 'T00:00:00Z';
+  };
 
   const split = (c, doc) => {
     const pub = Object.assign({}, doc);
@@ -104,7 +111,9 @@
     // fica cada vez mais lento e estourava o tempo limite do banco no login (statement timeout)
     const out = []; let last = null;
     for (;;) {
-      let q = sb.from(table).select('id, doc').order('id').limit(PAGE);
+      let q = sb.from(table).select('id, doc');
+      if (opts.or) q = q.or(opts.or);
+      q = q.order('id').limit(PAGE);
       if (last !== null) q = q.gt('id', last);
       const { data, error } = await q;
       if (error) throw new Error(table + ': ' + error.message);
@@ -125,7 +134,13 @@
     const db = P.emptyDb();
     await Promise.all(COLLECTIONS.map(async c => {
       let rows;
-      try { c.missing = false; rows = await fetchAll(c.table, { limit: c.limit }); }
+      try {
+        c.missing = false;
+        const part = c.recent && !P.allTasks;
+        try { rows = await fetchAll(c.table, { limit: c.limit, or: part ? recentFilter() : '' }); if (c.recent) P.tasksPartial = part; }
+        // se o banco recusar o filtro, carrega tudo (melhor lento do que não entrar)
+        catch (e) { if (!part) throw e; console.warn('filtro de tarefas recentes falhou, carregando todas', e); rows = await fetchAll(c.table, { limit: c.limit }); P.tasksPartial = false; }
+      }
       catch (e) { if (!c.optional) throw e; c.missing = true; db[c.key] = []; snap[c.key] = new Map(); if (c.flag) P[c.flag] = true; return; }
       if (c.flag) P[c.flag] = false;
       let privRows = [];
@@ -394,6 +409,8 @@
     },
     // recarrega só com sessão válida (sem login, o banco recusaria tudo)
     // recarrega do servidor SÓ depois de gravar o que está pendente; senão a recarga traz o valor antigo por cima da edição que acabou de ser feita
+    // traz também as tarefas antigas (histórico completo); fica assim até o próximo recarregamento da página
+    loadOldTasks: async () => { P.allTasks = true; await P.backend.reload(); },
     reload: async () => {
       if (!session) return;
       if (timer) { clearTimeout(timer); timer = null; await runSave(); }

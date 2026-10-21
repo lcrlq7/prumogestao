@@ -74,10 +74,10 @@
     const have = new Set(db().tasks.map(t => t.recKey).filter(Boolean));
     const scope = recs().filter(r => isOn(r) && (!onlyLocal || isLocal(r)) && (!onlyLocal || canManage(U(), r.deptId)));
     const cartMap = cartMapOf();
-    // sem data final a recorrência não acaba: a cada verificação o sistema cria o que falta nos próximos 60 dias (diária) ou 12 semanas (semanal)
+    // sem data final a recorrência não acaba: a cada verificação o sistema cria o que falta nos próximos 30 dias (diária) ou 8 semanas (semanal)
     scope.filter(r => isDaily(r) || isWeekly(r)).forEach(r => {
       const names = clientsOf(r), todayIso = D.iso(P.today());
-      Array.from({ length: isWeekly(r) ? 84 : 60 }, (_, i) => i).forEach(off => {
+      Array.from({ length: isWeekly(r) ? 56 : 30 }, (_, i) => i).forEach(off => {
         const d = D.add(P.today(), off), iso = D.iso(d), wd = d.getDay();
         if (isWeekly(r) ? wd !== Number(r.wday) : (r.businessDay !== false && (wd === 0 || wd === 6))) return;
         if (iso < (r.start || '0000-00-00') || (r.end && iso > endIso(r))) return;
@@ -822,4 +822,20 @@
     P.toast((drop.length ? drop.length + ' apagada(s)' : '') + (drop.length && keep.length ? ' e ' : '') + (keep.length ? keep.length + ' dispensada(s) (não voltam)' : '') + '.'); P.render();
   };
 
+
+  /* ---------- Tarefas antigas sob demanda ---------- */
+  // no login só vêm as pendentes e as dos últimos 3 meses (deixa o sistema leve); este botão traz o histórico completo
+  const origTfBar = V.taskFilterBar;
+  V.taskFilterBar = function (base, shown) {
+    const html = origTfBar.apply(this, arguments);
+    if (!P.isLive || !P.tasksPartial) return html;
+    const i = html.indexOf('<span class="fine tf-count">');
+    const note = `<span class="fine">Mostrando as pendentes e as dos últimos 3 meses. <button type="button" class="link" data-act="loadOldTasks">Carregar todas</button></span>`;
+    return i < 0 ? html : html.slice(0, i) + note + html.slice(i);
+  };
+  A.loadOldTasks = async () => {
+    P.toast('Carregando todas as tarefas…');
+    try { await P.backend.loadOldTasks(); P.toast('Todas as tarefas foram carregadas.'); } catch (e) { P.toast('Não foi possível carregar: ' + e.message, 'err'); }
+    P.render();
+  };
 })(window.P);
