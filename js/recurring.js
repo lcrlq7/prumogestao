@@ -74,10 +74,10 @@
     const have = new Set(db().tasks.map(t => t.recKey).filter(Boolean));
     const scope = recs().filter(r => isOn(r) && (!onlyLocal || isLocal(r)) && (!onlyLocal || canManage(U(), r.deptId)));
     const cartMap = cartMapOf();
-    // diária: uma tarefa por dia útil até o fim do mês atual (o mês seguinte entra sozinho quando ele chega); semanal: as próximas 5 semanas
+    // sem data final a recorrência não acaba: a cada verificação o sistema cria o que falta nos próximos 60 dias (diária) ou 12 semanas (semanal)
     scope.filter(r => isDaily(r) || isWeekly(r)).forEach(r => {
       const names = clientsOf(r), todayIso = D.iso(P.today());
-      Array.from({ length: isWeekly(r) ? 36 : Math.max(2, Math.round((D.monthEnd(P.today()) - P.today()) / 864e5) + 1) }, (_, i) => i).forEach(off => {
+      Array.from({ length: isWeekly(r) ? 84 : 60 }, (_, i) => i).forEach(off => {
         const d = D.add(P.today(), off), iso = D.iso(d), wd = d.getDay();
         if (isWeekly(r) ? wd !== Number(r.wday) : (r.businessDay !== false && (wd === 0 || wd === 6))) return;
         if (iso < (r.start || '0000-00-00') || (r.end && iso > endIso(r))) return;
