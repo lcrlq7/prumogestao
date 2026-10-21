@@ -113,9 +113,22 @@
   /* ---------- Tarefa automática por regime, no cadastro da atividade (Pesos das Atividades) ---------- */
   const rulesOf = actId => recs().filter(r => r.regime && r.activityId === actId);
   // recorrências comuns (sem regime, mensais) ligadas à atividade
+  // próximo prazo a partir do "prazo padrão" da atividade (hoje ou depois)
+  const defaultDue = sc => {
+    if (!sc) return '';
+    const today = D.iso(P.today());
+    if (sc.freq === 'unica') return sc.date || '';
+    const cur = D.monthStart(P.today());
+    for (let i = 0; i < 14; i++) {
+      const m = D.addMonths(cur, i); if (sc.freq === 'trimestral' && ![0, 3, 6, 9].includes(m.getMonth())) continue;
+      const d = dueOf(sc, m); if (d >= today) return d;
+    }
+    return '';
+  };
   const plainOf = actId => recs().filter(r => !r.regime && r.activityId === actId && (!r.freq || r.freq === 'mensal'));
   const rulesText = actId => {
-    const rs = rulesOf(actId); if (!rs.length) return '<span class="muted">—</span>';
+    const rs = rulesOf(actId), sc = (P.act(actId) || {}).sched;
+    if (!rs.length) return sc ? `<span class="muted">Prazo padrão: ${sc.freq === 'unica' ? esc(D.fmt(sc.date)) : (sc.freq === 'trimestral' ? 'trimestral, dia ' : 'todo mês, dia ') + sc.day}</span>` : '<span class="muted">—</span>';
     return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || (r.regime === 'manual' ? 'Empresas escolhidas' : r.regime))} · ${isUnica(r) ? 'uma vez, ' + D.fmt(r.date) : (isQ(r) ? 'trimestral' : 'mensal') + ', dia ' + r.day}</span>`).join(' ');
   };
   // lista de todas as empresas ativas com caixinha; o estado inicial vem dos regimes marcados e das exceções já salvas
@@ -156,7 +169,7 @@
   const regimeFormHtml = actId => {
     // sem regra por regime, o prazo mostrado é o das tarefas recorrentes comuns desta atividade (ex.: importadas da planilha)
     const plain = actId ? plainOf(actId) : [];
-    const rs = actId ? rulesOf(actId) : [], first = rs[0] || plain[0] || {}, on = new Set(rs.map(r => r.regime));
+    const rs = actId ? rulesOf(actId) : [], first = rs[0] || plain[0] || (actId && (P.act(actId) || {}).sched) || {}, on = new Set(rs.map(r => r.regime));
     return `<div class="fgrid reg-box">
       ${plain.length ? `<p class="fine span3">${V.icon('refresh')} O dia do prazo abaixo também vale para <b>${plain.length} tarefa(s) recorrente(s)</b> desta atividade (${plain.reduce((s, r) => s + clientsOf(r).filter(Boolean).length, 0)} empresa(s)). Ao salvar, as pendentes ainda não adiadas mudam para o novo dia.</p>` : ''}
       <p class="fine span3"><b>Tarefa automática por regime tributário</b> (opcional). Marque os regimes: todas as empresas ativas de cada regime recebem esta tarefa. Empresa nova, ou que mudar de regime, entra e sai sozinha.</p>
@@ -221,6 +234,17 @@
     const readOv = m.querySelector('.ac-co') ? readOverrides(m) : { include: [], exclude: [] };
     // sem regime marcado, mas com empresas escolhidas uma a uma: vira uma regra "manual" só para essas empresas
     const regs = x.regimes.length ? x.regimes : (readOv.include.length ? ['manual'] : []);
+    // prazo padrão da atividade: salvo na própria atividade, sem precisar de regime nem de empresa
+    const q = id => m.querySelector(id);
+    const touched = q('#ac-day').defaultValue !== q('#ac-day').value || q('#ac-start').defaultValue !== q('#ac-start').value
+      || q('#ac-date').defaultValue !== q('#ac-date').value || !q('#ac-freq').selectedOptions[0].defaultSelected;
+    if (touched || act.sched) {
+      const once = x.freq === 'unica';
+      act.sched = once ? { freq: 'unica', date: x.date, day: Number((x.date || '').slice(8, 10)) || 1, start: (x.date || '').slice(0, 7), businessDay: false }
+        : { freq: x.freq, day: x.day, start: x.start, businessDay: x.bd };
+      P.store.save();
+      if (!regs.length && !old.length) plainMsg += ' Prazo padrão da atividade salvo: ' + (once ? D.fmt(x.date) : (x.freq === 'trimestral' ? 'trimestral, dia ' : 'todo mês, dia ') + x.day) + '. Ele já vem preenchido ao atribuir uma tarefa dessa atividade.';
+    }
     if (!regs.length && !old.length) return plainMsg;
     if (!canManage(u, act.deptId)) throw new P.AccessError('Você só cadastra tarefas do seu departamento.');
     regs.forEach(reg => {
@@ -256,6 +280,9 @@
   A.newTask = function () {
     origNew.apply(this, arguments);
     const due = $('#nt-due'); if (!due || $('#nt-rep')) return;
+    // o prazo já vem do "prazo padrão" da atividade escolhida (se ela tiver)
+    const putDue = () => { const a = P.act(($('#nt-act') || {}).value), d = a && defaultDue(a.sched); if (d && due) due.value = d; };
+    const sel = $('#nt-act'); if (sel) { sel.addEventListener('change', putDue); putDue(); }
     due.closest('.field').insertAdjacentHTML('afterend', `
       <label class="field check span3"><input type="checkbox" id="nt-rep"><span><b>Repetir</b> (um único cadastro gera a tarefa sozinho, sem precisar atribuir de novo)</span></label>
       <label class="field span3 nt-rep-f" style="display:none"><span>Com que frequência?</span><select id="nt-rep-freq"><option value="mensal">Todo mês</option><option value="diaria">Todo dia útil (segunda a sexta)</option></select></label>
