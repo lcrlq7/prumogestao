@@ -1,5 +1,5 @@
 /* Prumo — Datas do Departamento Pessoal: feriados, dias de profissões, feriados de categoria e datas de convenção coletiva,
- * com aviso antecipado para o DP. As datas próprias ficam em settings.dpDates (cadastradas pela diretoria/gerência). */
+ * com aviso antecipado para o DP. As datas próprias ficam em settings.dpDates (cadastradas pelo DP, gerência e diretoria). */
 'use strict';
 (function (P) {
   const D = P.date, esc = P.esc, V = P.V, A = P.actions, icon = V.icon;
@@ -23,7 +23,7 @@
   const custom = () => (db().settings.dpDates = db().settings.dpDates || []);
   const isDp = u => !!u && !!u.deptId && (() => { const d = P.dept(u.deptId); return !!d && (/pessoal/.test(norm(d.name)) || norm(d.code) === 'dp'); })();
   const canSee = u => !!u && (P.isGlobal(u) || isDp(u));
-  const canEdit = u => !!u && P.isGlobal(u);
+  const canEdit = u => canSee(u); // quem vê a página também cadastra: o DP completa as datas que faltarem
 
   // todas as ocorrências de um ano
   const ofYear = y => {
@@ -78,11 +78,11 @@
         <label class="picker"><select data-set="dpc.year" aria-label="Ano">${[s.year - 1, s.year, s.year + 1].filter((v, i, a) => a.indexOf(v) === i).map(y => `<option value="${y}" ${y === s.year ? 'selected' : ''}>${y}</option>`).join('')}</select></label>
         <label class="picker"><select data-set="dpc.kind" aria-label="Tipo"><option value="">Todos os tipos</option>${Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${s.kind === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></label>
         <span class="fine tf-count">${year.length} data(s) em ${s.year}</span></div>
-      ${V.card('Calendário de ' + s.year, table(year, u), { cls: 'flush', sub: 'Feriados de Volta Redonda (RJ). Os dias de profissão marcados como "Sugerido" são só lembretes: confira na convenção de cada sindicato se geram folga. Datas de convenção e feriados de categoria são cadastrados por você.' })}`;
+      ${V.card('Calendário de ' + s.year, table(year, u), { cls: 'flush', sub: 'Feriados de Volta Redonda (RJ). Os dias de profissão marcados como "Sugerido" são só lembretes: confira na convenção de cada sindicato se geram folga. Datas de convenção e feriados de categoria (ou qualquer data que faltar) são cadastradas no botão "Cadastrar data".' })}`;
   };
 
   A.dpNew = () => {
-    const u = U(); if (!canEdit(u)) return P.toast('Somente diretoria e gerência cadastram datas.', 'err');
+    const u = U(); if (!canEdit(u)) return P.toast('Somente o Departamento Pessoal, a gerência e a diretoria cadastram datas.', 'err');
     P.ui.modal({
       title: 'Cadastrar data do DP', submit: 'Salvar',
       body: `<div class="fgrid">
