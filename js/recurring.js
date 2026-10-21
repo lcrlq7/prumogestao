@@ -484,8 +484,14 @@
         if (!regime && !sel.length) throw new Error('Escolha pelo menos uma empresa.');
         // evita cadastrar duas vezes a mesma recorrência (cada cadastro gera uma tarefa por empresa)
         const freq = $('#ar-freq').value, wantQ = freq === 'trimestral', nm = ((actSel === '__new' ? $('#ar-name').value : (P.act(actSel) || {}).name) || '').trim().toLowerCase();
-        const dupe = nm && recs().find(x => x.deptId === deptId && isOn(x) && (x.freq || 'mensal') === freq && (x.regime || '') === regime && String(x.title || '').trim().toLowerCase() === nm);
-        if (dupe) throw new Error('Já existe uma recorrência ativa "' + dupe.title + '" neste departamento' + (regime ? ' para este regime' : '') + ' (' + freqLabel(dupe).toLowerCase() + '). Exclua ou pause a existente antes de criar outra.');
+        // mesma atividade, mesma repetição/dia e pelo menos uma empresa em comum: avisa e deixa decidir (pode criar quantas quiser)
+        const dDay = freq === 'semanal' ? Number($('#ar-wd').value) : Number($('#ar-day').value), mine = new Set(regime ? regimeClients({ regime, deptId, onlyCarteira: $('#ar-cart').checked }) : sel);
+        const sameDay = x => freq === 'semanal' ? Number(x.wday) === dDay : freq === 'diaria' ? true : Number(x.day) === dDay;
+        const dupe = nm && recs().find(x => x.deptId === deptId && isOn(x) && (x.freq || 'mensal') === freq && sameDay(x) && String(x.title || '').trim().toLowerCase() === nm && clientsOf(x).some(c => mine.has(c)));
+        if (dupe) {
+          const both = clientsOf(dupe).filter(c => mine.has(c));
+          if (!confirm('Já existe uma recorrência ativa "' + dupe.title + '" (' + freqLabel(dupe).toLowerCase() + ') para ' + (both.length > 1 ? both.length + ' das empresas escolhidas' : '"' + both[0] + '"') + '.\n\nCriar mesmo assim? As tarefas ficarão repetidas.\n\nOK = criar mesmo assim. Cancelar = não criar.')) throw new Error('Cadastro cancelado: já existe uma recorrência igual.');
+        }
         const fast = freq === 'diaria' || freq === 'semanal', todayIso = D.iso(P.today()), wday = Number($('#ar-wd').value), nrep = $('#ar-n').value, endD = $('#ar-end').value;
         const day = fast ? 1 : Number($('#ar-day').value), sd = $('#ar-start').value;
         if (!fast && !(day >= 1 && day <= 31)) throw new Error('Informe o dia do prazo (1 a 31).');
