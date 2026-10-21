@@ -701,14 +701,21 @@
   // lista "Tarefas da equipe": seleciona ou desmarca todas as tarefas filtradas (os ids vêm da própria tela)
   A.teamSelAll = () => { const ids = P.state.teamIds || [], s = taskSel(), all = ids.every(id => s.has(id)); ids.forEach(id => all ? s.delete(id) : s.add(id)); P.render(); };
   A.taskBulkDelete = () => {
-    const u = U(), { pend } = cadLists(u), ids = new Set(pend.filter(t => taskSel().has(t.id)).map(t => t.id));
-    if (!ids.size) return P.toast('Selecione ao menos uma tarefa.', 'err');
+    const u = U(), { pend } = cadLists(u), chosen = pend.filter(t => taskSel().has(t.id));
+    if (!chosen.length) return P.toast('Selecione ao menos uma tarefa.', 'err');
+    // tarefa gerada por uma recorrência que continua valendo: se fosse apagada, o sistema criaria outra no F5 (a recorrência "não vê" a tarefa do mês).
+    // Então ela é DISPENSADA: sai das pendentes e a recorrência entende que aquele mês já foi tratado. As demais (avulsas ou de recorrência já excluída) são apagadas.
+    const alive = new Set(recs().map(r => r.id)), keep = chosen.filter(t => t.recId && alive.has(t.recId)), drop = chosen.filter(t => !keep.includes(t));
     const lixeira = P.trash && P.trash.available();
-    if (!confirm(lixeira ? `Apagar ${ids.size} tarefa(s) pendente(s)? Elas vão para a Lixeira por 30 dias e podem ser restauradas.` : `Apagar ${ids.size} tarefa(s) pendente(s)? Isso não pode ser desfeito.`)) return;
-    toBin('task', pend.filter(t => ids.has(t.id)));
-    db().tasks = db().tasks.filter(t => !ids.has(t.id));
-    P.audit(u, 'Tarefas excluídas em lote', 'lote', ids.size + ' tarefa(s) pendente(s)');
-    P.store.save(); taskSel().clear(); P.toast(ids.size + ' tarefa(s) apagada(s).'); P.render();
+    const msg = (keep.length ? `${keep.length} tarefa(s) vêm de uma recorrência ativa: elas serão DISPENSADAS (somem das pendentes e não voltam; dá para reabrir em Concluídas).\n` : '')
+      + (drop.length ? `${drop.length} tarefa(s) serão apagadas${lixeira ? ' (vão para a Lixeira por 30 dias)' : ' (sem volta)'}.\n` : '') + '\nConfirmar?';
+    if (!confirm(msg)) return;
+    const at = D.stamp();
+    keep.forEach(t => { t.status = 'dispensada'; t.dismissed = { reason: 'Excluída em lote', by: u.id, at }; });
+    if (drop.length) { const ids = new Set(drop.map(t => t.id)); toBin('task', drop); db().tasks = db().tasks.filter(t => !ids.has(t.id)); }
+    P.audit(u, 'Tarefas excluídas em lote', 'lote', drop.length + ' apagada(s), ' + keep.length + ' dispensada(s) (recorrência ativa)');
+    P.store.save(); taskSel().clear();
+    P.toast((drop.length ? drop.length + ' apagada(s)' : '') + (drop.length && keep.length ? ' e ' : '') + (keep.length ? keep.length + ' dispensada(s) (não voltam)' : '') + '.'); P.render();
   };
 
 })(window.P);
