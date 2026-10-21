@@ -628,6 +628,8 @@ window.P = window.P || {};
   P.ROLES = { admin: 'Diretor', office: 'Gerente do escritório', manager: 'Gestor', employee: 'Funcionário' };
   P.ROLE_ORDER = ['admin', 'office', 'manager', 'employee'];
   P.LEVEL = { employee: 1, manager: 2, office: 3, admin: 4 };
+  // cadastrar, editar, importar, inativar e apagar empresas: gestores e acima, ou o funcionário que recebeu essa permissão no cadastro dele
+  P.canCompanies = u => !!u && u.active !== false && (u.role !== 'employee' || !!u.canCompanies);
   P.isGlobal = u => !!u && (u.role === 'admin' || u.role === 'office');
   /* Capacidade, utilização e status de carga (sobrecarga, baixa utilização) só para gestores, gerente e diretoria */
   P.seesLoad = u => !!u && u.role !== 'employee';
@@ -944,7 +946,7 @@ window.P = window.P || {};
     companies(u) { return db().companies.slice().sort((a, b) => a.name.localeCompare(b.name)); },
     company(u, id) { const c = P.idx.companies.get(id); assert(c, 'Empresa não encontrada.'); return c; },
     saveCompany(u, data) {
-      assert(u.role !== 'employee', 'Somente gestores e administradores cadastram empresas.');
+      assert(P.canCompanies(u), 'Somente gestores, administradores e quem recebeu a permissão de empresas cadastram empresas.');
       let name = String(data.name || '').trim();
       assert(name.length >= 2, 'Informe a razão social.');
       const digits = P.cnpj.digits(data.cnpj);
@@ -981,7 +983,7 @@ window.P = window.P || {};
     },
     /* Mantém o nome na matriz (CNPJ final 0001, ou o menor código) e põe "- FILIAL <ramo>" nas demais. A carteira e as tarefas que já existem continuam com a matriz. */
     splitSameNameCompanies(u) {
-      assert(u.role !== 'employee', 'Somente gestores e administradores separam empresas.');
+      assert(P.canCompanies(u), 'Somente gestores, administradores e quem recebeu a permissão de empresas separam empresas.');
       const groups = api.sameNameCompanies(); let n = 0;
       groups.forEach(list => {
         const rank = c => (P.cnpj.digits(c.cnpj).slice(8, 12) === '0001' ? 0 : 1);
@@ -1027,7 +1029,7 @@ window.P = window.P || {};
      * A empresa existente é encontrada pelo código; se não houver, pelo CNPJ; se não houver, pelo nome.
      */
     planCompanyImport(u, rows) {
-      assert(u.role !== 'employee', 'Somente gestores e administradores importam empresas.');
+      assert(P.canCompanies(u), 'Somente gestores, administradores e quem recebeu a permissão de empresas importam empresas.');
       const all = db().companies;
       const byCode = new Map(), byCnpj = new Map();
       all.forEach(c => {
@@ -1110,7 +1112,7 @@ window.P = window.P || {};
      * A relação fica guardada no histórico de importações para consulta posterior.
      */
     applyCompanyImport(u, plan, fileName) {
-      assert(u.role !== 'employee', 'Somente gestores e administradores importam empresas.');
+      assert(P.canCompanies(u), 'Somente gestores, administradores e quem recebeu a permissão de empresas importam empresas.');
       const touched = [], result = [];
       for (const l of plan.rows) {
         const base = { row: l.row, code: l.code, name: l.name, cnpj: l.cnpj || l.cnpjRaw, regime: l.regime ? P.REGIMES[l.regime].label : l.regimeRaw };
@@ -1157,7 +1159,7 @@ window.P = window.P || {};
     /* Apaga empresas em lote (irreversível). Lançamentos e tarefas mantêm o nome do cliente como texto;
        os vínculos de carteira dessas empresas são removidos. */
     deleteCompanies(u, ids) {
-      assert(P.isGlobal(u), 'Somente o gerente e a diretoria apagam empresas.');
+      assert(P.canCompanies(u), 'Somente gestores, administradores e quem recebeu a permissão de empresas apagam empresas.');
       const set = new Set(ids), gone = db().companies.filter(c => set.has(c.id));
       assert(gone.length, 'Nenhuma empresa selecionada.');
       const names = new Set(gone.map(c => c.name));
@@ -1171,7 +1173,7 @@ window.P = window.P || {};
       return { count: gone.length, assignments: before - db().clientAssignments.length };
     },
     setCompaniesActive(u, ids, active) {
-      assert(P.isGlobal(u), 'Somente o gerente e a diretoria inativam empresas.');
+      assert(P.canCompanies(u), 'Somente gestores, administradores e quem recebeu a permissão de empresas inativam empresas.');
       const set = new Set(ids); let n = 0;
       db().companies.forEach(c => { if (set.has(c.id) && c.active !== active) { c.active = active; n++; } });
       P.reindex(); audit(u, active ? 'Empresas reativadas em lote' : 'Empresas inativadas em lote', n + ' empresa(s)'); P.store.save();
@@ -1184,7 +1186,7 @@ window.P = window.P || {};
 
     /* Atualização em lote: grava os dados públicos sem sobrescrever o que já foi confirmado por alguém */
     applyReceita(u, id, info) {
-      assert(u.role !== 'employee', 'Somente gestores e administradores atualizam empresas.');
+      assert(P.canCompanies(u), 'Somente gestores, administradores e quem recebeu a permissão de empresas atualizam empresas.');
       const c = api.company(u, id);
       const changes = [];
       // Não perde a forma de tributação já obtida antes se, desta vez, só a CNPJá respondeu
@@ -1198,7 +1200,7 @@ window.P = window.P || {};
       return changes;
     },
     toggleCompany(u, id) {
-      assert(P.isGlobal(u), 'Somente o gerente e a diretoria inativam empresas.');
+      assert(P.canCompanies(u), 'Somente gestores, administradores e quem recebeu a permissão de empresas inativam empresas.');
       const c = api.company(u, id); c.active = !c.active;
       P.reindex(); audit(u, c.active ? 'Empresa reativada' : 'Empresa inativada', c.id, c.name); P.store.save();
     },
@@ -1555,6 +1557,8 @@ window.P = window.P || {};
         if (x.role === 'employee' && !dismissed) x.active = data.active !== false;
         // permissão de abrir OS: só diretoria, gerência ou o gestor do departamento (mesma regra do cadastro)
         if (x.role === 'employee' && data.canOS !== undefined && !!data.canOS !== !!x.canOS) { x.canOS = !!data.canOS; audit(u, x.canOS ? 'Abertura de OS habilitada' : 'Abertura de OS desabilitada', x.id, x.name); }
+        // permissão de cadastrar, editar e apagar empresas (definida pela diretoria, gerência ou gestor do departamento)
+        if (x.role === 'employee' && data.canCompanies !== undefined && !!data.canCompanies !== !!x.canCompanies) { x.canCompanies = !!data.canCompanies; audit(u, x.canCompanies ? 'Gestão de empresas habilitada' : 'Gestão de empresas desabilitada', x.id, x.name); }
         if (isNew) {
           db().goals.push({ id: P.uid('g'), scope: 'employee', refId: x.id, period: 'semanal', target: x.weeklyGoal });
           db().goals.push({ id: P.uid('g'), scope: 'employee', refId: x.id, period: 'mensal', target: x.capacity * 4 });

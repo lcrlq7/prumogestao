@@ -13,7 +13,7 @@
   /* ---------- Empresas ---------- */
   V.empresas = u => {
     const S = P.state, f = S.comp;
-    const canEdit = u.role !== 'employee';
+    const canEdit = P.canCompanies(u);
     // Responsáveis pela carteira (somente no escopo de quem consulta)
     const owners = {};
     if (canEdit) api.clientAssignments(u).forEach(a => { (owners[a.client] = owners[a.client] || []).push(a); });
@@ -31,7 +31,7 @@
     if (f.dept) list = list.filter(c => deptsOf(c).includes(f.dept));
     if (f.status) list = list.filter(c => f.status === 'ativas' ? c.active : f.status === 'incompletas' ? c.active && incomplete(c) : f.status === 'semcodigo' ? !c.code : !c.active);
     // Seleção para ações em lote (só administrador); a seleção sobrevive a trocas de filtro
-    const canBulk = P.isGlobal(u);
+    const canBulk = P.canCompanies(u);
     const sel = S.compSel = S.compSel || new Set();
     [...sel].forEach(id => { if (!P.idx.companies.has(id)) sel.delete(id); });
     // Quantidade exibida por página (10, 50, 100 ou todas); volta à 1ª página quando os filtros mudam
@@ -92,7 +92,7 @@
           <td><div class="chips">${deptsOf(c).map(d => P.dept(d) ? `<span class="code" title="${esc((P.dept(d) || { name: '—' }).name)}">${esc((P.dept(d) || { code: '—' }).code)}</span>` : '').join('')}</div></td>
           ${canEdit ? `<td>${(owners[c.name] || []).map(a => `<small class="owner">${esc((P.dept(a.deptId) || { code: '—' }).code)} · ${esc((P.user(a.userId) || {}).name || '—')}</small>`).join('') || '<span class="muted">—</span>'}</td>` : ''}
           <td>${c.receita && c.receita.situation && c.receita.situation !== 'ATIVA' ? `<span class="badge es-recusado" title="Situação cadastral na Receita">${icon('alert')}Receita: ${esc(c.receita.situation.toLowerCase())}</span>` : !c.active ? '<span class="badge st-sem">' + icon('x') + 'Inativa</span>' : incomplete(c) ? '<span class="badge es-correcao">' + icon('alert') + 'Incompleto</span>' : '<span class="badge es-aprovado">' + icon('check') + 'Ativa</span>'}</td>
-          ${canEdit ? `<td class="actions-col"><div class="row-actions">${V.ibtn('edit', 'Editar', { act: 'editCompany', attrs: `data-id="${c.id}"` })}${P.isGlobal(u) ? V.ibtn('toggle', c.active ? 'Inativar' : 'Reativar', { act: 'toggleCompany', attrs: `data-id="${c.id}"` }) : ''}</div></td>` : ''}
+          ${canEdit ? `<td class="actions-col"><div class="row-actions">${V.ibtn('edit', 'Editar', { act: 'editCompany', attrs: `data-id="${c.id}"` })}${P.canCompanies(u) ? V.ibtn('toggle', c.active ? 'Inativar' : 'Reativar', { act: 'toggleCompany', attrs: `data-id="${c.id}"` }) : ''}</div></td>` : ''}
         </tr>`).join('')}</tbody></table></div>${pages > 1 ? `<div class="pager"><span>Página ${page} de ${pages}</span>${V.btn('Anterior', { act: 'compPage', cls: 'sm ghost', icon: 'left', attrs: `data-d="-1" ${page <= 1 ? 'disabled' : ''}` })}${V.btn('Próxima', { act: 'compPage', cls: 'sm ghost', icon: 'right', attrs: `data-d="1" ${page >= pages ? 'disabled' : ''}` })}</div>` : ''}` : V.empty('Nenhuma empresa encontrada com esses filtros.'), { cls: 'flush', sub: (list.length ? 'Mostrando ' + ((page - 1) * size + 1) + '–' + ((page - 1) * size + shown.length) + ' de ' + list.length : '0') + (list.length !== all.length ? ' filtradas (' + all.length + ' no total)' : ' empresas') })}`;
   };
 
