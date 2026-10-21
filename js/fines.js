@@ -26,10 +26,12 @@
     [/alvar[aá]|licen[cç]a de funcionamento/i, 'media', 'Alvará vencido: multa municipal e risco de interdição.'],
     [/certid/i, 'media', 'Certidão vencida: bloqueia licitações, crédito e contratos.'],
   ];
+  // trabalho interno sobre algo já fechado (ex.: "Lançamento de Folha de Pagamento" no Contábil): não gera multa
+  const NO_FINE = /lan[cç]amento|contabiliza/i;
   const cache = new Map();
   const ofName = n => {
     n = String(n || ''); if (!n) return null;
-    if (!cache.has(n)) { const r = RULES.find(([re]) => re.test(n)); cache.set(n, r ? { sev: r[1], text: r[2] } : null); }
+    if (!cache.has(n)) { const r = !NO_FINE.test(n) && RULES.find(([re]) => re.test(n)); cache.set(n, r ? { sev: r[1], text: r[2] } : null); }
     return cache.get(n);
   };
   // tarefa: pelo nome da atividade; sem atividade, pelo título
