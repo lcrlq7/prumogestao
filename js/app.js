@@ -88,7 +88,7 @@
   const PAGE_LABEL = {
     dashboard: 'Dashboard', carteira: 'Carteira de empresas', lixeira: 'Lixeira', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
-    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR'
+    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR', datasdp: 'Datas do DP'
   };
   function parse(path) {
     path = String(path || '').replace(/^#?\/?/, '');
@@ -134,6 +134,7 @@
       ['insights', 'Insights', 'bulb'],
       ['ranking', 'Ranking', 'rank'],
       ['calendario', 'Calendário', 'calendar'],
+      ['datasdp', 'Datas do DP', 'calendar'],
       ['ferias', 'Férias', 'palm', vacCount],
       ['mural', 'Mural', 'medal'],
       ['empresas', 'Empresas', 'briefcase'],
@@ -148,7 +149,8 @@
     ].filter(([k]) => P.PAGES[k] && P.PAGES[k].includes(u.role))
       // departamento de apoio: sem as páginas de produção (pontos, metas, ranking…)
       .filter(([k]) => !P.isSupport(u) || !['equipe', 'atividades', 'lancamentos', 'metas', 'insights', 'ranking', 'relatorios', 'historico', 'empresas', 'os'].includes(k))
-      .filter(([k]) => k !== 'solicitacoes' || (P.purchases && P.purchases.canSee(u)));
+      .filter(([k]) => k !== 'solicitacoes' || (P.purchases && P.purchases.canSee(u)))
+      .filter(([k]) => k !== 'datasdp' || (P.dpCal && P.dpCal.canSee(u)));
     // Administração conforme o nível: gerente e diretoria veem tudo; o gestor cuida dos funcionários e dos pesos do departamento
     const admin = P.isGlobal(u) ? [
       ['departamentos', 'Departamentos', 'building'], ['funcionarios', 'Funcionários', 'userplus'], ['gestores', 'Gestores e diretoria', 'shield'],
@@ -163,7 +165,7 @@
   }
   /* Menu agrupado em blocos que abrem e fecham (o bloco da página atual fica sempre aberto) */
   const NAV_GROUPS = [
-    ['trabalho', 'Trabalho', ['atividades', 'os', 'lancamentos', 'calendario']],
+    ['trabalho', 'Trabalho', ['atividades', 'os', 'lancamentos', 'calendario', 'datasdp']],
     ['pessoas', 'Pessoas', ['comunicacao', 'equipe', 'mural', 'ranking', 'metas', 'ferias']],
     ['clientes', 'Clientes', ['empresas', 'carteira', 'inadimplencia']],
     ['gestao', 'Gestão', ['insights', 'relatorios', 'historico']],

@@ -10,7 +10,7 @@
     const db = P.emptyDb();
     db.live = false;
     const dep = (id, name, code, managerId, extra) => Object.assign({ id, name, code, description: '', managerId, active: true, createdAt: iso(today) }, extra || {});
-    db.departments = [dep('d1', 'Fiscal', 'FIS', 'm1'), dep('d2', 'Contábil', 'CTB', 'm2'), dep('d3', 'Legalização', 'LEG', 'm3', { deadlineOptional: true })];
+    db.departments = [dep('d1', 'Fiscal', 'FIS', 'm1'), dep('d2', 'Contábil', 'CTB', 'm2'), dep('d3', 'Legalização', 'LEG', 'm3', { deadlineOptional: true }), dep('d4', 'Departamento Pessoal', 'DP', 'm4')];
     const user = (id, name, role, deptId) => ({ id, name, email: id + '@teste.local', password: PASS, role, deptId, active: true, capacity: 32, weeklyGoal: 30, hours: 40, createdAt: iso(D.add(today, -400)), hiredAt: iso(D.add(today, -400)), tourDone: true });
     db.users = [
       Object.assign(user('diretor', 'Diretoria Teste', 'admin', null), { email: 'diretor@teste.local' }),
@@ -18,7 +18,7 @@
       user('m1', 'Gestor Fiscal', 'manager', 'd1'), user('m2', 'Gestora Contábil', 'manager', 'd2'), user('m3', 'Gestor Legalização', 'manager', 'd3'),
       user('f1', 'Ana Teste', 'employee', 'd1'), user('f2', 'Bruno Teste', 'employee', 'd1'),
       user('f3', 'Carla Teste', 'employee', 'd2'), user('f4', 'Diego Teste', 'employee', 'd2'),
-      user('f5', 'Elisa Teste', 'employee', 'd3'), Object.assign(user('ftodos', 'Funcionário Teste (todos os departamentos)', 'employee', null), { email: 'todos@teste.local' })
+      user('f5', 'Elisa Teste', 'employee', 'd3'), user('m4', 'Gestor Pessoal', 'manager', 'd4'), user('f6', 'Fabio Teste', 'employee', 'd4'), Object.assign(user('ftodos', 'Funcionário Teste (todos os departamentos)', 'employee', null), { email: 'todos@teste.local' })
     ];
     const act = (id, deptId, name, unit, weight) => ({ id, deptId, name, unit, weight, active: true, createdAt: iso(today) });
     db.activities = [
