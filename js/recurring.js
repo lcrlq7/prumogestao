@@ -44,9 +44,28 @@
   const isDaily = r => r.freq === 'diaria'; // tarefa que se repete todo dia útil (gerada aqui, não pelo banco)
   const isUnica = r => r.freq === 'unica'; // tarefa que não se repete: uma vez só, na data r.date (por regime)
   // geradas aqui (não pelo banco): as trimestrais e as por regime tributário; o banco as ignora (active:false) e "pausada" é o campo paused
-  const isLocal = r => isQ(r) || isDaily(r) || !!r.regime;
+  const isWeekly = r => r.freq === 'semanal'; // uma vez por semana, no dia da semana r.wday (0 = domingo ... 6 = sábado)
+  const isLocal = r => isQ(r) || isDaily(r) || isWeekly(r) || !!r.regime;
   const isOn = r => isLocal(r) ? !r.paused : r.active !== false;
   const QMONTHS = [0, 3, 6, 9];
+  const WDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+  // "repetir N vezes": converte a quantidade em data final (diária/semanal: dia; mensal/trimestral: mês "AAAA-MM"); n vazio = sem fim
+  const endByCount = (freq, start, n, wday) => {
+    n = Math.floor(Number(n)); if (!(n >= 1)) return '';
+    if (freq === 'diaria') { let d = D.parse(start), k = 0; for (;;) { if (d.getDay() !== 0 && d.getDay() !== 6 && ++k === n) return D.iso(d); d = D.add(d, 1); } }
+    if (freq === 'semanal') { let d = D.parse(start); while (d.getDay() !== Number(wday)) d = D.add(d, 1); return D.iso(D.add(d, 7 * (n - 1))); }
+    let m = D.parse(start.slice(0, 7) + '-01');
+    if (freq === 'trimestral') { let k = 0; for (;;) { if (QMONTHS.includes(m.getMonth()) && ++k === n) return ym(m); m = D.addMonths(m, 1); } }
+    return ym(D.addMonths(m, n - 1));
+  };
+  // o término que vier primeiro entre a data escolhida e o fim por quantidade
+  const pickEnd = (freq, start, endDate, n, wday) => {
+    const monthly = freq === 'mensal' || freq === 'trimestral', byN = endByCount(freq, start, n, wday), byD = endDate ? (monthly ? endDate.slice(0, 7) : endDate) : '';
+    return byN && byD ? (byN < byD ? byN : byD) : (byN || byD);
+  };
+  const endIso = r => !r.end ? '' : r.end.length === 7 ? D.iso(D.monthEnd(D.parse(r.end + '-01'))) : r.end;
+  const freqLabel = r => isDaily(r) ? 'Todo dia útil' : isWeekly(r) ? 'Toda ' + WDAYS[Number(r.wday)] : isUnica(r) ? 'Uma vez · ' + D.fmt(r.date) : isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day;
+  const fmtPeriod = s => s.length === 7 ? s.split('-').reverse().join('/') : D.fmt(s);
   const quarterOf = m => { const mo = m.getMonth(), y = m.getFullYear(); return mo === 0 ? '4º tri/' + (y - 1) : (mo / 3 + 0) + 'º tri/' + y; };
   // onlyLocal: em produção o banco gera as mensais comuns; aqui só as trimestrais e as por regime
   function localGenerate(onlyLocal) {
@@ -56,12 +75,12 @@
     const scope = recs().filter(r => isOn(r) && (!onlyLocal || isLocal(r)) && (!onlyLocal || canManage(U(), r.deptId)));
     const cartMap = cartMapOf();
     // recorrência diária: uma tarefa por dia útil (hoje e amanhã), para não encher a lista de dias futuros
-    scope.filter(isDaily).forEach(r => {
+    scope.filter(r => isDaily(r) || isWeekly(r)).forEach(r => {
       const names = clientsOf(r), todayIso = D.iso(P.today());
-      [0, 1].forEach(off => {
+      (isWeekly(r) ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1]).forEach(off => {
         const d = D.add(P.today(), off), iso = D.iso(d), wd = d.getDay();
-        if (r.businessDay !== false && (wd === 0 || wd === 6)) return;
-        if (iso < (r.start || '0000-00-00') || (r.end && iso > r.end)) return;
+        if (isWeekly(r) ? wd !== Number(r.wday) : (r.businessDay !== false && (wd === 0 || wd === 6))) return;
+        if (iso < (r.start || '0000-00-00') || (r.end && iso > endIso(r))) return;
         names.forEach(client => {
           const key = r.id + '|' + (client || '') + '|' + iso;
           if (have.has(key)) return;
@@ -71,7 +90,7 @@
         });
       });
     });
-    scope.filter(r => !isDaily(r)).forEach(r => { const names = clientsOf(r); (isQ(r) || isUnica(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => names.forEach(client => {
+    scope.filter(r => !isDaily(r) && !isWeekly(r)).forEach(r => { const names = clientsOf(r); (isQ(r) || isUnica(r) ? Array.from({ length: 13 }, (_, i) => D.addMonths(cur, i)) : [cur, D.addMonths(cur, 1)]).forEach(m => names.forEach(client => {
       if (isQ(r) && !QMONTHS.includes(m.getMonth())) return;
       if (isUnica(r) && ym(m) !== String(r.date || '').slice(0, 7)) return;
       const k = ym(m); if (k < (r.start || '0000') || (r.end && k > r.end)) return;
@@ -114,7 +133,7 @@
   const rulesOf = actId => recs().filter(r => r.regime && r.activityId === actId);
   const rulesText = actId => {
     const rs = rulesOf(actId); if (!rs.length) return '<span class="muted">—</span>';
-    return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${isUnica(r) ? 'uma vez, ' + D.fmt(r.date) : (isQ(r) ? 'trimestral' : 'mensal') + ', dia ' + r.day}</span>`).join(' ');
+    return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${isUnica(r) ? 'uma vez, ' + D.fmt(r.date) : isDaily(r) ? 'todo dia útil' : isWeekly(r) ? 'toda ' + WDAYS[Number(r.wday)] : (isQ(r) ? 'trimestral' : 'mensal') + ', dia ' + r.day}${r.end ? ' até ' + fmtPeriod(r.end) : ''}</span>`).join(' ');
   };
   // lista de todas as empresas ativas com caixinha; o estado inicial vem dos regimes marcados e das exceções já salvas
   const cartDepts = name => [...new Set((db().clientAssignments || []).filter(a => a.client === name).map(a => a.deptId))];
@@ -156,11 +175,14 @@
     return `<div class="fgrid reg-box">
       <p class="fine span3"><b>Tarefa automática por regime tributário</b> (opcional). Marque os regimes: todas as empresas ativas de cada regime recebem esta tarefa. Empresa nova, ou que mudar de regime, entra e sai sozinha.</p>
       <div class="span3 reg-checks">${Object.entries(P.REGIMES).map(([k, v]) => `<label class="check-inline"><input type="checkbox" class="ac-reg" value="${k}" ${on.has(k) ? 'checked' : ''}> ${esc(v.label)}</label>`).join('')}</div>
-      <label class="field"><span>É recorrente?</span><select id="ac-freq"><option value="mensal" ${isQ(first) || isUnica(first) ? '' : 'selected'}>Sim, todo mês</option><option value="trimestral" ${isQ(first) ? 'selected' : ''}>Sim, trimestral (jan, abr, jul e out)</option><option value="unica" ${isUnica(first) ? 'selected' : ''}>Não, só uma vez</option></select></label>
-      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Dia do prazo</span><input type="number" id="ac-day" min="1" max="31" value="${first.day || 20}"></label>
-      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Começa em</span><input type="month" id="ac-start" value="${first.start || ym(P.today())}"></label>
+      <label class="field"><span>É recorrente?</span><select id="ac-freq"><option value="diaria" ${isDaily(first) ? 'selected' : ''}>Sim, todo dia útil (segunda a sexta)</option><option value="semanal" ${isWeekly(first) ? 'selected' : ''}>Sim, toda semana</option><option value="mensal" ${isQ(first) || isUnica(first) || isDaily(first) || isWeekly(first) ? '' : 'selected'}>Sim, todo mês</option><option value="trimestral" ${isQ(first) ? 'selected' : ''}>Sim, trimestral (jan, abr, jul e out)</option><option value="unica" ${isUnica(first) ? 'selected' : ''}>Não, só uma vez</option></select></label>
+      <label class="field ac-rec ac-mon" ${isUnica(first) || isDaily(first) || isWeekly(first) ? 'style="display:none"' : ''}><span>Dia do prazo</span><input type="number" id="ac-day" min="1" max="31" value="${first.day || 20}"></label>
+      <label class="field ac-wk" ${isWeekly(first) ? '' : 'style="display:none"'}><span>Dia da semana</span><select id="ac-wd">${WDAYS.map((n, i) => `<option value="${i}" ${Number(first.wday == null ? 1 : first.wday) === i ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Começa em</span><input type="month" id="ac-start" value="${(first.start || ym(P.today())).slice(0, 7)}"></label>
+      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Repetir quantas vezes? <small class="muted">(em branco = sem fim)</small></span><input type="number" id="ac-n" min="1" max="999" placeholder="Sem limite" value="${first.reps || ''}"></label>
+      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Ou terminar em <small class="muted">(opcional)</small></span><input type="date" id="ac-end" value="${endIso(first)}"></label>
       <label class="field ac-once" ${isUnica(first) ? '' : 'style="display:none"'}><span>Prazo (data)</span><input type="date" id="ac-date" value="${first.date || D.iso(D.add(P.today(), 7))}"></label>
-      <label class="field check span3 ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><input type="checkbox" id="ac-bd" ${first.businessDay === false ? '' : 'checked'}><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
+      <label class="field check span3 ac-rec ac-mon" ${isUnica(first) || isDaily(first) || isWeekly(first) ? 'style="display:none"' : ''}><input type="checkbox" id="ac-bd" ${first.businessDay === false ? '' : 'checked'}><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
       <details class="span3 ac-cos"><summary>Escolher as empresas uma a uma <span class="muted" id="ac-co-n"></span></summary>
         <p class="fine">Marque ou desmarque para tirar ou colocar empresas nesta tarefa. Começa já marcada pelos regimes escolhidos acima. Só vale se houver pelo menos um regime marcado.</p>
         <input type="search" id="ac-co-q" placeholder="Buscar empresa" autocomplete="off" aria-label="Buscar empresa">
@@ -175,22 +197,26 @@
   };
   const readRules = m => ({
     regimes: [...m.querySelectorAll('.ac-reg:checked')].map(x => x.value), freq: m.querySelector('#ac-freq').value,
-    day: Number(m.querySelector('#ac-day').value), start: m.querySelector('#ac-start').value, date: m.querySelector('#ac-date').value, bd: m.querySelector('#ac-bd').checked, cart: m.querySelector('#ac-cart').checked
+    day: Number(m.querySelector('#ac-day').value), start: m.querySelector('#ac-start').value, wday: Number(m.querySelector('#ac-wd').value), n: m.querySelector('#ac-n').value, end: m.querySelector('#ac-end').value, date: m.querySelector('#ac-date').value, bd: m.querySelector('#ac-bd').checked, cart: m.querySelector('#ac-cart').checked
   });
   // "Sem prazo por enquanto": desliga o campo de data
   document.addEventListener('change', ev => { if (ev.target && ev.target.id === 'nt-nodue') { const d = document.getElementById('nt-due'); if (d) d.disabled = ev.target.checked; } });
   // mostra os campos certos conforme "É recorrente?"
   document.addEventListener('change', ev => {
     if (!ev.target || ev.target.id !== 'ac-freq') return;
-    const once = ev.target.value === 'unica';
+    const f = ev.target.value, once = f === 'unica';
     document.querySelectorAll('.ac-rec').forEach(x => { x.style.display = once ? 'none' : ''; });
+    document.querySelectorAll('.ac-mon').forEach(x => { if (!once && (f === 'diaria' || f === 'semanal')) x.style.display = 'none'; });
+    document.querySelectorAll('.ac-wk').forEach(x => { x.style.display = f === 'semanal' ? '' : 'none'; });
     document.querySelectorAll('.ac-once').forEach(x => { x.style.display = once ? '' : 'none'; });
   });
   const validateRegimeRules = m => {
     if (!m.querySelector('.ac-reg')) return;
     const x = readRules(m); if (!x.regimes.length) return;
     if (x.freq === 'unica') { if (!x.date) throw new Error('Informe a data do prazo da tarefa.'); return; }
-    if (!(x.day >= 1 && x.day <= 31)) throw new Error('Informe o dia do prazo da tarefa por regime (1 a 31).');
+    if (x.n !== '' && !(Math.floor(Number(x.n)) >= 1)) throw new Error('Informe quantas vezes repetir (1 ou mais), ou deixe em branco para repetir sem fim.');
+    if (x.end && x.start && x.end.slice(0, 7) < x.start) throw new Error('A data de término precisa ser depois do início.');
+    if (x.freq !== 'diaria' && x.freq !== 'semanal' && !(x.day >= 1 && x.day <= 31)) throw new Error('Informe o dia do prazo da tarefa por regime (1 a 31).');
     if (!x.start) throw new Error('Informe o mês de início da tarefa por regime.');
   };
   // devolve um texto curto para o aviso "Atividade salva"
@@ -204,8 +230,13 @@
       let r = old.find(o => o.regime === reg);
       if (!r) { r = { id: P.uid('tr'), auto: true, userId: null, clients: [], end: '', active: false, paused: false, createdBy: u.id, createdAt: D.stamp() }; recs().push(r); }
       const once = x.freq === 'unica';
-      Object.assign(r, readOv, { deptId: act.deptId, title: act.name, activityId: act.id, regime: reg, onlyCarteira: x.cart, day: once ? Number(x.date.slice(8, 10)) : x.day, businessDay: once ? false : x.bd, start: once ? x.date.slice(0, 7) : x.start, active: false });
-      if (x.freq === 'trimestral' || once) r.freq = x.freq; else delete r.freq;
+      const fast = x.freq === 'diaria' || x.freq === 'semanal', todayIso = D.iso(P.today());
+      // diária/semanal usam datas (o início nunca fica no passado); mensal/trimestral usam o mês
+      const start = once ? x.date.slice(0, 7) : fast ? (x.start + '-01' > todayIso ? x.start + '-01' : todayIso) : x.start;
+      const end = once ? '' : pickEnd(x.freq, start, x.end, x.n, x.wday);
+      Object.assign(r, readOv, { deptId: act.deptId, title: act.name, activityId: act.id, regime: reg, onlyCarteira: x.cart, day: once ? Number(x.date.slice(8, 10)) : fast ? 1 : x.day, businessDay: once ? false : fast ? x.freq === 'diaria' : x.bd, start, end, reps: once ? 0 : Number(x.n) || 0, active: false });
+      if (x.freq === 'trimestral' || fast || once) r.freq = x.freq; else delete r.freq;
+      if (x.freq === 'semanal') r.wday = x.wday; else delete r.wday;
       if (once) r.date = x.date; else delete r.date;
     });
     let removed = 0;
@@ -217,7 +248,7 @@
       toBin('recurrence', gone);
       db().taskRecurrences = recs().filter(r => !ids.has(r.id));
     }
-    P.audit(u, 'Tarefa por regime configurada', act.id, act.name + ' · ' + (x.regimes.map(k => (P.REGIMES[k] || {}).label).join(', ') || 'nenhum regime') + (x.regimes.length ? (x.freq === 'unica' ? ' · uma vez, ' + D.fmt(x.date) : (x.freq === 'trimestral' ? ' · trimestral' : ' · mensal') + ', dia ' + x.day) : ''));
+    P.audit(u, 'Tarefa por regime configurada', act.id, act.name + ' · ' + (x.regimes.map(k => (P.REGIMES[k] || {}).label).join(', ') || 'nenhum regime') + (x.regimes.length ? (x.freq === 'unica' ? ' · uma vez, ' + D.fmt(x.date) : x.freq === 'diaria' ? ' · todo dia útil' : x.freq === 'semanal' ? ' · toda ' + WDAYS[x.wday] : (x.freq === 'trimestral' ? ' · trimestral' : ' · mensal') + ', dia ' + x.day) : ''));
     P.store.save();
     if (x.regimes.length) { if (P.isLive) setTimeout(() => generate(true), 500); else if (localGenerate()) P.store.save(); }
     const n = x.regimes.reduce((s, reg) => s + regimeClients({ regime: reg, deptId: act.deptId, onlyCarteira: x.cart }).length, 0);
@@ -235,14 +266,24 @@
     const due = $('#nt-due'); if (!due || $('#nt-rep')) return;
     due.closest('.field').insertAdjacentHTML('afterend', `
       <label class="field check span3"><input type="checkbox" id="nt-rep"><span><b>Repetir</b> (um único cadastro gera a tarefa sozinho, sem precisar atribuir de novo)</span></label>
-      <label class="field span3 nt-rep-f" style="display:none"><span>Com que frequência?</span><select id="nt-rep-freq"><option value="mensal">Todo mês</option><option value="diaria">Todo dia útil (segunda a sexta)</option></select></label>
+      <label class="field span3 nt-rep-f" style="display:none"><span>Com que frequência?</span><select id="nt-rep-freq"><option value="mensal">Todo mês</option><option value="semanal">Toda semana</option><option value="diaria">Todo dia útil (segunda a sexta)</option></select></label>
+      <label class="field nt-rep-f nt-rep-w" style="display:none"><span>Dia da semana</span><select id="nt-rep-wd">${WDAYS.map((n, i) => `<option value="${i}" ${i === D.parse(due.value).getDay() ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="field nt-rep-f nt-rep-m" style="display:none"><span>Dia do prazo (todo mês)</span><input type="number" id="nt-rep-day" min="1" max="31" value="${D.parse(due.value).getDate()}"></label>
-      <label class="field nt-rep-f" style="display:none"><span id="nt-rep-start-l">Começa em</span><input type="month" id="nt-rep-start" value="${ym(P.today())}"></label>
-      <label class="field nt-rep-f" style="display:none"><span>Termina em (opcional)</span><input type="month" id="nt-rep-end"></label>
+      <label class="field nt-rep-f" style="display:none"><span>Começa em</span><input type="date" id="nt-rep-start" value="${D.iso(P.today())}"></label>
+      <label class="field nt-rep-f" style="display:none"><span>Repetir quantas vezes? <small class="muted">(em branco = sem fim)</small></span><input type="number" id="nt-rep-n" min="1" max="999" placeholder="Sem limite"></label>
+      <label class="field nt-rep-f" style="display:none"><span>Ou terminar em <small class="muted">(opcional)</small></span><input type="date" id="nt-rep-end"></label>
       <label class="field check span3 nt-rep-f nt-rep-m" style="display:none"><input type="checkbox" id="nt-rep-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>`);
     // "todo dia útil": some o dia do mês (não se aplica)
-    $('#nt-rep-freq').addEventListener('change', e => { const d = e.target.value === 'diaria'; document.querySelectorAll('.nt-rep-m').forEach(x => { x.style.display = d ? 'none' : ''; }); });
-    $('#nt-rep').addEventListener('change', e => { document.querySelectorAll('.nt-rep-f').forEach(x => { x.style.display = e.target.checked ? '' : 'none'; }); if (e.target.checked && $('#nt-rep-freq').value === 'diaria') document.querySelectorAll('.nt-rep-m').forEach(x => { x.style.display = 'none'; }); $('#nt-due').closest('.field').style.display = e.target.checked ? 'none' : ''; });
+    // mostra só os campos que valem para a frequência: dia do mês (mensal) ou dia da semana (semanal)
+    const ntFreqUi = () => {
+      const f = $('#nt-rep-freq').value, on = $('#nt-rep').checked;
+      document.querySelectorAll('.nt-rep-f').forEach(x => { x.style.display = on ? '' : 'none'; });
+      document.querySelectorAll('.nt-rep-m').forEach(x => { if (on && f !== 'mensal') x.style.display = 'none'; });
+      document.querySelectorAll('.nt-rep-w').forEach(x => { if (on && f !== 'semanal') x.style.display = 'none'; });
+      $('#nt-due').closest('.field').style.display = on ? 'none' : '';
+    };
+    $('#nt-rep-freq').addEventListener('change', ntFreqUi);
+    $('#nt-rep').addEventListener('change', ntFreqUi);
   };
   // intercepta o salvar quando "Repetir todo mês" está marcado
   const origSave = P.api.saveTask;
@@ -251,27 +292,28 @@
     if (!rep || !rep.checked) return origSave.apply(this, arguments);
     const emp = P.user(data.userId);
     if (!emp || !canManage(u, emp.deptId)) throw new P.AccessError('Apenas o gestor do departamento, o gerente ou a diretoria podem cadastrar tarefas recorrentes.');
-    if ($('#nt-rep-freq').value === 'diaria') {
-      const sm = $('#nt-rep-start').value, em = $('#nt-rep-end').value;
-      // início: hoje (ou o 1º dia do mês escolhido, se for depois); término: último dia do mês escolhido
-      const todayIso = D.iso(P.today()), start = sm && sm + '-01' > todayIso ? sm + '-01' : todayIso, end = em ? D.iso(D.monthEnd(D.parse(em + '-01'))) : '';
-      if (end && end < start) throw new Error('O mês de término precisa ser depois do início.');
-      const r = { id: P.uid('tr'), userId: emp.id, deptId: emp.deptId, title: data.title, activityId: data.activityId || null, client: data.client || '', day: 1, freq: 'diaria', businessDay: true, start, end, active: false, paused: false, auto: false, createdBy: u.id, createdAt: D.stamp() };
-      recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, emp.name + ': ' + r.title + ' (todo dia útil)');
+    const freq = $('#nt-rep-freq').value, todayIso = D.iso(P.today()), wday = Number($('#nt-rep-wd').value);
+    const sd = $('#nt-rep-start').value || todayIso, ed = $('#nt-rep-end').value, nrep = $('#nt-rep-n').value;
+    if (nrep !== '' && !(Math.floor(Number(nrep)) >= 1)) throw new Error('Informe quantas vezes repetir (1 ou mais), ou deixe em branco para repetir sem fim.');
+    if (ed && ed < sd) throw new Error('A data de término precisa ser depois do início.');
+    if (freq === 'diaria' || freq === 'semanal') {
+      // início: a data escolhida (nunca no passado); término: pela quantidade de vezes ou pela data, o que vier primeiro
+      const start = sd > todayIso ? sd : todayIso, end = pickEnd(freq, start, ed, nrep, wday);
+      const r = { id: P.uid('tr'), userId: emp.id, deptId: emp.deptId, title: data.title, activityId: data.activityId || null, client: data.client || '', day: 1, freq, businessDay: freq === 'diaria', start, end, reps: Number(nrep) || 0, active: false, paused: false, auto: false, createdBy: u.id, createdAt: D.stamp() };
+      if (freq === 'semanal') r.wday = wday;
+      recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, emp.name + ': ' + r.title + ' (' + freqLabel(r).toLowerCase() + ')');
       localGenerate(P.isLive); P.store.save();
-      P.toast('Tarefa diária criada: uma por dia útil' + (end ? ' até ' + D.fmt(end) : '') + '.');
+      P.toast('Tarefa criada: ' + freqLabel(r).toLowerCase() + (end ? ' até ' + D.fmt(end) : ', sem data final') + '.');
       return r;
     }
-    const day = Number($('#nt-rep-day').value), start = $('#nt-rep-start').value, end = $('#nt-rep-end').value;
+    const day = Number($('#nt-rep-day').value), start = sd.slice(0, 7), end = pickEnd('mensal', start, ed, nrep);
     if (!(day >= 1 && day <= 31)) throw new Error('Informe o dia do prazo (1 a 31).');
-    if (!start) throw new Error('Informe o mês de início.');
-    if (end && end < start) throw new Error('O mês de término precisa ser depois do início.');
-    const r = { id: P.uid('tr'), userId: emp.id, deptId: emp.deptId, title: data.title, activityId: data.activityId || null, client: data.client || '', day, businessDay: $('#nt-rep-bd').checked, start, end: end || '', active: true, createdBy: u.id, createdAt: D.stamp() };
+    const r = { id: P.uid('tr'), userId: emp.id, deptId: emp.deptId, title: data.title, activityId: data.activityId || null, client: data.client || '', day, businessDay: $('#nt-rep-bd').checked, start, end: end || '', reps: Number(nrep) || 0, active: true, createdBy: u.id, createdAt: D.stamp() };
     recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, emp.name + ': ' + r.title + ' (dia ' + day + ')');
     if (!P.isLive) localGenerate();
     P.store.save();
     if (P.isLive) setTimeout(() => generate(true), 1500);
-    P.toast('Tarefa recorrente criada: todo dia ' + day + (end ? ' até ' + end.split('-').reverse().join('/') : '') + '.');
+    P.toast('Tarefa recorrente criada: todo dia ' + day + (end ? ' até ' + fmtPeriod(end) : ', sem data final') + '.');
     return r;
   };
 
@@ -288,7 +330,7 @@
   const recFiltered = u => {
     const f = rf(), q = normS(f.q);
     return recs().filter(r => canManage(u, r.deptId))
-      .filter(r => (!q || normS(r.title + ' ' + clientsOf(r).join(' ') + ' ' + ((P.dept(r.deptId) || {}).name || '')).includes(q)) && (!f.freq || (f.freq === 'trimestral') === isQ(r)) && (!f.st || (f.st === 'ativa') === isOn(r)))
+      .filter(r => (!q || normS(r.title + ' ' + clientsOf(r).join(' ') + ' ' + ((P.dept(r.deptId) || {}).name || '')).includes(q)) && (!f.freq || (f.freq === 'trimestral' ? isQ(r) : f.freq === 'diaria' ? isDaily(r) : f.freq === 'semanal' ? isWeekly(r) : !isQ(r) && !isDaily(r) && !isWeekly(r))) && (!f.st || (f.st === 'ativa') === isOn(r)))
       .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base', numeric: true }));
   };
   const cadLists = u => {
@@ -299,7 +341,7 @@
     const f = rf(), n = list.filter(r => recSel().has(r.id)).length, on = !!(f.q || f.freq || f.st);
     return `<div class="toolbar tfilter">
       <label class="picker grow">${V.icon('search')}<input type="search" data-set="rf.q" data-live value="${esc(f.q)}" placeholder="Buscar recorrência por nome, empresa ou departamento" aria-label="Buscar recorrências" autocomplete="off"></label>
-      <label class="picker"><select data-set="rf.freq" aria-label="Repetição"><option value="">Mensais e trimestrais</option><option value="mensal" ${f.freq === 'mensal' ? 'selected' : ''}>Só mensais</option><option value="trimestral" ${f.freq === 'trimestral' ? 'selected' : ''}>Só trimestrais</option></select></label>
+      <label class="picker"><select data-set="rf.freq" aria-label="Repetição"><option value="">Todas as repetições</option><option value="mensal" ${f.freq === 'mensal' ? 'selected' : ''}>Só mensais</option><option value="trimestral" ${f.freq === 'trimestral' ? 'selected' : ''}>Só trimestrais</option><option value="semanal" ${f.freq === 'semanal' ? 'selected' : ''}>Só semanais</option><option value="diaria" ${f.freq === 'diaria' ? 'selected' : ''}>Só diárias</option></select></label>
       <label class="picker"><select data-set="rf.st" aria-label="Situação"><option value="">Ativas e pausadas</option><option value="ativa" ${f.st === 'ativa' ? 'selected' : ''}>Só ativas</option><option value="pausada" ${f.st === 'pausada' ? 'selected' : ''}>Só pausadas</option></select></label>
       ${on ? V.btn('Limpar filtros', { act: 'rfClear', icon: 'x', cls: 'sm ghost' }) : ''}
       ${n ? `<span class="fine"><b>${n}</b> selecionada(s)</span>${V.btn('Pausar', { act: 'recBulk', icon: 'clock', cls: 'sm ghost', attrs: 'data-do="pause"' })}${V.btn('Reativar', { act: 'recBulk', icon: 'check', cls: 'sm ghost', attrs: 'data-do="resume"' })}${V.btn('Excluir selecionadas', { act: 'recBulk', icon: 'trash', cls: 'sm ghost danger', attrs: 'data-do="delete"' })}` : ''}
@@ -307,11 +349,11 @@
   };
   const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"><input type="checkbox" data-act="recSelAll" aria-label="Selecionar todas" ${list.every(r => recSel().has(r.id)) ? 'checked' : ''}></th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
     ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1 || !!r.regime; return `<tr class="${!isOn(r) ? 'inactive' : ''}"><td class="chk-col"><input type="checkbox" data-act="recSel" data-id="${esc(r.id)}" aria-label="Selecionar" ${recSel().has(r.id) ? 'checked' : ''}></td><td><b>${esc(r.title)}</b>${r.regime ? `<small class="obs" title="${esc(cl.join(', '))}">Regime ${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${cl.length} empresas (automático)</small>` : many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
-      <td class="nowrap">${isDaily(r) ? 'Todo dia útil' : isUnica(r) ? 'Uma vez · ' + D.fmt(r.date) : isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
-      <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
+      <td class="nowrap">${freqLabel(r)}${r.businessDay && !isDaily(r) ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
+      <td class="nowrap">${fmtPeriod(r.start)}${r.end ? ' a ' + fmtPeriod(r.end) : ' em diante'}${r.reps ? '<small class="obs">' + r.reps + ' vez(es)</small>' : ''}</td>
       <td>${!isOn(r) ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
       <td class="actions-col">${V.ibtn(!isOn(r) ? 'check' : 'clock', !isOn(r) ? 'Reativar' : 'Pausar', { act: 'toggleTaskRec', attrs: `data-id="${esc(r.id)}"` })}${V.ibtn('trash', 'Excluir recorrência', { act: 'deleteTaskRec', attrs: `data-id="${esc(r.id)}"` })}</td></tr>`; }).join('')}
-    </tbody></table></div>` : V.empty('Nenhuma tarefa recorrente. Use "Nova tarefa" e marque "Repetir todo mês".', 'refresh');
+    </tbody></table></div>` : V.empty('Nenhuma tarefa recorrente. Use "Nova tarefa" e marque "Repetir".', 'refresh');
   // corpo da aba "Cadastro de tarefas" (dentro de Atividades)
   const cadastro = u => {
     const allRecs = recs().filter(r => canManage(u, r.deptId)), list = recFiltered(u);
