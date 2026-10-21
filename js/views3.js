@@ -311,3 +311,15 @@
   V.forbidden = msg => `<div class="forbidden">${icon('lock')}<h1>Acesso restrito</h1><p>${esc(msg)}</p><p class="muted">A tentativa foi registrada na auditoria.</p>${V.btn('Voltar ao início', { go: 'dashboard', cls: 'primary', icon: 'left' })}</div>`;
 
 })(window.P);
+/* Diagnóstico de desempenho (Configurações Gerais): tempo que cada tabela levou no último carregamento do banco */
+(function (P) {
+  const V = P.V, esc = P.esc;
+  const orig = V.gerais;
+  V.gerais = function (u) {
+    const html = orig.apply(this, arguments), st = P.loadStats;
+    if (!P.isLive || !st) return html;
+    const card = V.card('Diagnóstico de desempenho', `<p class="prose">Último carregamento: <b>${st.total} ms</b> no total (${esc(st.at)}). Tabelas mais lentas primeiro. Se alguma passar de 2000 ms, me mande esta lista.</p>
+      <div class="table-wrap"><table class="tbl compact"><thead><tr><th>Tabela</th><th class="num">Registros</th><th class="num">Tempo (ms)</th></tr></thead><tbody>${st.tables.slice(0, 12).map(t => `<tr><td>${esc(t.table)}</td><td class="num">${t.rows}</td><td class="num${t.ms > 2000 ? ' bad' : ''}">${t.ms}</td></tr>`).join('')}</tbody></table></div>`, { sub: 'Só aparece para a diretoria e a gerência.' });
+    return html + card;
+  };
+})(window.P);

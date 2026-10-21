@@ -132,7 +132,9 @@
   };
   async function loadAll() {
     const db = P.emptyDb();
+    const t0 = performance.now(), stats = []; // diagnóstico: quanto tempo cada tabela leva para chegar (Configurações Gerais)
     await Promise.all(COLLECTIONS.map(async c => {
+      const ts = performance.now();
       let rows;
       try {
         c.missing = false;
@@ -154,7 +156,9 @@
       else db[c.key] = val;
       // o snapshot guarda o que veio do servidor, para enviar depois só as diferenças
       remember(c, c.single ? rows : rows.map(r => ({ id: r.id, doc: r.doc })), privRows);
+      stats.push({ table: c.table, rows: rows.length, ms: Math.round(performance.now() - ts) });
     }));
+    P.loadStats = { at: new Date().toLocaleString('pt-BR'), total: Math.round(performance.now() - t0), tables: stats.sort((a, b) => b.ms - a.ms) };
     if (db.audit) db.audit.sort((a, b) => (a.at || '') < (b.at || '') ? -1 : 1);
     P.store.db = db; P.reindex();
     return db;
