@@ -34,6 +34,7 @@
     alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4M12 17h.01"/>',
     up: '<path d="m18 15-6-6-6 6"/>',
     down: '<path d="m6 9 6 6 6-6"/>',
+    more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
     download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
@@ -152,6 +153,8 @@
       ${title ? `<header class="card-h"><div><h3>${title}</h3>${o.sub ? `<p>${o.sub}</p>` : ''}</div>${o.actions ? `<div class="card-actions">${o.actions}</div>` : ''}</header>` : ''}
       <div class="card-b">${body}</div>
     </section>`;
+  // menu "⋯" de uma linha: recebe os botões (HTML) que antes ficavam espalhados na linha
+  V.rowMenu = btns => btns ? `<details class="row-menu"><summary class="ibtn" aria-label="Ações" title="Ações">${icon('more')}</summary><div class="row-menu-pop">${btns}</div></details>` : '';
   V.empty = (msg, ic = 'info') => `<div class="empty">${icon(ic)}<p>${msg}</p></div>`;
   V.pageHead = (title, sub, actions) => `
     <div class="page-head"><div><h1>${title}</h1>${sub ? `<p class="lede">${sub}</p>` : ''}</div>${actions ? `<div class="head-actions">${actions}</div>` : ''}</div>`;
@@ -250,7 +253,11 @@
   V.dashRender = (u, head, blocks) => {
     P.state._dashBlocks = blocks.map(b => ({ id: b.id, title: b.title }));
     const shown = V.dashLayout(u, blocks);
-    return `${head}<div class="dash">${shown.map(b => `<div class="dblock ${V.DASH_SIZES[b.size]}" data-block="${b.id}">${b.html()}</div>`).join('') || V.card('', V.empty('Todos os blocos estão ocultos. Use "Personalizar" para escolher o que aparece.', 'grid'))}</div>`;
+    const one = b => `<div class="dblock ${V.DASH_SIZES[b.size]}" data-block="${b.id}">${b.html()}</div>`;
+    const main = shown.filter(b => !b.more), more = shown.filter(b => b.more);
+    // painéis secundários ficam recolhidos para a tela inicial não ficar poluída
+    return `${head}<div class="dash">${main.map(one).join('') || (more.length ? '' : V.card('', V.empty('Todos os blocos estão ocultos. Use "Personalizar" para escolher o que aparece.', 'grid')))}</div>
+      ${more.length ? `<details class="more-box" data-more="dash"><summary>${icon('down')}<span>Ver mais painéis (${more.length})</span></summary><div class="dash">${more.map(one).join('')}</div></details>` : ''}`;
   };
   V.dashTools = () => V.btn('Personalizar', { act: 'customizeDash', icon: 'sliders', cls: 'ghost' }) + V.btn('Apresentar', { act: 'presentMode', icon: 'monitor', cls: 'ghost' });
 
@@ -272,12 +279,12 @@
         ${V.kpi('Sobrecarga', tm.over, { icon: 'alert', tone: tm.over ? 't-crit' : '', sub: 'acima de ' + P.store.db.settings.highThreshold + '%', go: 'equipe' })}
         ${V.kpi('Baixa utilização', tm.low, { icon: 'down', tone: tm.low ? 't-warn' : '', sub: 'abaixo de ' + P.store.db.settings.lowThreshold + '%', go: 'equipe' })}
       </div>` },
-      { id: 'evolucao', title: 'Evolução mensal de pontos', size: 'wide', html: () => { const months = M.monthly(all, 6, false); const series = rows.map((r, i) => ({ name: r.d.name, cls: 's' + (i + 1), values: M.monthly(r.emps, 6, false).map(m => m.points) })); return V.card('Evolução mensal de pontos', C.legend(series) + C.slot({ type: 'line', labels: months.map(m => m.label), tipLabels: months.map(m => D.monthLabel(m.start, true)), series, height: 260, aria: 'Pontos por departamento nos últimos 6 meses' }), { sub: 'Últimos 6 meses fechados, por departamento.' }); } },
-      { id: 'utilDept', title: 'Utilização por departamento', size: 'third', html: () => V.card('Utilização por departamento', C.load(rows.map(r => ({ name: r.d.name, util: r.tm.util, status: M.classify(r.tm.util), points: r.tm.points, capacity: r.tm.capacity, go: 'equipe?dept=' + r.d.id }))), { sub: p.label + ' · pontos ÷ capacidade proporcional' }) },
-      { id: 'comparacao', title: 'Comparação entre departamentos', size: 'full', html: () => V.card('Comparação entre departamentos', V.deptCompareTable(rows), { sub: 'Visível somente para gerência e diretoria.', actions: V.btn('Detalhar', { go: 'departamentos', icon: 'right', cls: 'ghost sm' }) }) },
-      { id: 'produtividade', title: 'Produtividade por departamento', size: 'third', html: () => V.card('Produtividade por departamento', C.slot({ type: 'bars', data: rows.map(r => ({ label: r.d.code, value: r.tm.points, cls: 's1', tip: `${r.d.name}: ${F.n(r.tm.points)} pts · meta ${F.n(r.tm.goal)} · produtividade ${F.pct0(r.tm.prod)}` })), ref: null, height: 220, aria: 'Pontos por departamento' }), { sub: 'Pontos entregues no período' }) },
-      { id: 'rankingDept', title: 'Ranking dos departamentos', size: 'third', html: () => { const ranked = rows.slice().sort((a, b) => (b.tm.points / (b.emps.length || 1)) - (a.tm.points / (a.emps.length || 1))); return V.card('Ranking dos departamentos', `<ol class="rank-list">${ranked.map((r, i) => `<li><span class="rk-pos">${i + 1}</span><span class="rk-name">${esc(r.d.name)}<small>${r.emps.length} pessoas · ${F.pct0(r.tm.util)} de utilização</small></span><span class="rk-val">${F.n(r.tm.points / (r.emps.length || 1))}<small>pts/pessoa</small></span></li>`).join('')}</ol>`, { sub: 'Pontos por pessoa, para comparar equipes de tamanhos diferentes' }); } },
-      { id: 'mesXmes', title: 'Este mês × mês anterior', size: 'third', html: () => { const cmp = M.compare(all, 'mes'); return V.card('Este mês × mês anterior', V.compareBody(cmp), { sub: cmp.labelB }); } },
+      { more: true, id: 'evolucao', title: 'Evolução mensal de pontos', size: 'wide', html: () => { const months = M.monthly(all, 6, false); const series = rows.map((r, i) => ({ name: r.d.name, cls: 's' + (i + 1), values: M.monthly(r.emps, 6, false).map(m => m.points) })); return V.card('Evolução mensal de pontos', C.legend(series) + C.slot({ type: 'line', labels: months.map(m => m.label), tipLabels: months.map(m => D.monthLabel(m.start, true)), series, height: 260, aria: 'Pontos por departamento nos últimos 6 meses' }), { sub: 'Últimos 6 meses fechados, por departamento.' }); } },
+      { more: true, id: 'utilDept', title: 'Utilização por departamento', size: 'third', html: () => V.card('Utilização por departamento', C.load(rows.map(r => ({ name: r.d.name, util: r.tm.util, status: M.classify(r.tm.util), points: r.tm.points, capacity: r.tm.capacity, go: 'equipe?dept=' + r.d.id }))), { sub: p.label + ' · pontos ÷ capacidade proporcional' }) },
+      { more: true, id: 'comparacao', title: 'Comparação entre departamentos', size: 'full', html: () => V.card('Comparação entre departamentos', V.deptCompareTable(rows), { sub: 'Visível somente para gerência e diretoria.', actions: V.btn('Detalhar', { go: 'departamentos', icon: 'right', cls: 'ghost sm' }) }) },
+      { more: true, id: 'produtividade', title: 'Produtividade por departamento', size: 'third', html: () => V.card('Produtividade por departamento', C.slot({ type: 'bars', data: rows.map(r => ({ label: r.d.code, value: r.tm.points, cls: 's1', tip: `${r.d.name}: ${F.n(r.tm.points)} pts · meta ${F.n(r.tm.goal)} · produtividade ${F.pct0(r.tm.prod)}` })), ref: null, height: 220, aria: 'Pontos por departamento' }), { sub: 'Pontos entregues no período' }) },
+      { more: true, id: 'rankingDept', title: 'Ranking dos departamentos', size: 'third', html: () => { const ranked = rows.slice().sort((a, b) => (b.tm.points / (b.emps.length || 1)) - (a.tm.points / (a.emps.length || 1))); return V.card('Ranking dos departamentos', `<ol class="rank-list">${ranked.map((r, i) => `<li><span class="rk-pos">${i + 1}</span><span class="rk-name">${esc(r.d.name)}<small>${r.emps.length} pessoas · ${F.pct0(r.tm.util)} de utilização</small></span><span class="rk-val">${F.n(r.tm.points / (r.emps.length || 1))}<small>pts/pessoa</small></span></li>`).join('')}</ol>`, { sub: 'Pontos por pessoa, para comparar equipes de tamanhos diferentes' }); } },
+      { more: true, id: 'mesXmes', title: 'Este mês × mês anterior', size: 'third', html: () => { const cmp = M.compare(all, 'mes'); return V.card('Este mês × mês anterior', V.compareBody(cmp), { sub: cmp.labelB }); } },
       { id: 'insights', title: 'Insights da operação', size: 'wide', html: () => V.card('Insights da operação', V.insightList(P.insights(u).slice(0, 4)), { actions: V.btn('Todos os insights', { go: 'insights', cls: 'ghost sm', icon: 'right' }) }) },
       { id: 'pendencias', title: 'Pendências', size: 'third', html: () => V.card('Pendências', `
           <div class="mini-stats">
@@ -324,7 +331,7 @@
         ${V.kpi('Capacidade utilizada', F.pct0(tm.util), { hero: true, sub: F.n(tm.points) + ' de ' + F.n(tm.capacity) + ' pts disponíveis', bar: tm.util, status: M.classify(tm.util) })}
         ${V.kpi('Tarefas concluídas', F.n(tm.tasks), { hero: true, sub: tm.pending ? tm.pending + ' lançamentos pendentes de aprovação' : 'todos os lançamentos revisados' })}
       </div>` },
-      { id: 'numeros', title: 'Números da equipe', size: 'full', html: () => `<div class="strip">
+      { more: true, id: 'numeros', title: 'Números da equipe', size: 'full', html: () => `<div class="strip">
         <div><span>Pessoas com produção</span><b>${emps.length}</b></div>
         <div><span>Tarefas hoje</span><b>${F.n(tasksIn('hoje'))}</b></div>
         <div><span>Tarefas na semana</span><b>${F.n(tasksIn('semana'))}</b></div>
@@ -334,12 +341,12 @@
         <div class="${tm.low ? 't-warn' : ''}"><span>Baixa utilização</span><b>${tm.low}</b></div>
       </div>` },
       { id: 'carga', title: 'Distribuição de carga', size: 'half', html: () => { const sorted = tm.rows.slice().sort((a, b) => (b.util || 0) - (a.util || 0)); return V.card('Distribuição de carga', C.load(sorted.map(r => ({ name: r.user.name, util: r.util, status: r.status, points: r.points, capacity: r.capacity, go: 'funcionario/' + r.user.id }))), { sub: 'Quem está sobrecarregado e quem tem capacidade disponível · ' + p.label, actions: V.btn('Minha equipe', { go: 'equipe', cls: 'ghost sm', icon: 'right' }) }); } },
-      { id: 'semanal', title: 'Evolução semanal da equipe', size: 'half', html: () => { const weeks = M.weekly(emps, 12); return V.card('Evolução semanal da equipe', C.slot({ type: 'bars', data: weeks.map(w => ({ label: w.label, value: w.points, partial: w.partial, tip: `Semana de ${w.label}${w.partial ? ' (em andamento)' : ''}: ${F.n(w.points)} pts · ${F.pct0(w.util)} da capacidade` })), ref: { values: weeks.map(w => w.capacity), label: 'Capacidade' }, height: 250, aria: 'Pontos por semana' }), { sub: 'Pontos por semana nas últimas 12 semanas; a linha tracejada é a capacidade da equipe.' }); } },
+      { more: true, id: 'semanal', title: 'Evolução semanal da equipe', size: 'half', html: () => { const weeks = M.weekly(emps, 12); return V.card('Evolução semanal da equipe', C.slot({ type: 'bars', data: weeks.map(w => ({ label: w.label, value: w.points, partial: w.partial, tip: `Semana de ${w.label}${w.partial ? ' (em andamento)' : ''}: ${F.n(w.points)} pts · ${F.pct0(w.util)} da capacidade` })), ref: { values: weeks.map(w => w.capacity), label: 'Capacidade' }, height: 250, aria: 'Pontos por semana' }), { sub: 'Pontos por semana nas últimas 12 semanas; a linha tracejada é a capacidade da equipe.' }); } },
       { id: 'insights', title: 'Insights do Gestor', size: 'wide', html: () => V.card('Insights do Gestor', V.insightList(P.insights(u).slice(0, 4)), { actions: V.btn('Ver todos', { go: 'insights', cls: 'ghost sm', icon: 'right' }) }) },
-      { id: 'comparacao', title: 'Comparação entre períodos', size: 'third', html: () => { const cmp = M.compare(emps, S.cmp); return V.card('Comparação entre períodos', `
+      { more: true, id: 'comparacao', title: 'Comparação entre períodos', size: 'third', html: () => { const cmp = M.compare(emps, S.cmp); return V.card('Comparação entre períodos', `
           <div class="seg sm" role="group">${[['semana', 'Semana'], ['mes', 'Mês'], ['3m', '3 meses'], ['6m', '6 meses']].map(([k, l]) => `<button type="button" class="${S.cmp === k ? 'on' : ''}" data-act="cmp" data-key="${k}">${l}</button>`).join('')}</div>
           ${V.compareBody(cmp)}`, { sub: cmp.labelA + ' × ' + cmp.labelB }); } },
-      { id: 'atividades', title: 'Distribuição das atividades', size: 'half', html: () => { const acts = M.byActivity(emps, p); return V.card('Distribuição das atividades', acts.rows.length ? C.hbars(acts.rows.slice(0, 8).map(r => ({ label: r.act.name, value: r.points, valueLabel: F.n(r.points) + ' pts · ' + F.pct0(r.share), tip: `${r.act.name}: ${F.n(r.qty, 2)} ${r.act.unit} × ${F.n(r.act.weight, 2)} = ${F.n(r.points)} pts` }))) : V.empty('Sem lançamentos no período.'), { sub: 'Onde o esforço da equipe está concentrado · ' + p.label }); } },
+      { more: true, id: 'atividades', title: 'Distribuição das atividades', size: 'half', html: () => { const acts = M.byActivity(emps, p); return V.card('Distribuição das atividades', acts.rows.length ? C.hbars(acts.rows.slice(0, 8).map(r => ({ label: r.act.name, value: r.points, valueLabel: F.n(r.points) + ' pts · ' + F.pct0(r.share), tip: `${r.act.name}: ${F.n(r.qty, 2)} ${r.act.unit} × ${F.n(r.act.weight, 2)} = ${F.n(r.points)} pts` }))) : V.empty('Sem lançamentos no período.'), { sub: 'Onde o esforço da equipe está concentrado · ' + p.label }); } },
       { id: 'aprovacoes', title: 'Aprovações pendentes', size: 'half', html: () => { const pend = api.entries(u, { status: 'pendente' }).filter(e => e.userId !== u.id).slice(-5).reverse(); return V.card('Aprovações pendentes', pend.length ? `<ul class="plist">${pend.map(e => `<li>${V.avatar(P.user(e.userId))}<div><b>${esc((P.user(e.userId) || { name: '—' }).name)}</b><small>${esc((P.act(e.activityId) || { name: '—' }).name)} · ${F.n(e.qty, 2)} × ${F.n(e.weight, 2)} = <b>${F.n(e.points, 2)} pts</b> · ${D.relative(e.date)}</small></div><div class="row-actions">${V.ibtn('check', 'Aprovar', { act: 'review', attrs: `data-id="${e.id}" data-op="aprovar"`, cls: 'ok' })}</div></li>`).join('')}</ul>` : V.empty('Nenhum lançamento aguardando aprovação.', 'check'), { actions: V.btn('Abrir fila', { go: 'lancamentos', cls: 'ghost sm', icon: 'right' }), sub: goal ? 'Meta mensal do departamento: ' + F.n(goal.target) + ' pts' : '' }); } }
     ]);
   };
@@ -384,6 +391,7 @@
         ${V.kpi('Tarefas concluídas', F.n(sm.tasks), { sub: 'no mês' })}
         ${V.kpi('Tarefas pendentes', pendTasks.length, { sub: pendTasks.filter(t => t.due && t.due < D.iso(P.today())).length + ' em atraso', go: own ? 'atividades' : null })}
       </div>
+      <details class="more-box" data-more="emp"><summary>${icon('down')}<span>Gráficos, metas e detalhes</span></summary>
       <div class="grid g-2-1">
         ${V.card('Pontos produzidos por semana', C.slot({ type: 'bars', data: weeks.map(w => ({ label: w.label, value: w.points, partial: w.partial, tip: `Semana de ${w.label}${w.partial ? ' (em andamento)' : ''}: ${F.n(w.points)} pts${load ? ' · ' + F.pct0(w.util) : ''}` })), ref: load ? { values: weeks.map(w => w.capacity), label: 'Capacidade' } : null, height: 250, aria: 'Pontos por semana' }), { sub: 'Últimas 12 semanas · a semana atual é parcial' })}
         ${V.card('Distribuição das atividades', acts.rows.length ? C.hbars(acts.rows.slice(0, 7).map(r => ({ label: r.act.name, value: r.points, valueLabel: F.n(r.points) + ' pts', tip: `${r.act.name}: ${F.n(r.qty, 2)} × ${F.n(r.act.weight, 2)}` }))) : V.empty('Sem lançamentos no período.'), { sub: p.label + ' · ' + F.n(acts.total) + ' pts' })}
@@ -391,7 +399,7 @@
       <div class="grid ${load ? 'g-1-1' : ''}">
         ${!load ? '' : V.card('Evolução da utilização', C.slot({ type: 'line', area: true, pct: true, labels: weeks.map(w => w.label), series: [{ name: 'Utilização', cls: 's1', values: weeks.map(w => w.util == null ? null : Math.round(w.util * 10) / 10) }], ref: { value: 100, label: '100%' }, fmt: v => F.pct(v), height: 220, aria: 'Utilização semanal' }), { sub: 'Faixa saudável entre ' + P.store.db.settings.lowThreshold + '% e ' + P.store.db.settings.highThreshold + '%' })}
         ${V.card('Metas', goals.map(g => V.goalBlock(g, emp)).join('') || V.empty('Sem metas configuradas.'), { actions: V.btn('Metas', { go: 'metas', cls: 'ghost sm', icon: 'right' }) })}
-      </div>
+      </div></details>
       ${!own && ins.length ? V.card('Insights sobre ' + esc(P.firstName(emp.name)), V.insightList(ins, { links: false })) : ''}
       ${!own ? V.card('Observações do gestor', V.notesList(viewer, emp)) : ''}
       ${!own && viewer.role !== 'employee' ? V.card('Reconhecimentos', V.recList(viewer, api.recognitions(viewer, { userId: emp.id }), { empty: 'Nenhum reconhecimento registrado para ' + esc(P.firstName(emp.name)) + '.' }), { cls: 'flush-b', actions: api.canRecognize(viewer, emp) ? V.btn('Reconhecer', { act: 'recognize', cls: 'sm ghost', icon: 'medal', attrs: `data-id="${emp.id}"` }) : '' }) : ''}

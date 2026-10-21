@@ -325,6 +325,11 @@
       <label class="field nt-rep-f" style="display:none"><span>Ou terminar em <small class="muted">(opcional)</small></span><input type="date" id="nt-rep-end"></label>
       <label class="field check span3 nt-rep-f nt-rep-m" style="display:none"><input type="checkbox" id="nt-rep-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>`);
     // "todo dia útil": some o dia do mês (não se aplica)
+    // opções avançadas: "Repetir" e "Sem prazo" saem da frente e ficam recolhidas
+    const adv = document.createElement('details'); adv.className = 'adv'; adv.innerHTML = '<summary>Opções avançadas (repetir, sem prazo)</summary><div class="fgrid"></div>';
+    const advBox = adv.querySelector('.fgrid'), nd = $('#nt-nodue');
+    [$('#nt-rep').closest('label'), ...document.querySelectorAll('.nt-rep-f'), nd && nd.closest('label')].filter(Boolean).forEach(x => advBox.appendChild(x));
+    $('#nt-title').closest('label').insertAdjacentElement('beforebegin', adv);
     // mostra só os campos que valem para a frequência: dia do mês (mensal) ou dia da semana (semanal)
     const ntFreqUi = () => {
       const f = $('#nt-rep-freq').value, on = $('#nt-rep').checked;
@@ -707,8 +712,9 @@
   };
   // lista de tarefas: botões Adiar/Dispensar/Editar e o registro do motivo
   // botões com texto (não só ícone), para ficarem fáceis de achar
+  // vários botões por linha poluem a tela: ficam todos dentro de um único menu "⋯"
   const taskBtns = (u, t) => t.status === 'pendente' && canHandle(u, t)
-    ? (canManage(u, t.deptId) ? V.btn('Editar', { act: 'editTask', icon: 'edit', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) : '') + V.btn('Adiar', { act: 'postponeTask', icon: 'clock', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) + V.btn('Dispensar', { act: 'dismissTask', icon: 'x', cls: 'sm ghost', attrs: `data-id="${t.id}"` })
+    ? V.rowMenu((canManage(u, t.deptId) ? V.btn('Editar', { act: 'editTask', icon: 'edit', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) : '') + V.btn('Adiar', { act: 'postponeTask', icon: 'clock', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) + V.btn('Dispensar', { act: 'dismissTask', icon: 'x', cls: 'sm ghost', attrs: `data-id="${t.id}"` }))
     : t.status === 'dispensada' && canManage(u, t.deptId) ? V.btn('Reabrir', { act: 'reopenTask', icon: 'refresh', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) : '';
   V.taskExtra = (u, t) => {
       const extra = [];

@@ -9,6 +9,21 @@
     set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { } }
   };
 
+  // gráficos dentro de "Ver mais" precisam ser desenhados quando a caixa abre (fechada ela não tem largura)
+  document.addEventListener('toggle', ev => { const t = ev.target; if (t && t.classList && t.classList.contains('more-box') && t.open && P.charts) P.charts.hydrate(); }, true);
+
+  // menu "⋯" das linhas: abre ao lado do botão (fora da tabela, para não ser cortado) e fecha ao clicar fora ou em uma opção
+  const closeRowMenus = except => document.querySelectorAll('details.row-menu[open]').forEach(d => { if (d !== except) d.removeAttribute('open'); });
+  document.addEventListener('toggle', ev => {
+    const d = ev.target; if (!d || !d.classList || !d.classList.contains('row-menu') || !d.open) return;
+    closeRowMenus(d);
+    const pop = d.querySelector('.row-menu-pop'), r = d.querySelector('summary').getBoundingClientRect(), h = pop.offsetHeight || 120;
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 168, r.right - 160)) + 'px';
+    pop.style.top = (r.bottom + h + 8 > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + 'px';
+  }, true);
+  document.addEventListener('click', ev => { if (!ev.target.closest('details.row-menu') || ev.target.closest('.row-menu-pop [data-act]')) closeRowMenus(); }, true);
+  window.addEventListener('scroll', () => closeRowMenus(), true);
+
   P.store.load();
   const today = P.today();
   const S = P.state = {
@@ -146,17 +161,41 @@
     const cur = S.route.page === k || (k === 'equipe' && S.route.page === 'funcionario' && S.user.role !== 'employee' && !ownPerformance) || (k === 'dashboard' && ownPerformance);
     return `<a href="#/${k}" class="nav-a ${cur ? 'on' : ''}" data-go="${k}" title="${label}${count ? ' (' + count + ')' : ''}" ${cur ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span>${count ? `<em class="nav-count">${count}</em>` : ''}</a>`;
   }
+  /* Menu agrupado em blocos que abrem e fecham (o bloco da página atual fica sempre aberto) */
+  const NAV_GROUPS = [
+    ['trabalho', 'Trabalho', ['atividades', 'os', 'lancamentos', 'calendario']],
+    ['pessoas', 'Pessoas', ['comunicacao', 'equipe', 'mural', 'ranking', 'metas', 'ferias']],
+    ['clientes', 'Clientes', ['empresas', 'carteira', 'inadimplencia']],
+    ['gestao', 'Gestão', ['insights', 'relatorios', 'historico']],
+    ['adm', 'Financeiro e compras', ['plr', 'solicitacoes', 'financeiro']]
+  ];
+  const navShut = () => { if (!S.navShut) { try { S.navShut = JSON.parse(ls.get('prumo.navshut') || '{}'); } catch (e) { S.navShut = {}; } } return S.navShut; };
+  function navGroups(items, cur) {
+    const used = new Set(), first = items.filter(([k]) => k === 'dashboard').map(navLink).join('');
+    const html = NAV_GROUPS.map(([g, label, keys]) => {
+      const its = keys.map(k => items.find(i => i[0] === k)).filter(Boolean); its.forEach(i => used.add(i[0]));
+      return its.length ? navBlock(g, label, its, cur) : '';
+    }).join('');
+    const rest = items.filter(i => i[0] !== 'dashboard' && !used.has(i[0]));
+    return first + html + rest.map(navLink).join('');
+  }
+  function navBlock(g, label, its, cur) {
+    const has = its.some(i => i[0] === cur), shut = !has && (navShut()[g] != null ? navShut()[g] : g !== 'trabalho');
+    const count = its.reduce((t, i) => t + (Number(i[3]) || 0), 0);
+    return `<div class="nav-grp ${shut ? 'shut' : ''}" data-g="${g}"><button type="button" class="nav-grp-h" data-act="navGroup" data-g="${g}" aria-expanded="${!shut}"><span>${label}</span>${count ? `<em class="nav-count">${count}</em>` : ''}<i class="nav-chev">${icon('down')}</i></button><div class="nav-grp-b">${its.map(navLink).join('')}</div></div>`;
+  }
+  function adminBlock(items, cur) {
+    return items.length ? navBlock('admin', 'Administração', items, cur) : '';
+  }
   function shell(content) {
-    const u = S.user, n = navItems(u);
+    const u = S.user, n = navItems(u), curPage = S.route.page === 'funcionario' && S.route.id !== u.id ? 'equipe' : S.route.page === 'funcionario' ? 'dashboard' : S.route.page;
     const unread = P.alerts(u).filter(a => !a.read).length + (P.fx ? P.fx.unreadNotifs(u) : 0);
     const dept = u.deptId ? P.dept(u.deptId) : null;
     return `
     <div class="app ${S.navOpen ? 'nav-open' : ''} ${S.navCollapsed ? 'nav-min' : ''} ${S.justLogged ? 'enter' : ''} ${S.present ? 'present' : ''}">
       <aside class="side" aria-label="Navegação principal">
         <div class="brand">${icon('plumb', 'brand-ic')}<div><b>Prumo</b><small>Carga, capacidade e desempenho</small></div></div>
-        <nav class="nav">${n.main.map(navLink).join('')}
-          ${n.admin.length ? `<div class="nav-sep">Administração</div>${n.admin.map(navLink).join('')}` : ''}
-        </nav>
+        <nav class="nav">${navGroups(n.main, curPage)}${adminBlock(n.admin, curPage)}</nav>
         <div class="side-foot"><span class="org">${esc(P.store.db.settings.companyName)}</span><span>${dept ? esc(dept.name) : 'Acesso global'}</span></div>
       </aside>
       <button type="button" class="scrim" data-act="toggleNav" aria-label="Fechar menu"></button>
@@ -466,6 +505,11 @@
   const guard = fn => { try { fn(); } catch (e) { if (e instanceof P.AccessError) toast(e.message, 'err'); else { console.error(e); toast(e.message, 'err'); } } };
   const A = P.actions = {
     /* No computador recolhe/expande o menu (só ícones); em telas pequenas abre/fecha a gaveta */
+    navGroup(el) {
+      const g = el.dataset.g, box = el.closest('.nav-grp'); if (!box) return;
+      const shut = !box.classList.contains('shut'); box.classList.toggle('shut', shut); el.setAttribute('aria-expanded', String(!shut));
+      navShut()[g] = shut; ls.set('prumo.navshut', JSON.stringify(navShut()));
+    },
     toggleNav(el) {
       const app = document.querySelector('.app');
       if (window.innerWidth > 1020 && !(el && el.classList.contains('scrim'))) {
