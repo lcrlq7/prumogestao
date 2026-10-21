@@ -26,8 +26,8 @@
     [/alvar[aá]|licen[cç]a de funcionamento/i, 'media', 'Alvará vencido: multa municipal e risco de interdição.'],
     [/certid/i, 'media', 'Certidão vencida: bloqueia licitações, crédito e contratos.'],
   ];
-  // trabalho interno sobre algo já fechado (ex.: "Lançamento de Folha de Pagamento" no Contábil): não gera multa
-  const NO_FINE = /lan[cç]amento|contabiliza/i;
+  // trabalho interno sobre algo já fechado (ex.: "Lançamento de Folha de Pagamento" e "Fechamento contábil" no Contábil): não gera multa
+  const NO_FINE = /lan[cç]amento|contabiliza|fechamento/i;
   const cache = new Map();
   const ofName = n => {
     n = String(n || ''); if (!n) return null;
