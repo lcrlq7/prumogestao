@@ -176,8 +176,7 @@
       const its = keys.map(k => items.find(i => i[0] === k)).filter(Boolean); its.forEach(i => used.add(i[0]));
       return its.length ? navBlock(g, label, its, cur) : '';
     }).join('');
-    const rest = items.filter(i => i[0] !== 'dashboard' && !used.has(i[0]));
-    return first + html + rest.map(navLink).join('');
+        return first + html;
   }
   function navBlock(g, label, its, cur) {
     const has = its.some(i => i[0] === cur), shut = !has && (navShut()[g] != null ? navShut()[g] : g !== 'trabalho');
@@ -195,7 +194,7 @@
     <div class="app ${S.navOpen ? 'nav-open' : ''} ${S.navCollapsed ? 'nav-min' : ''} ${S.justLogged ? 'enter' : ''} ${S.present ? 'present' : ''}">
       <aside class="side" aria-label="Navegação principal">
         <div class="brand">${icon('plumb', 'brand-ic')}<div><b>Prumo</b><small>Carga, capacidade e desempenho</small></div></div>
-        <nav class="nav">${navGroups(n.main, curPage)}${adminBlock(n.admin, curPage)}</nav>
+        <nav class="nav">${navGroups(n.main, curPage)}${adminBlock(n.admin, curPage)}${n.main.filter(i => i[0] === 'configuracoes').map(navLink).join('')}</nav>
         <div class="side-foot"><span class="org">${esc(P.store.db.settings.companyName)}</span><span>${dept ? esc(dept.name) : 'Acesso global'}</span></div>
       </aside>
       <button type="button" class="scrim" data-act="toggleNav" aria-label="Fechar menu"></button>
