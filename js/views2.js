@@ -410,15 +410,17 @@
     const load = P.seesLoad(u);
     const today = D.iso(P.today());
     let cells = '';
+    // dias com obrigação fiscal ganham um alerta na grade (os detalhes continuam no painel ao clicar no dia)
+    const obrCache = {}, obrOn = d => { const k = d.getFullYear() + '-' + d.getMonth(); if (!obrCache[k]) { obrCache[k] = {}; P.obligationsFor(u, d.getFullYear(), d.getMonth(), scope).forEach(o => { (obrCache[k][o.date] = obrCache[k][o.date] || []).push(o); }); } return obrCache[k][D.iso(d)] || []; };
     for (let d = new Date(gridStart); d <= me || d.getDay() !== 1; d = D.add(d, 1)) {
-      const iso = D.iso(d), inM = d.getMonth() === m.getMonth();
+      const iso = D.iso(d), inM = d.getMonth() === m.getMonth(), ob = obrOn(d);
       const dm = V.dayMark(d), vo = vacOn(iso);
       const tags = [dm.tag]
         .concat(vo.length ? [`<i class="tag vac">${vo.length === 1 ? V.avatar(P.user(vo[0].userId), 'xs') + 'Férias: ' + esc(P.firstName((P.user(vo[0].userId) || { name: '—' }).name)) : vo.length + ' de férias'}</i>`] : [])
         .concat(V.agendaTags(evByDay[iso] || [])).filter(Boolean);
       const shown = tags.slice(0, 3), extra = tags.length - shown.length;
       cells += `<button type="button" class="cal-cell ${inM ? '' : 'out'} ${iso === today ? 'today' : ''} ${S.cal.sel === iso ? 'sel' : ''} ${D.isWorkday(d) ? '' : 'off'} ${dm.cls}" data-act="calSel" data-date="${iso}" aria-label="${D.fmt(iso)}${dm.label ? ', ' + esc(dm.label) : ''}">
-        <span class="cal-d">${d.getDate()}</span>
+        <span class="cal-d">${d.getDate()}</span>${ob.length ? `<span class="cal-obr" title="${esc(ob.length + (ob.length > 1 ? ' obrigações: ' : ' obrigação: ') + ob.map(o => o.name).join(', '))}" aria-label="${ob.length} obrigação(ões) fiscal(is) neste dia">⚠️${ob.length > 1 ? '<b>' + ob.length + '</b>' : ''}</span>` : ''}
         <span class="cal-tags">${shown.join('')}${extra > 0 ? `<i class="tag more">+${extra}</i>` : ''}</span>
       </button>`;
     }
@@ -431,7 +433,7 @@
       <div class="grid g-cal">
         <section class="card">
           <header class="card-h cal-h"><div class="cal-nav">${V.ibtn('left', 'Mês anterior', { act: 'calMove', attrs: 'data-d="-1"' })}<h3>${D.MONTHS[m.getMonth()][0].toUpperCase() + D.MONTHS[m.getMonth()].slice(1)} ${m.getFullYear()}</h3>${V.ibtn('right', 'Próximo mês', { act: 'calMove', attrs: 'data-d="1"' })}</div>
-            <div class="cal-legend"><i class="lg-hol"></i><span>Feriado</span><i class="lg-vac2"></i><span>Férias</span><i class="lg-meet"></i><span>Reunião</span><i class="lg-ev"></i><span>Evento</span><i class="lg-wk"></i><span>Não útil</span></div></header>
+            <div class="cal-legend"><i class="lg-hol"></i><span>Feriado</span><i class="lg-vac2"></i><span>Férias</span><i class="lg-meet"></i><span>Reunião</span><i class="lg-ev"></i><span>Evento</span><i class="lg-wk"></i><span>Não útil</span><span class="lg-obr">⚠️</span><span>Obrigação</span></div></header>
           <div class="card-b"><div class="cal-grid">${['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map(w => `<span class="cal-wd">${w}</span>`).join('')}${cells}</div></div>
         </section>
         <div class="stack">
