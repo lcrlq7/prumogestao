@@ -320,14 +320,17 @@
   }
 
   /* ---------- Toast e modal ---------- */
-  function toast(msg, tone = 'ok') {
+  // sticky: o aviso fica na tela até a pessoa fechar (usado nos erros de gravação, para dar tempo de ler e copiar a mensagem)
+  function toast(msg, tone = 'ok', sticky = false) {
     let box = $('#toasts');
     const t = document.createElement('div');
-    t.className = 'toast ' + tone; t.setAttribute('role', 'status');
-    t.innerHTML = icon(tone === 'err' ? 'alert' : 'check') + '<span></span>';
+    t.className = 'toast ' + tone; t.setAttribute('role', sticky ? 'alert' : 'status');
+    t.innerHTML = icon(tone === 'err' ? 'alert' : 'check') + '<span></span>' + (sticky ? '<button type="button" class="toast-x" aria-label="Fechar aviso">×</button>' : '');
     t.querySelector('span').textContent = msg;
+    const close = () => { t.classList.add('out'); setTimeout(() => t.remove(), 300); };
+    if (sticky) t.querySelector('.toast-x').addEventListener('click', close);
     box.appendChild(t);
-    setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 3200);
+    if (!sticky) setTimeout(close, 3200);
   }
   P.toast = toast;
   // Utilitários de interface usados pelo js/extras.js

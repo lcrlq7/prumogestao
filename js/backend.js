@@ -193,7 +193,9 @@
     setSync('saving');
     saving = flush().then(() => setSync('ok')).catch(async err => {
       console.error(err); setSync('error');
-      P.toast && P.toast('Não foi possível salvar no servidor: ' + friendly(err) + ' Os dados foram recarregados.', 'err');
+      // fica na tela até fechar e mostra a mensagem técnica do banco (com a tabela), para dar para copiar e diagnosticar
+      (P.syncErrors = P.syncErrors || []).push({ at: new Date().toISOString(), msg: String(err && err.message || err) });
+      P.toast && P.toast('Não foi possível salvar no servidor: ' + friendly(err) + ' A sua alteração NÃO foi gravada e os dados foram recarregados. Detalhe técnico: ' + String(err && err.message || err), 'err', true);
       // volta a refletir o servidor para não ficar com dados que o banco recusou
       try { await loadAll(); refreshUser(); P.render && P.render(); } catch (e) { console.error(e); }
     }).finally(() => { saving = null; if (again) { again = false; runSave(); } });
