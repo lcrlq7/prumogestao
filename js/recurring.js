@@ -287,6 +287,15 @@
       if (x.freq === 'semanal') r.wday = x.wday; else delete r.wday;
       if (once) r.date = x.date; else delete r.date;
     });
+    // o prazo novo vale também para as tarefas pendentes já criadas por estas regras (menos as adiadas com motivo)
+    let adjusted = 0;
+    const kept = new Map(rulesOf(act.id).filter(r => regs.includes(r.regime)).map(r => [r.id, r]));
+    db().tasks.forEach(t => {
+      const r = kept.get(t.recId); if (!r || t.status !== 'pendente' || !t.due || (t.postponed && t.postponed.length)) return;
+      const nd = isUnica(r) ? r.date : isDaily(r) || isWeekly(r) ? '' : dueOf(r, D.monthStart(D.parse(t.due)));
+      if (nd && nd !== t.due) { t.due = nd; adjusted++; }
+    });
+    if (adjusted) plainMsg += ' ' + adjusted + ' tarefa(s) pendente(s) mudaram para o novo prazo.';
     let removed = 0;
     const gone = old.filter(o => !regs.includes(o.regime));
     if (gone.length) {
