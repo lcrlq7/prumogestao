@@ -94,24 +94,23 @@
 
   /* ---------- Leitura ---------- */
   const fetchAll = async (table, opts = {}) => {
-    const size = Math.min(PAGE, opts.limit || PAGE);
-    // ordem FIXA: sem ORDER BY o banco pode repetir ou pular linhas entre uma página e outra (com milhares de tarefas aparecia duplicado ou faltando)
-    const page = (from, count) => {
-      let q = sb.from(table).select('id, doc', count ? { count: 'exact' } : undefined);
-      q = opts.limit ? q.order('updated_at', { ascending: false }).order('id') : q.order('id');
-      return q.range(from, from + size - 1);
-    };
-    const first = await page(0, !opts.limit);
-    if (first.error) throw new Error(table + ': ' + first.error.message);
-    const out = first.data.slice();
-    if (!opts.limit && first.data.length >= PAGE) {
-      if (first.count != null) {
-        // o total já é conhecido: as demais páginas vêm todas ao mesmo tempo (antes eram uma por vez, e o login esperava cada uma)
-        const reqs = []; for (let from = PAGE; from < first.count; from += PAGE) reqs.push(page(from));
-        for (const r of await Promise.all(reqs)) { if (r.error) throw new Error(table + ': ' + r.error.message); out.push(...r.data); }
-      } else {
-        for (let from = PAGE; ; from += PAGE) { const r = await page(from); if (r.error) throw new Error(table + ': ' + r.error.message); out.push(...r.data); if (r.data.length < PAGE) break; }
-      }
+    // só as mais recentes (ex.: auditoria): uma consulta só
+    if (opts.limit) {
+      const { data, error } = await sb.from(table).select('id, doc').order('updated_at', { ascending: false }).order('id').range(0, Math.min(PAGE, opts.limit) - 1);
+      if (error) throw new Error(table + ': ' + error.message);
+      return data;
+    }
+    // ordem FIXA por id e paginação "a partir do último id" (não por posição): com milhares de tarefas, pular N linhas a cada página
+    // fica cada vez mais lento e estourava o tempo limite do banco no login (statement timeout)
+    const out = []; let last = null;
+    for (;;) {
+      let q = sb.from(table).select('id, doc').order('id').limit(PAGE);
+      if (last !== null) q = q.gt('id', last);
+      const { data, error } = await q;
+      if (error) throw new Error(table + ': ' + error.message);
+      out.push(...data);
+      if (data.length < PAGE) break;
+      last = data[data.length - 1].id;
     }
     // proteção extra: nunca devolve o mesmo id duas vezes
     const seenIds = new Set();
