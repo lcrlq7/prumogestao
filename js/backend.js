@@ -94,16 +94,24 @@
 
   /* ---------- Leitura ---------- */
   const fetchAll = async (table, opts = {}) => {
-    const out = [];
-    for (let from = 0; ; from += PAGE) {
-      let q = sb.from(table).select('id, doc');
-      // ordem FIXA: sem ORDER BY o banco pode repetir ou pular linhas entre uma página e outra (com milhares de tarefas aparecia duplicado ou faltando)
+    const size = Math.min(PAGE, opts.limit || PAGE);
+    // ordem FIXA: sem ORDER BY o banco pode repetir ou pular linhas entre uma página e outra (com milhares de tarefas aparecia duplicado ou faltando)
+    const page = (from, count) => {
+      let q = sb.from(table).select('id, doc', count ? { count: 'exact' } : undefined);
       q = opts.limit ? q.order('updated_at', { ascending: false }).order('id') : q.order('id');
-      q = q.range(from, from + Math.min(PAGE, opts.limit || PAGE) - 1);
-      const { data, error } = await q;
-      if (error) throw new Error(table + ': ' + error.message);
-      out.push(...data);
-      if (data.length < PAGE || (opts.limit && out.length >= opts.limit)) break;
+      return q.range(from, from + size - 1);
+    };
+    const first = await page(0, !opts.limit);
+    if (first.error) throw new Error(table + ': ' + first.error.message);
+    const out = first.data.slice();
+    if (!opts.limit && first.data.length >= PAGE) {
+      if (first.count != null) {
+        // o total já é conhecido: as demais páginas vêm todas ao mesmo tempo (antes eram uma por vez, e o login esperava cada uma)
+        const reqs = []; for (let from = PAGE; from < first.count; from += PAGE) reqs.push(page(from));
+        for (const r of await Promise.all(reqs)) { if (r.error) throw new Error(table + ': ' + r.error.message); out.push(...r.data); }
+      } else {
+        for (let from = PAGE; ; from += PAGE) { const r = await page(from); if (r.error) throw new Error(table + ': ' + r.error.message); out.push(...r.data); if (r.data.length < PAGE) break; }
+      }
     }
     // proteção extra: nunca devolve o mesmo id duas vezes
     const seenIds = new Set();

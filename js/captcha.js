@@ -33,5 +33,6 @@
     },
     reset() { token = null; try { if (window.hcaptcha && widget != null) window.hcaptcha.reset(widget); } catch (e) { } }
   };
-  if (key) new MutationObserver(mount).observe(document.documentElement, { childList: true, subtree: true });
+  // começa a baixar o hCaptcha já na abertura da página (antes só começava quando a tela de login terminava de montar)
+  if (key) { load().catch(() => { }); new MutationObserver(mount).observe(document.documentElement, { childList: true, subtree: true }); }
 })(window.P);
