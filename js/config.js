@@ -20,7 +20,7 @@ window.PRUMO_CONFIG = {
   // hCaptcha no login, "esqueci a senha" e cadastro por convite. Cole aqui a "Site Key" (pública) do painel do hCaptcha.
   // A "Secret Key" NÃO vai aqui: ela é colada no Supabase → Authentication → Attack Protection → Enable Captcha protection.
   // Enquanto vazio, o captcha fica desligado.
-  hcaptchaSiteKey: 'ee70c472-f97c-4b86-8216-a04e42d2e1e0'
+  hcaptchaSiteKey: '' // hCaptcha desligado (era 'ee70c472-f97c-4b86-8216-a04e42d2e1e0'); desligar também em Supabase → Authentication → Attack Protection
 };
 
 /*
