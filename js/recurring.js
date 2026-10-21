@@ -116,7 +116,7 @@
   const plainOf = actId => recs().filter(r => !r.regime && r.activityId === actId && (!r.freq || r.freq === 'mensal'));
   const rulesText = actId => {
     const rs = rulesOf(actId); if (!rs.length) return '<span class="muted">—</span>';
-    return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${isUnica(r) ? 'uma vez, ' + D.fmt(r.date) : (isQ(r) ? 'trimestral' : 'mensal') + ', dia ' + r.day}</span>`).join(' ');
+    return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || (r.regime === 'manual' ? 'Empresas escolhidas' : r.regime))} · ${isUnica(r) ? 'uma vez, ' + D.fmt(r.date) : (isQ(r) ? 'trimestral' : 'mensal') + ', dia ' + r.day}</span>`).join(' ');
   };
   // lista de todas as empresas ativas com caixinha; o estado inicial vem dos regimes marcados e das exceções já salvas
   const cartDepts = name => [...new Set((db().clientAssignments || []).filter(a => a.client === name).map(a => a.deptId))];
@@ -167,7 +167,7 @@
       <label class="field ac-once" ${isUnica(first) ? '' : 'style="display:none"'}><span>Prazo (data)</span><input type="date" id="ac-date" value="${first.date || D.iso(D.add(P.today(), 7))}"></label>
       <label class="field check span3 ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><input type="checkbox" id="ac-bd" ${first.businessDay === false ? '' : 'checked'}><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
       <details class="span3 ac-cos"><summary>Escolher as empresas uma a uma <span class="muted" id="ac-co-n"></span></summary>
-        <p class="fine">Marque ou desmarque para tirar ou colocar empresas nesta tarefa. Começa já marcada pelos regimes escolhidos acima. Só vale se houver pelo menos um regime marcado.</p>
+        <p class="fine">Marque ou desmarque para tirar ou colocar empresas nesta tarefa. Começa já marcada pelos regimes escolhidos acima. Pode marcar empresas mesmo sem escolher regime: elas recebem a tarefa.</p>
         <input type="search" id="ac-co-q" placeholder="Buscar empresa" autocomplete="off" aria-label="Buscar empresa">
         <div class="ac-co-list">${companyRows(first, actId)}</div></details>
       <label class="field check span3"><input type="checkbox" id="ac-cart" ${first.onlyCarteira === false ? '' : 'checked'}><span>Só empresas atendidas por este departamento (carteira ou cadastro da empresa)</span></label>
@@ -193,7 +193,7 @@
   });
   const validateRegimeRules = m => {
     if (!m.querySelector('.ac-reg')) return;
-    const x = readRules(m); if (!x.regimes.length) return;
+    const x = readRules(m); if (!x.regimes.length && !m.querySelector('.ac-co:checked')) return; // sem regime e sem empresa escolhida: nada a validar
     if (x.freq === 'unica') { if (!x.date) throw new Error('Informe a data do prazo da tarefa.'); return; }
     if (!(x.day >= 1 && x.day <= 31)) throw new Error('Informe o dia do prazo da tarefa por regime (1 a 31).');
     if (!x.start) throw new Error('Informe o mês de início da tarefa por regime.');
@@ -218,31 +218,33 @@
       P.store.save();
       plainMsg = ' Prazo das tarefas recorrentes mudou para o dia ' + x.day + (moved ? ' (' + moved + ' pendente(s) ajustada(s))' : '') + '.';
     }
-    if (!x.regimes.length && !old.length) return plainMsg;
-    if (!canManage(u, act.deptId)) throw new P.AccessError('Você só cadastra tarefas do seu departamento.');
     const readOv = m.querySelector('.ac-co') ? readOverrides(m) : { include: [], exclude: [] };
-    x.regimes.forEach(reg => {
+    // sem regime marcado, mas com empresas escolhidas uma a uma: vira uma regra "manual" só para essas empresas
+    const regs = x.regimes.length ? x.regimes : (readOv.include.length ? ['manual'] : []);
+    if (!regs.length && !old.length) return plainMsg;
+    if (!canManage(u, act.deptId)) throw new P.AccessError('Você só cadastra tarefas do seu departamento.');
+    regs.forEach(reg => {
       let r = old.find(o => o.regime === reg);
       if (!r) { r = { id: P.uid('tr'), auto: true, userId: null, clients: [], end: '', active: false, paused: false, createdBy: u.id, createdAt: D.stamp() }; recs().push(r); }
       const once = x.freq === 'unica';
-      Object.assign(r, readOv, { deptId: act.deptId, title: act.name, activityId: act.id, regime: reg, onlyCarteira: x.cart, day: once ? Number(x.date.slice(8, 10)) : x.day, businessDay: once ? false : x.bd, start: once ? x.date.slice(0, 7) : x.start, active: false });
+      Object.assign(r, reg === 'manual' ? { include: readOv.include, exclude: [] } : readOv, { deptId: act.deptId, title: act.name, activityId: act.id, regime: reg, onlyCarteira: reg === 'manual' ? false : x.cart, day: once ? Number(x.date.slice(8, 10)) : x.day, businessDay: once ? false : x.bd, start: once ? x.date.slice(0, 7) : x.start, active: false });
       if (x.freq === 'trimestral' || once) r.freq = x.freq; else delete r.freq;
       if (once) r.date = x.date; else delete r.date;
     });
     let removed = 0;
-    const gone = old.filter(o => !x.regimes.includes(o.regime));
+    const gone = old.filter(o => !regs.includes(o.regime));
     if (gone.length) {
       const ids = new Set(gone.map(g => g.id)), pend = db().tasks.filter(t => ids.has(t.recId) && t.status === 'pendente');
-      const dropTasks = pend.length && confirm(`Você desmarcou ${gone.length} regime(s). Apagar também as ${pend.length} tarefa(s) pendente(s) já criadas para ele(s)?\n\nOK = apagar as pendentes. Cancelar = manter as já criadas.`);
+      const dropTasks = pend.length && confirm(`Você desmarcou ${gone.length} regra(s) de regime ou de empresas. Apagar também as ${pend.length} tarefa(s) pendente(s) já criadas para ele(s)?\n\nOK = apagar as pendentes. Cancelar = manter as já criadas.`);
       if (dropTasks) { const tids = new Set(pend.map(t => t.id)); toBin('task', pend); db().tasks = db().tasks.filter(t => !tids.has(t.id)); removed = tids.size; }
       toBin('recurrence', gone);
       db().taskRecurrences = recs().filter(r => !ids.has(r.id));
     }
-    P.audit(u, 'Tarefa por regime configurada', act.id, act.name + ' · ' + (x.regimes.map(k => (P.REGIMES[k] || {}).label).join(', ') || 'nenhum regime') + (x.regimes.length ? (x.freq === 'unica' ? ' · uma vez, ' + D.fmt(x.date) : (x.freq === 'trimestral' ? ' · trimestral' : ' · mensal') + ', dia ' + x.day) : ''));
+    P.audit(u, 'Tarefa por regime configurada', act.id, act.name + ' · ' + (regs.map(k => (P.REGIMES[k] || {}).label || 'empresas escolhidas').join(', ') || 'nenhum regime') + (regs.length ? (x.freq === 'unica' ? ' · uma vez, ' + D.fmt(x.date) : (x.freq === 'trimestral' ? ' · trimestral' : ' · mensal') + ', dia ' + x.day) : ''));
     P.store.save();
-    if (x.regimes.length) { if (P.isLive) setTimeout(() => generate(true), 500); else if (localGenerate()) P.store.save(); }
-    const n = x.regimes.reduce((s, reg) => s + regimeClients({ regime: reg, deptId: act.deptId, onlyCarteira: x.cart }).length, 0);
-    return plainMsg + (x.regimes.length ? ' Tarefa automática para ' + n + ' empresa(s) dos regimes marcados.' : '') + (removed ? ' ' + removed + ' tarefa(s) pendente(s) apagada(s).' : '');
+    if (regs.length) { if (P.isLive) setTimeout(() => generate(true), 500); else if (localGenerate()) P.store.save(); }
+    const n = new Set(rulesOf(act.id).flatMap(r => regimeClients(r))).size;
+    return plainMsg + (regs.length ? ' Tarefa automática para ' + n + ' empresa(s).' : '') + (removed ? ' ' + removed + ' tarefa(s) pendente(s) apagada(s).' : '');
   };
   P.taskRec = { generate, dueOf, localGenerate, onCompanySaved, regimeFormHtml, validateRegimeRules, saveRegimeRules, rulesText, rulesOf };
   setInterval(() => generate(), 60e3); window.addEventListener('focus', () => generate());
@@ -327,7 +329,7 @@
       <span class="fine tf-count">${list.length} de ${total} recorrência(s)</span></div>`;
   };
   const recTable = list => list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"><input type="checkbox" data-act="recSelAll" aria-label="Selecionar todas" ${list.every(r => recSel().has(r.id)) ? 'checked' : ''}></th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Período</th><th>Situação</th><th class="actions-col"></th></tr></thead><tbody>
-    ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1 || !!r.regime; return `<tr class="${!isOn(r) ? 'inactive' : ''}"><td class="chk-col"><input type="checkbox" data-act="recSel" data-id="${esc(r.id)}" aria-label="Selecionar" ${recSel().has(r.id) ? 'checked' : ''}></td><td><b>${esc(r.title)}</b>${r.regime ? `<small class="obs" title="${esc(cl.join(', '))}">Regime ${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${cl.length} empresas (automático)</small>` : many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
+    ${list.map(r => { const cl = clientsOf(r).filter(Boolean), many = cl.length > 1 || !!r.regime; return `<tr class="${!isOn(r) ? 'inactive' : ''}"><td class="chk-col"><input type="checkbox" data-act="recSel" data-id="${esc(r.id)}" aria-label="Selecionar" ${recSel().has(r.id) ? 'checked' : ''}></td><td><b>${esc(r.title)}</b>${r.regime ? `<small class="obs" title="${esc(cl.join(', '))}">${r.regime === 'manual' ? 'Empresas escolhidas' : 'Regime ' + esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${cl.length} empresas (automático)</small>` : many ? `<small class="obs" title="${esc(cl.join(', '))}">${cl.length} empresas</small>` : cl[0] ? `<small class="obs">${esc(cl[0])}</small>` : ''}</td><td>${r.auto ? `${many ? 'Responsável de cada empresa' : who(respOf(r))}<small class="obs">automático (carteira de ${esc((P.dept(r.deptId) || {}).name || '—')})</small>` : who(r.userId)}</td>
       <td class="nowrap">${isDaily(r) ? 'Todo dia útil' : isUnica(r) ? 'Uma vez · ' + D.fmt(r.date) : isQ(r) ? 'Trimestral · dia ' + r.day : 'Todo dia ' + r.day}${r.businessDay ? ' <small class="muted">(dia útil)</small>' : ''}${isQ(r) ? '<small class="obs">jan, abr, jul e out</small>' : ''}</td>
       <td class="nowrap">${r.start.split('-').reverse().join('/')}${r.end ? ' a ' + r.end.split('-').reverse().join('/') : ' em diante'}</td>
       <td>${!isOn(r) ? '<span class="badge st-sem">Pausada</span>' : '<span class="badge es-aprovado">Ativa</span>'}</td>
