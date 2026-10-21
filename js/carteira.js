@@ -116,4 +116,22 @@
     todo.forEach(c => api.removeClientAssignment(u, m.byClient.get(c.name).id));
     P.toast(todo.length + ' empresa(s) retirada(s) da carteira.'); P.render();
   });
+
+  /* ---------- Matriz e filial com o mesmo nome ---------- */
+  // o sistema identifica a empresa pelo nome: duas empresas com o mesmo nome viram uma só; o aviso oferece separar
+  const dupBanner = u => {
+    if (u.role === 'employee') return '';
+    const g = api.sameNameCompanies(); if (!g.length) return '';
+    const n = g.reduce((t, l) => t + l.length - 1, 0);
+    return `<div class="banner warn">${icon('alert')}<div><b>${g.reduce((t, l) => t + l.length, 0)} empresas com nome repetido (matriz e filial).</b> O sistema as trata como uma só: a carteira e as tarefas de uma aparecem na outra. ${V.btn('Separar agora', { act: 'splitCompanies', icon: 'check', cls: 'sm' })}<br><small>A matriz (CNPJ final 0001, ou o menor código) mantém o nome; as outras ${n} passam a se chamar "NOME - FILIAL 0002". A carteira e as tarefas que já existem ficam com a matriz; depois é só colocar a filial na carteira de quem cuida dela.</small></div></div>`;
+  };
+  ['carteira', 'empresas'].forEach(k => { const o = V[k]; if (o) V[k] = function (u) { return dupBanner(u) + o.apply(this, arguments); }; });
+  A.splitCompanies = () => {
+    const u = U(), g = api.sameNameCompanies();
+    if (!g.length) return P.toast('Nenhuma empresa com nome repetido.');
+    const lst = g.map(l => '• ' + l[0].name + ' (' + l.map(c => c.code || c.cnpj || 's/ código').join(', ') + ')').join('\n');
+    if (!confirm('Separar matriz e filial?\n\n' + lst + '\n\nA matriz mantém o nome e as demais ganham "- FILIAL <ramo>". A carteira e as tarefas que já existem ficam com a matriz.')) return;
+    const n = api.splitSameNameCompanies(u);
+    P.toast(n + ' empresa(s) separada(s) da matriz. Agora coloque cada filial na carteira de quem cuida dela.'); P.render();
+  };
 })(window.P);

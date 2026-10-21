@@ -945,14 +945,17 @@ window.P = window.P || {};
     company(u, id) { const c = P.idx.companies.get(id); assert(c, 'Empresa não encontrada.'); return c; },
     saveCompany(u, data) {
       assert(u.role !== 'employee', 'Somente gestores e administradores cadastram empresas.');
-      const name = String(data.name || '').trim();
+      let name = String(data.name || '').trim();
       assert(name.length >= 2, 'Informe a razão social.');
       const digits = P.cnpj.digits(data.cnpj);
       assert(!digits || P.cnpj.valid(digits), 'CNPJ inválido. Confira os 14 dígitos ou deixe em branco.');
       const cnpj = digits ? P.cnpj.format(digits) : '';
       assert(!cnpj || !db().companies.some(c => c.cnpj && P.cnpj.digits(c.cnpj) === digits && c.id !== data.id), 'Já existe uma empresa com este CNPJ.');
-      // Mesmo nome só é permitido quando o CNPJ diferencia (matriz e filiais)
-      assert(!db().companies.some(c => c.name.toLowerCase() === name.toLowerCase() && c.id !== data.id && (!cnpj || !c.cnpj)), 'Já existe uma empresa com este nome. Para matriz e filial, informe o CNPJ de cada uma.');
+      // O sistema identifica a empresa pelo nome (carteira, tarefas, recorrências): matriz e filial precisam de nomes diferentes.
+      // Com CNPJ diferente, a filial recebe o sufixo "- FILIAL 0002" (ramo do CNPJ) automaticamente.
+      const same = n => db().companies.some(c => c.name.toLowerCase() === n.toLowerCase() && c.id !== data.id);
+      assert(!same(name) || cnpj, 'Já existe uma empresa com este nome. Para matriz e filial, informe o CNPJ de cada uma.');
+      if (same(name)) { const base = name, suf = api.branchSuffix({ cnpj, code: data.code }); name = base + ' - FILIAL ' + suf; for (let i = 2; same(name); i++) name = base + ' - FILIAL ' + suf + '-' + i; }
       const code = String(data.code || '').trim();
       assert(!code || !db().companies.some(c => c.code && c.code.toLowerCase() === code.toLowerCase() && c.id !== data.id), 'Já existe uma empresa com este código.');
       assert(P.REGIMES[data.regime], 'Selecione o regime tributário.');
@@ -969,6 +972,28 @@ window.P = window.P || {};
       // empresa nova (ou que mudou de regime) já entra nas tarefas padrão do regime dela
       if (P.taskRec && P.taskRec.onCompanySaved) P.taskRec.onCompanySaved(c);
       return c;
+    },
+    /* Matriz e filial com o mesmo nome: o sistema identifica a empresa pelo nome, então as duas viravam uma só (carteira, tarefas) */
+    branchSuffix: c => { const d = P.cnpj.digits(c.cnpj); return d.length === 14 ? d.slice(8, 12) : String(c.code || '').trim() || '2'; },
+    sameNameCompanies() {
+      const g = new Map(); db().companies.forEach(c => { const k = c.name.trim().toLowerCase(); g.set(k, (g.get(k) || []).concat(c)); });
+      return [...g.values()].filter(l => l.length > 1);
+    },
+    /* Mantém o nome na matriz (CNPJ final 0001, ou o menor código) e põe "- FILIAL <ramo>" nas demais. A carteira e as tarefas que já existem continuam com a matriz. */
+    splitSameNameCompanies(u) {
+      assert(u.role !== 'employee', 'Somente gestores e administradores separam empresas.');
+      const groups = api.sameNameCompanies(); let n = 0;
+      groups.forEach(list => {
+        const rank = c => (P.cnpj.digits(c.cnpj).slice(8, 12) === '0001' ? 0 : 1);
+        list = list.slice().sort((a, b) => rank(a) - rank(b) || String(a.code || '').localeCompare(String(b.code || ''), 'pt-BR', { numeric: true }) || String(a.id).localeCompare(String(b.id)));
+        list.slice(1).forEach(c => {
+          const base = c.name, suf = api.branchSuffix(c); let nm = base + ' - FILIAL ' + suf;
+          for (let i = 2; db().companies.some(x => x.name.toLowerCase() === nm.toLowerCase()); i++) nm = base + ' - FILIAL ' + suf + '-' + i;
+          audit(u, 'Empresa separada da matriz', c.id, base + ' → ' + nm); c.name = nm; if (!c.tradeName || c.tradeName === base) c.tradeName = nm; n++;
+        });
+      });
+      if (n) { P.reindex(); P.store.save(); }
+      return n;
     },
     /* Renomear a empresa mantém a carteira e as tarefas pendentes apontando para ela */
     _renameCompany(c, name) {
