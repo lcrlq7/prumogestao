@@ -35,7 +35,8 @@
     return cache.get(n);
   };
   // tarefa: pelo nome da atividade; sem atividade, pelo título
-  const fineOf = t => { const a = t && t.activityId && P.act(t.activityId); return ofName(a ? a.name : t && t.title); };
+  // o título da tarefa também vale para a exceção: a atividade ligada pode ter outro nome (ex.: tarefa "Fechamento contábil, Simples Nacional" ligada a uma apuração)
+  const fineOf = t => { if (!t || NO_FINE.test(t.title || '')) return null; const a = t.activityId && P.act(t.activityId); return ofName(a ? a.name : t.title); };
   P.fine = { of: fineOf, ofName };
   const SEV = { alta: 'alta', media: 'média' };
   const today = () => D.iso(P.today()), soonLimit = () => D.iso(D.add(P.today(), DAYS));
