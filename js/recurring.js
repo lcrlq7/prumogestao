@@ -112,6 +112,8 @@
   }
   /* ---------- Tarefa automática por regime, no cadastro da atividade (Pesos das Atividades) ---------- */
   const rulesOf = actId => recs().filter(r => r.regime && r.activityId === actId);
+  // recorrências comuns (sem regime, mensais) ligadas à atividade
+  const plainOf = actId => recs().filter(r => !r.regime && r.activityId === actId && (!r.freq || r.freq === 'mensal'));
   const rulesText = actId => {
     const rs = rulesOf(actId); if (!rs.length) return '<span class="muted">—</span>';
     return rs.map(r => `<span class="badge st-baixa${isOn(r) ? '' : ' st-sem'}" title="${isOn(r) ? 'Ativa' : 'Pausada'}">${esc((P.REGIMES[r.regime] || {}).label || r.regime)} · ${isUnica(r) ? 'uma vez, ' + D.fmt(r.date) : (isQ(r) ? 'trimestral' : 'mensal') + ', dia ' + r.day}</span>`).join(' ');
@@ -152,8 +154,11 @@
   };
   new MutationObserver(muts => { if (muts.some(mu => [...mu.addedNodes].some(n => n.nodeType === 1 && (n.matches('.ac-co-list, .ac-cos') || n.querySelector('.ac-co-list'))))) origOpenCount(); }).observe(document.body, { childList: true, subtree: true });
   const regimeFormHtml = actId => {
-    const rs = actId ? rulesOf(actId) : [], first = rs[0] || {}, on = new Set(rs.map(r => r.regime));
+    // sem regra por regime, o prazo mostrado é o das tarefas recorrentes comuns desta atividade (ex.: importadas da planilha)
+    const plain = actId ? plainOf(actId) : [];
+    const rs = actId ? rulesOf(actId) : [], first = rs[0] || plain[0] || {}, on = new Set(rs.map(r => r.regime));
     return `<div class="fgrid reg-box">
+      ${plain.length ? `<p class="fine span3">${V.icon('refresh')} O dia do prazo abaixo também vale para <b>${plain.length} tarefa(s) recorrente(s)</b> desta atividade (${plain.reduce((s, r) => s + clientsOf(r).filter(Boolean).length, 0)} empresa(s)). Ao salvar, as pendentes ainda não adiadas mudam para o novo dia.</p>` : ''}
       <p class="fine span3"><b>Tarefa automática por regime tributário</b> (opcional). Marque os regimes: todas as empresas ativas de cada regime recebem esta tarefa. Empresa nova, ou que mudar de regime, entra e sai sozinha.</p>
       <div class="span3 reg-checks">${Object.entries(P.REGIMES).map(([k, v]) => `<label class="check-inline"><input type="checkbox" class="ac-reg" value="${k}" ${on.has(k) ? 'checked' : ''}> ${esc(v.label)}</label>`).join('')}</div>
       <label class="field"><span>É recorrente?</span><select id="ac-freq"><option value="mensal" ${isQ(first) || isUnica(first) ? '' : 'selected'}>Sim, todo mês</option><option value="trimestral" ${isQ(first) ? 'selected' : ''}>Sim, trimestral (jan, abr, jul e out)</option><option value="unica" ${isUnica(first) ? 'selected' : ''}>Não, só uma vez</option></select></label>
@@ -197,7 +202,23 @@
   const saveRegimeRules = (u, act, m) => {
     if (!act || !m.querySelector('.ac-reg')) return '';
     const x = readRules(m), old = rulesOf(act.id);
-    if (!x.regimes.length && !old.length) return '';
+    // tarefas recorrentes comuns desta atividade: o dia do prazo editado aqui passa a valer para elas
+    let plainMsg = '';
+    const plain = plainOf(act.id);
+    if (plain.length && x.freq !== 'unica' && x.day >= 1 && x.day <= 31 && plain.some(r => Number(r.day) !== x.day || !!r.businessDay !== x.bd)) {
+      if (!canManage(u, act.deptId)) throw new P.AccessError('Você só altera as tarefas do seu departamento.');
+      const ids = new Set(plain.map(r => r.id)); let moved = 0;
+      plain.forEach(r => { r.day = x.day; r.businessDay = x.bd; });
+      db().tasks.forEach(t => {
+        if (!ids.has(t.recId) || t.status !== 'pendente' || (t.postponed && t.postponed.length) || !t.due) return;
+        const r = plain.find(p => p.id === t.recId), nd = dueOf(r, D.monthStart(D.parse(t.due)));
+        if (nd !== t.due) { t.due = nd; moved++; }
+      });
+      P.audit(u, 'Prazo das tarefas recorrentes alterado', act.id, act.name + ' · dia ' + x.day + ' · ' + moved + ' pendente(s) ajustada(s)');
+      P.store.save();
+      plainMsg = ' Prazo das tarefas recorrentes mudou para o dia ' + x.day + (moved ? ' (' + moved + ' pendente(s) ajustada(s))' : '') + '.';
+    }
+    if (!x.regimes.length && !old.length) return plainMsg;
     if (!canManage(u, act.deptId)) throw new P.AccessError('Você só cadastra tarefas do seu departamento.');
     const readOv = m.querySelector('.ac-co') ? readOverrides(m) : { include: [], exclude: [] };
     x.regimes.forEach(reg => {
@@ -221,7 +242,7 @@
     P.store.save();
     if (x.regimes.length) { if (P.isLive) setTimeout(() => generate(true), 500); else if (localGenerate()) P.store.save(); }
     const n = x.regimes.reduce((s, reg) => s + regimeClients({ regime: reg, deptId: act.deptId, onlyCarteira: x.cart }).length, 0);
-    return (x.regimes.length ? ' Tarefa automática para ' + n + ' empresa(s) dos regimes marcados.' : '') + (removed ? ' ' + removed + ' tarefa(s) pendente(s) apagada(s).' : '');
+    return plainMsg + (x.regimes.length ? ' Tarefa automática para ' + n + ' empresa(s) dos regimes marcados.' : '') + (removed ? ' ' + removed + ' tarefa(s) pendente(s) apagada(s).' : '');
   };
   P.taskRec = { generate, dueOf, localGenerate, onCompanySaved, regimeFormHtml, validateRegimeRules, saveRegimeRules, rulesText, rulesOf };
   setInterval(() => generate(), 60e3); window.addEventListener('focus', () => generate());
