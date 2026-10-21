@@ -1,0 +1,33 @@
+# Publica o Prumo na Vercel a cada envio para a main, usando o token do dono do projeto (segredo VERCEL_TOKEN).
+# Necessário porque o plano gratuito da Vercel bloqueia commits de quem não é o dono da equipe.
+name: Publicar na Vercel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-producao
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: team_zhkBXrBI40wc21JTAsm08hwD
+  VERCEL_PROJECT_ID: prj_QfflaTpbItAk7mHtXaC61qdFSk1E
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar a CLI da Vercel
+        run: npm install --global vercel@latest
+      - name: Baixar a configuração do projeto
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Montar
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Publicar em produção
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

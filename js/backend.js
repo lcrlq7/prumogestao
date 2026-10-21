@@ -97,14 +97,17 @@
     const out = [];
     for (let from = 0; ; from += PAGE) {
       let q = sb.from(table).select('id, doc');
-      if (opts.limit) q = q.order('updated_at', { ascending: false });
+      // ordem FIXA: sem ORDER BY o banco pode repetir ou pular linhas entre uma página e outra (com milhares de tarefas aparecia duplicado ou faltando)
+      q = opts.limit ? q.order('updated_at', { ascending: false }).order('id') : q.order('id');
       q = q.range(from, from + Math.min(PAGE, opts.limit || PAGE) - 1);
       const { data, error } = await q;
       if (error) throw new Error(table + ': ' + error.message);
       out.push(...data);
       if (data.length < PAGE || (opts.limit && out.length >= opts.limit)) break;
     }
-    return out;
+    // proteção extra: nunca devolve o mesmo id duas vezes
+    const seenIds = new Set();
+    return out.filter(r => !seenIds.has(r.id) && seenIds.add(r.id));
   };
   let snap = {}, privSnap = {};
   const remember = (c, rows, privRows) => {
@@ -152,7 +155,13 @@
         if (!data || !data.length) throw new Error(table + ': sem permissão para alterar este registro.');
       }));
     }
-    for (const part of chunk(del, 200)) { const { error } = await sb.from(table).delete().in('id', part); if (error) throw new Error(table + ': ' + error.message); }
+    for (const part of chunk(del, 200)) {
+      const { error } = await sb.from(table).delete().in('id', part);
+      if (error) throw new Error(table + ': ' + error.message);
+      // o banco NÃO dá erro quando a regra de permissão bloqueia a exclusão: ela só não apaga (e o registro voltava no F5). Confere se ainda existe.
+      const left = await sb.from(table).select('id').in('id', part);
+      if (!left.error && left.data && left.data.length) throw new Error(table + ': sem permissão para excluir ' + left.data.length + ' registro(s) (o banco não apagou).');
+    }
   }
   async function flush() {
     if (!session || !P.store.db || !P.store.db.live) return;
@@ -193,7 +202,9 @@
     setSync('saving');
     saving = flush().then(() => setSync('ok')).catch(async err => {
       console.error(err); setSync('error');
-      P.toast && P.toast('Não foi possível salvar no servidor: ' + friendly(err) + ' Os dados foram recarregados.', 'err');
+      // fica na tela até fechar e mostra a mensagem técnica do banco (com a tabela), para dar para copiar e diagnosticar
+      (P.syncErrors = P.syncErrors || []).push({ at: new Date().toISOString(), msg: String(err && err.message || err) });
+      P.toast && P.toast('Não foi possível salvar no servidor: ' + friendly(err) + ' A sua alteração NÃO foi gravada e os dados foram recarregados. Detalhe técnico: ' + String(err && err.message || err), 'err', true);
       // volta a refletir o servidor para não ficar com dados que o banco recusou
       try { await loadAll(); refreshUser(); P.render && P.render(); } catch (e) { console.error(e); }
     }).finally(() => { saving = null; if (again) { again = false; runSave(); } });
@@ -375,7 +386,13 @@
       if (error) throw new Error(error.message);
     },
     // recarrega só com sessão válida (sem login, o banco recusaria tudo)
-    reload: async () => { if (!session) return; await loadAll(); refreshUser(); }
+    // recarrega do servidor SÓ depois de gravar o que está pendente; senão a recarga traz o valor antigo por cima da edição que acabou de ser feita
+    reload: async () => {
+      if (!session) return;
+      if (timer) { clearTimeout(timer); timer = null; await runSave(); }
+      while (saving) await saving;
+      await loadAll(); refreshUser();
+    }
   };
   sb.auth.onAuthStateChange((event, s) => {
     if (event === 'PASSWORD_RECOVERY') { session = s; P.backend.flow = 'recovery'; if (P.state) { P.state.user = null; P.state.authMode = 'newpass'; P.render && P.render(); } }
