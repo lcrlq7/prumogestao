@@ -58,7 +58,7 @@
     const delta = prev ? ((sm.total || 0) - prev) / prev * 100 : null;
     const counts = {}; rows.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
     return `${V.pageHead('Inadimplência', (sm.updatedAt ? 'Atualizado pela diretoria em ' + esc(sm.updatedAt) + '. ' : '') + 'Situação dos clientes com pagamentos em atraso.' + (dir ? '' : ' Os valores por empresa ficam só com a diretoria.'),
-      dir ? V.btn('Importar do Nibo', { act: 'dqImport', icon: 'file' }) + V.btn('Registrar empresa', { act: 'dqEdit', icon: 'plus', cls: 'primary' }) : '')}
+      dir ? V.btn('Adicionar valor', { act: 'dqAdd', icon: 'plus' }) + V.btn('Importar do Nibo', { act: 'dqImport', icon: 'file' }) + V.btn('Registrar empresa', { act: 'dqEdit', icon: 'plus', cls: 'primary' }) : '')}
       <div class="kpis k4">
         ${V.kpi('Total em aberto', brl(sm.total || 0), { icon: 'alert', sub: delta != null ? (delta >= 0 ? '+' : '') + P.fmt.n(delta, 0) + '% vs. mês anterior' : 'valores das parcelas vencidas' })}
         ${V.kpi('Empresas inadimplentes', inad.length, { icon: 'briefcase', sub: 'de ' + totalComp + ' clientes ativos' })}
@@ -90,10 +90,29 @@
     return before !== r.status;
   }
   function refreshSummary() {
-    const rows = active(), total = rows.reduce((t, r) => t + (r.total || 0), 0);
-    const sm = summary(); sm.total = total; sm.count = rows.filter(r => ['inadimplente', 'negociacao'].includes(r.status)).length; sm.updatedAt = D.stamp(); sm.by = U().id;
+    const sm = summary(), rows = active(), total = rows.reduce((t, r) => t + (r.total || 0), 0) + (sm.extra || 0); // extra = valor avulso, sem empresa
+    sm.total = total; sm.count = rows.filter(r => ['inadimplente', 'negociacao'].includes(r.status)).length; sm.updatedAt = D.stamp(); sm.by = U().id;
     sm.monthly = sm.monthly || {}; sm.monthly[today().slice(0, 7)] = { total, count: sm.count };
   }
+
+  /* ---------- Valor avulso (soma ao total, sem precisar escolher empresa) ---------- */
+  A.dqAdd = () => {
+    const u = U(); if (!isDir(u)) return P.toast('Somente a diretoria alimenta a inadimplência.', 'err');
+    const sm = summary();
+    P.ui.modal({
+      title: 'Adicionar valor em aberto', submit: 'Adicionar',
+      body: `<p class="prose">Total em aberto hoje: <b>${brl(sm.total || 0)}</b>${sm.extra ? ' (inclui <b>' + brl(sm.extra) + '</b> de valores avulsos)' : ''}.</p>
+        <div class="fgrid"><label class="field"><span>Valor a somar (R$)</span><input id="dqa-v" inputmode="decimal" placeholder="0,00"></label>
+        <label class="field span2"><span>Observação (opcional)</span><input id="dqa-o" maxlength="120" placeholder="Ex.: parcelas de clientes fora da lista"></label></div>
+        <p class="fine">${icon('info')} O valor entra no total e no gráfico do mês, sem vincular a uma empresa. Para diminuir, use sinal de menos (ex.: -150,00). Para o valor de uma empresa, use "Registrar empresa".</p>`,
+      onSubmit: m => {
+        const c = toC($('#dqa-v', m).value); if (!c) throw new Error('Informe um valor diferente de zero.');
+        if ((sm.extra || 0) + c < 0 && (sm.total || 0) + c < 0) throw new Error('O total não pode ficar negativo.');
+        sm.extra = (sm.extra || 0) + c; (sm.extraLog = sm.extraLog || []).push({ at: D.stamp(), by: u.id, value: c, obs: $('#dqa-o', m).value.trim() }); if (sm.extraLog.length > 60) sm.extraLog.splice(0, sm.extraLog.length - 60);
+        refreshSummary(); P.audit(u, 'Valor avulso de inadimplência', '', brl(c) + ' · total ' + brl(sm.total)); P.store.save(); P.toast('Valor adicionado. Total em aberto: ' + brl(sm.total) + '.'); P.render();
+      }
+    });
+  };
 
   /* ---------- Registro manual ---------- */
   A.dqEdit = el => {
