@@ -74,10 +74,10 @@
     const have = new Set(db().tasks.map(t => t.recKey).filter(Boolean));
     const scope = recs().filter(r => isOn(r) && (!onlyLocal || isLocal(r)) && (!onlyLocal || canManage(U(), r.deptId)));
     const cartMap = cartMapOf();
-    // recorrência diária: uma tarefa por dia útil (hoje e amanhã), para não encher a lista de dias futuros
+    // diária: uma tarefa por dia útil até o fim do mês atual (o mês seguinte entra sozinho quando ele chega); semanal: as próximas 5 semanas
     scope.filter(r => isDaily(r) || isWeekly(r)).forEach(r => {
       const names = clientsOf(r), todayIso = D.iso(P.today());
-      (isWeekly(r) ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1]).forEach(off => {
+      Array.from({ length: isWeekly(r) ? 36 : Math.max(2, Math.round((D.monthEnd(P.today()) - P.today()) / 864e5) + 1) }, (_, i) => i).forEach(off => {
         const d = D.add(P.today(), off), iso = D.iso(d), wd = d.getDay();
         if (isWeekly(r) ? wd !== Number(r.wday) : (r.businessDay !== false && (wd === 0 || wd === 6))) return;
         if (iso < (r.start || '0000-00-00') || (r.end && iso > endIso(r))) return;
@@ -469,11 +469,13 @@
         <div class="field span3 ar-pick"><span>Empresas (uma, duas ou mais)</span>${P.companyPickerHtml('ar-co')}</div>
         <div class="span3 ar-pick"><button type="button" class="link" id="ar-all">Adicionar todas as empresas da carteira deste departamento</button></div>
         <div class="span3 ar-chips ar-pick" id="ar-chips"><p class="fine">Nenhuma empresa escolhida.</p></div>
-        <label class="field span3"><span>Repetição</span><select id="ar-freq"><option value="mensal">Todo mês</option><option value="trimestral">Trimestral: o prazo cai em jan, abr, jul e out (mês seguinte ao fim de cada trimestre)</option></select></label>
-        <label class="field"><span>Dia do prazo</span><input type="number" id="ar-day" min="1" max="31" value="20"></label>
-        <label class="field"><span>Começa em</span><input type="month" id="ar-start" value="${ym(P.today())}"></label>
-        <label class="field"><span>Termina em (opcional)</span><input type="month" id="ar-end"></label>
-        <label class="field check span3"><input type="checkbox" id="ar-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
+        <label class="field span3"><span>Repetição</span><select id="ar-freq"><option value="diaria">Todo dia útil (segunda a sexta)</option><option value="semanal">Toda semana</option><option value="mensal" selected>Todo mês</option><option value="trimestral">Trimestral: o prazo cai em jan, abr, jul e out (mês seguinte ao fim de cada trimestre)</option></select></label>
+        <label class="field ar-mon"><span>Dia do prazo</span><input type="number" id="ar-day" min="1" max="31" value="20"></label>
+        <label class="field ar-wk" style="display:none"><span>Dia da semana</span><select id="ar-wd">${WDAYS.map((n, i) => `<option value="${i}" ${i === 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label class="field"><span>Começa em</span><input type="date" id="ar-start" value="${D.iso(P.today())}"></label>
+        <label class="field"><span>Repetir quantas vezes? <small class="muted">(em branco = sem fim)</small></span><input type="number" id="ar-n" min="1" max="999" placeholder="Sem limite"></label>
+        <label class="field"><span>Ou terminar em <small class="muted">(opcional)</small></span><input type="date" id="ar-end"></label>
+        <label class="field check span3 ar-mon"><input type="checkbox" id="ar-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
       </div><p class="fine">${V.icon('info')} Todo mês a tarefa é criada para quem tem a empresa na carteira do departamento (Atividades → Carteira de empresas). Se ninguém tiver, vai para o gestor do departamento. Mudou o responsável na carteira? Os próximos meses já vão para a pessoa nova.</p>`,
       onSubmit: m => {
         const deptId = $('#ar-dept').value, actSel = $('#ar-act').value, w = $('#ar-w').value;
@@ -481,13 +483,17 @@
         const mode = $('#ar-mode').value, regime = mode.startsWith('regime:') ? mode.slice(7) : '';
         if (!regime && !sel.length) throw new Error('Escolha pelo menos uma empresa.');
         // evita cadastrar duas vezes a mesma recorrência (cada cadastro gera uma tarefa por empresa)
-        const wantQ = $('#ar-freq').value === 'trimestral', nm = ((actSel === '__new' ? $('#ar-name').value : (P.act(actSel) || {}).name) || '').trim().toLowerCase();
-        const dupe = nm && recs().find(x => x.deptId === deptId && isOn(x) && isQ(x) === wantQ && (x.regime || '') === regime && String(x.title || '').trim().toLowerCase() === nm);
-        if (dupe) throw new Error('Já existe uma recorrência ativa "' + dupe.title + '" neste departamento' + (regime ? ' para este regime' : '') + ' (' + (isQ(dupe) ? 'trimestral' : 'mensal') + ', dia ' + dupe.day + '). Exclua ou pause a existente antes de criar outra.');
-        const day = Number($('#ar-day').value), start = $('#ar-start').value, end = $('#ar-end').value;
-        if (!(day >= 1 && day <= 31)) throw new Error('Informe o dia do prazo (1 a 31).');
-        if (!start) throw new Error('Informe o mês de início.');
-        if (end && end < start) throw new Error('O mês de término precisa ser depois do início.');
+        const freq = $('#ar-freq').value, wantQ = freq === 'trimestral', nm = ((actSel === '__new' ? $('#ar-name').value : (P.act(actSel) || {}).name) || '').trim().toLowerCase();
+        const dupe = nm && recs().find(x => x.deptId === deptId && isOn(x) && (x.freq || 'mensal') === freq && (x.regime || '') === regime && String(x.title || '').trim().toLowerCase() === nm);
+        if (dupe) throw new Error('Já existe uma recorrência ativa "' + dupe.title + '" neste departamento' + (regime ? ' para este regime' : '') + ' (' + freqLabel(dupe).toLowerCase() + '). Exclua ou pause a existente antes de criar outra.');
+        const fast = freq === 'diaria' || freq === 'semanal', todayIso = D.iso(P.today()), wday = Number($('#ar-wd').value), nrep = $('#ar-n').value, endD = $('#ar-end').value;
+        const day = fast ? 1 : Number($('#ar-day').value), sd = $('#ar-start').value;
+        if (!fast && !(day >= 1 && day <= 31)) throw new Error('Informe o dia do prazo (1 a 31).');
+        if (!sd) throw new Error('Informe quando começa.');
+        if (nrep !== '' && !(Math.floor(Number(nrep)) >= 1)) throw new Error('Informe quantas vezes repetir (1 ou mais), ou deixe em branco para repetir sem fim.');
+        if (endD && endD < sd) throw new Error('A data de término precisa ser depois do início.');
+        // diária/semanal usam datas (o início nunca fica no passado); mensal/trimestral usam o mês
+        const start = fast ? (sd > todayIso ? sd : todayIso) : sd.slice(0, 7), end = pickEnd(freq, start, endD, nrep, wday);
         let act;
         if (actSel === '__new') {
           const name = $('#ar-name').value.trim(), unit = $('#ar-unit').value.trim() || 'empresa/mês';
@@ -498,16 +504,17 @@
           if (Number(String(w).replace(',', '.')) !== act.weight) P.api.saveActivity(u, { id: act.id, deptId, name: act.name, unit: act.unit, weight: w, reason: 'Ajustado no cadastro de tarefa recorrente' });
         }
         if (!act) throw new Error('Não foi possível salvar a atividade.');
-        const quarterly = $('#ar-freq').value === 'trimestral', local = quarterly || !!regime;
-        const r = { id: P.uid('tr'), auto: true, userId: null, deptId, title: act.name, activityId: act.id, clients: regime ? [] : sel.slice(), day, businessDay: $('#ar-bd').checked, start, end: end || '', active: !local, createdBy: u.id, createdAt: D.stamp() };
-        if (quarterly) r.freq = 'trimestral';
+        const quarterly = freq === 'trimestral', local = quarterly || fast || !!regime;
+        const r = { id: P.uid('tr'), auto: true, userId: null, deptId, title: act.name, activityId: act.id, clients: regime ? [] : sel.slice(), day, businessDay: fast ? freq === 'diaria' : $('#ar-bd').checked, start, end: end || '', reps: Number(nrep) || 0, active: !local, createdBy: u.id, createdAt: D.stamp() };
+        if (quarterly || fast) r.freq = freq;
+        if (freq === 'semanal') r.wday = wday;
         if (regime) { r.regime = regime; r.onlyCarteira = $('#ar-cart').checked; }
         if (local) r.paused = false;
-        recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, r.title + (regime ? ' · regime ' + P.REGIMES[regime].label : '') + (quarterly ? ' (trimestral, dia ' : ' (dia ') + day + ')');
+        recs().push(r); P.audit(u, 'Tarefa recorrente criada', r.id, r.title + (regime ? ' · regime ' + P.REGIMES[regime].label : '') + ' (' + freqLabel(r).toLowerCase() + ')');
         if (!P.isLive || local) localGenerate(P.isLive);
         P.store.save(); if (P.isLive && !local) setTimeout(() => generate(true), 1500);
         const nCo = clientsOf(r).length;
-        P.toast('Tarefa recorrente criada para ' + nCo + ' empresa(s)' + (regime ? ' do regime ' + P.REGIMES[regime].label : '') + ': ' + (quarterly ? 'trimestral, dia ' + day + ' de jan, abr, jul e out' : 'todo dia ' + day) + ', para o responsável de cada uma.'); P.render();
+        P.toast('Tarefa recorrente criada para ' + nCo + ' empresa(s)' + (regime ? ' do regime ' + P.REGIMES[regime].label : '') + ': ' + (quarterly ? 'trimestral, dia ' + day + ' de jan, abr, jul e out' : fast ? freqLabel(r).toLowerCase() : 'todo dia ' + day) + (end ? ' até ' + fmtPeriod(end) : ', sem data final') + ', para o responsável de cada uma.'); P.render();
       }
     });
     const sel = [];
@@ -531,6 +538,12 @@
       if (regime) { const n = regimeClients({ regime, deptId: $('#ar-dept').value, onlyCarteira: $('#ar-cart').checked }).length; $('#ar-regime-n').innerHTML = `<b>${n}</b> empresa(s) ativa(s) do regime ${esc(P.REGIMES[regime].label)} hoje.`; }
     };
     ['ar-mode', 'ar-dept', 'ar-cart'].forEach(id => $('#' + id).addEventListener('change', syncMode)); syncMode();
+    // dia do mês só vale para mensal/trimestral; dia da semana só para semanal
+    $('#ar-freq').addEventListener('change', () => {
+      const f = $('#ar-freq').value, fast = f === 'diaria' || f === 'semanal';
+      document.querySelectorAll('.ar-mon').forEach(x => { x.style.display = fast ? 'none' : ''; });
+      document.querySelectorAll('.ar-wk').forEach(x => { x.style.display = f === 'semanal' ? '' : 'none'; });
+    });
   };
 
   /* ---------- Adiar ou dispensar uma tarefa (com motivo) ---------- */
