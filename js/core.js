@@ -746,9 +746,9 @@ window.P = window.P || {};
       const emp = P.user(data.userId);
       assert(emp && (emp.role === 'employee' || emp.role === 'manager'), 'Selecione uma pessoa válida.');
       const own = u.id === emp.id;
-      // lançamento próprio passa por aprovação (funcionário e gestor); diretoria e gerência entram aprovados.
-      // O banco também exige isso: um lançamento próprio de gestor com status aprovado é recusado ("Lançamentos próprios entram como pendentes").
-      const needsReview = own && !P.isGlobal(u);
+      // só o lançamento do próprio funcionário passa por aprovação; gestor, gerência e diretoria entram aprovados e não aparecem em fila nenhuma.
+      // (a regra guard_entries do banco acompanha isso: gestor do departamento pode criar e aprovar o próprio lançamento)
+      const needsReview = own && u.role === 'employee';
       assert(own || P.isGlobal(u) || (u.role === 'manager' && emp.role === 'employee' && emp.deptId === u.deptId), 'Você só pode registrar atividades próprias ou da equipe do seu departamento.');
       const a = P.act(data.activityId);
       assert(a && a.active && a.deptId === emp.deptId, 'A atividade não pertence à tabela do departamento.');
@@ -770,8 +770,8 @@ window.P = window.P || {};
       const e = P.idx.byId.get(id);
       assert(e && e.userId === u.id && (e.status === 'correcao' || e.status === 'pendente'), 'Somente lançamentos próprios pendentes ou em correção podem ser editados.');
       api._applyPatch(e, patch);
-      e.status = P.isGlobal(u) ? 'aprovado' : 'pendente';
-      e.history.push({ at: D.stamp(), by: u.id, action: P.isGlobal(u) ? 'Corrigido' : 'Corrigido e reenviado', note: patch.note || '' });
+      e.status = u.role === 'employee' ? 'pendente' : 'aprovado';
+      e.history.push({ at: D.stamp(), by: u.id, action: u.role === 'employee' ? 'Corrigido e reenviado' : 'Corrigido', note: patch.note || '' });
       P.reindex(); audit(u, 'Lançamento reenviado', e.id); P.store.save();
     },
     _applyPatch(e, patch) {
