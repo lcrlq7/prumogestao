@@ -1537,6 +1537,10 @@ body.dense .tbl small{font-size:11px}
 @keyframes typDot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}
 @media (prefers-reduced-motion:reduce){.chat-typing i{animation:none}}
 
+.grp-photo{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.grp-photo .avatar.lg{width:56px;height:56px}
+.grp-photo .avatar .ic{width:24px;height:24px}
+.cv .avatar.has-photo img,.chat-h .avatar.has-photo img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .grp-list{max-height:min(360px,48vh);overflow:auto;display:flex;flex-direction:column;gap:2px}
 .grp-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:12px;cursor:pointer}
 .grp-row:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
