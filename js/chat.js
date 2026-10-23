@@ -140,6 +140,15 @@
   ];
   P.chat.EMOJI = EMOJI; // o mural usa a mesma lista no seletor de emojis
   const STICKERS = [
+    ['sim', '✅', 'Sim!', '#2f8f5b'], ['nao', '❌', 'Não', '#dc2626'], ['talvez', '🤔', 'Talvez', '#d97706'], ['claro', '👍', 'Com certeza!', '#2f8f5b'],
+    ['ok', '🆗', 'Ok!', '#1f6f9c'], ['nao-sei', '🤷', 'Não sei', '#64748b'], ['pode-ser', '🙂', 'Pode ser', '#0f766e'], ['depois', '🕒', 'Depois eu vejo', '#64748b'],
+    ['agora', '⚡', 'Agora mesmo', '#ca8a04'], ['concordo', '🤝', 'Concordo', '#2f8f5b'], ['discordo', '🙅', 'Discordo', '#dc2626'], ['sem-problema', '😎', 'Sem problema', '#1f6f9c'],
+    ['aguarde', '✋', 'Aguarde um instante', '#ca8a04'], ['pensando', '💭', 'Pensando…', '#64748b'], ['conferido', '🔎', 'Conferido', '#0f766e'], ['enviado', '📨', 'Enviado!', '#1f6f9c'],
+    ['recebido', '📥', 'Recebido', '#2f8f5b'], ['pendente', '📌', 'Pendente', '#d97706'], ['quase', '🏁', 'Quase lá', '#7c3aed'], ['atrasado', '🐢', 'Atrasado…', '#7c4a2d'],
+    ['socorro', '😱', 'Socorro!', '#dc2626'], ['calma', '🧘', 'Calma', '#0f766e'], ['dica', '💡', 'Dica!', '#d97706'], ['vamos', '🙌', 'Vamos nessa!', '#7c3aed'],
+    ['palmas', '👏', 'Palmas!', '#d97706'], ['amei', '❤️', 'Amei!', '#dc2626'], ['kkk', '🤣', 'Kkkkk', '#ca8a04'], ['que-pena', '😢', 'Que pena', '#64748b'],
+    ['cheguei', '📍', 'Cheguei!', '#2f8f5b'], ['a-caminho', '🚗', 'A caminho', '#1f6f9c'], ['almoco', '🍽️', 'Hora do almoço', '#ea580c'], ['boa-noite', '🌙', 'Boa noite!', '#4338ca'],
+    ['bom-fds', '🏖️', 'Bom fim de semana', '#db2777'], ['bom-descanso', '😴', 'Bom descanso', '#4338ca'],
     ['bom-trabalho', '👏', 'Bom trabalho!', '#2f8f5b'], ['obrigado', '🙏', 'Obrigado(a)!', '#1f6f9c'], ['parabens', '🎉', 'Parabéns!', '#c2410c'],
     ['prazo', '⏰', 'Prazo cumprido', '#2f8f5b'], ['fechamento', '📊', 'Fechamento OK', '#1f6f9c'], ['missao', '🚀', 'Missão cumprida', '#7c3aed'],
     ['bom-dia', '☀️', 'Bom dia!', '#d97706'], ['boa-tarde', '🌤️', 'Boa tarde!', '#ea580c'], ['cafe', '☕', 'Café?', '#7c4a2d'],
@@ -223,7 +232,8 @@
           <li><b>Geral:</b> comunicados da diretoria para todo o escritório</li></ul>
           <button type="button" class="btn primary" data-act="chatNewDm" style="margin-top:10px">${icon('plus')}<span>Nova conversa privada</span></button></div></section>`;
     } else {
-      const list = msgs().filter(m => m.conv === cur.id).sort((a, b) => a.ts - b.ts);
+      const allMsgs = msgs().filter(m => m.conv === cur.id).sort((a, b) => a.ts - b.ts);
+      const lim = c.limit || 150, hiddenN = Math.max(0, allMsgs.length - lim), list = hiddenN ? allMsgs.slice(-lim) : allMsgs;
       const members = cur.members();
       const canPost = cur.canPost(u);
       let lastDay = '', lastFrom = '', lastTs = 0;
@@ -255,7 +265,7 @@
           <div><b>${esc(cur.name)}</b><small>${esc(cur.dm ? cur.desc : cur.desc + ' · ' + total + ' participante' + (total > 1 ? 's' : ''))}</small></div>
           ${!cur.dm ? `<div class="chat-h-av" aria-label="${total} participantes">${members.slice(0, 4).map(x => V.avatar(x)).join('')}${total > 4 ? `<em>+${total - 4}</em>` : ''}</div>` : ''}
         </header>
-        <div class="chat-msgs" id="chat-msgs">${body}</div>
+        <div class="chat-msgs" id="chat-msgs">${hiddenN ? `<button type="button" class="link chat-more" data-act="chatMore">Ver mensagens anteriores (${hiddenN})</button>` : ''}${body}</div>
         ${canPost ? `<div class="chat-in">${c.panel ? pickerHtml(c.panel) : ''}
           <div class="chat-pill"><div class="chat-tools">${V.ibtn('smile', 'Emojis', { act: 'chatPanel', cls: c.panel === 'emoji' ? 'on' : '', attrs: 'data-k="emoji"' })}${V.ibtn('sticker', 'Figurinhas', { act: 'chatPanel', cls: c.panel === 'fig' ? 'on' : '', attrs: 'data-k="fig"' })}</div><textarea id="chat-text" rows="1" placeholder="${geral ? 'Escreva um comunicado para todo o escritório…' : cur.dm ? 'Mensagem para ' + esc(P.firstName(cur.name)) + '…' : 'Escreva uma mensagem…'}" maxlength="2000">${esc((c.drafts || {})[cur.id] || '')}</textarea>
           <button type="button" class="chat-send" data-act="chatSend" aria-label="Enviar" title="Enviar (Enter)">${icon('right')}</button></div></div>
@@ -319,7 +329,7 @@
       else if (id && inChat) history.replaceState({ chat: id }, '', location.href);
       else if (!id && inChat) { history.back(); return; } // o popstate abaixo fecha a conversa
     } catch (e) { }
-    c.conv = id; c.panel = null; c.emojiQ = ''; c.atBottom = true; c.scrollTop = null; P.render();
+    c.conv = id; c.panel = null; c.emojiQ = ''; c.atBottom = true; c.scrollTop = null; c.limit = null; P.render();
     requestAnimationFrame(() => { scrollEnd(); const t = $('#chat-text'); if (t && innerWidth > 1020) t.focus(); });
   };
   window.addEventListener('popstate', ev => {

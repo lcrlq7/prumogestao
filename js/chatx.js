@@ -75,4 +75,31 @@
     el.innerHTML = '<i></i><i></i><i></i><span>' + esc(t) + '…</span>'; el.hidden = false;
   }
   P.chatTyping = { _test: onTyping };
+
+  /* ---------- Atualização leve da conversa (chegada de mensagens, sem redesenhar a tela toda) ---------- */
+  // Antes cada mensagem nova refazia a página inteira: a rolagem voltava ao topo, a animação reiniciava e, com várias pessoas escrevendo,
+  // não dava para descer a tela. Agora só a lista de mensagens e a lista de conversas são trocadas; o campo de texto não é tocado.
+  let lastRefresh = 0, queued = null;
+  P.chatRefresh = () => {
+    const now = Date.now();
+    if (now - lastRefresh < 400) { if (!queued) queued = setTimeout(() => { queued = null; P.chatRefresh(); }, 400); return; }
+    lastRefresh = now;
+    const u = S().user, box = document.getElementById('chat-msgs'), side = document.querySelector('.chat-side .cv-list');
+    if (!u || !document.querySelector('.chat')) return P.render();
+    const fresh = document.createElement('div'); fresh.innerHTML = V.comunicacao(u);
+    const nBox = fresh.querySelector('#chat-msgs'), nSide = fresh.querySelector('.chat-side .cv-list');
+    // abriu/trocou de conversa por outro caminho: redesenha normal
+    if (!!box !== !!nBox || (box && fresh.querySelector('.chat-h b') && document.querySelector('.chat-h b') && fresh.querySelector('.chat-h b').textContent !== document.querySelector('.chat-h b').textContent)) return P.render();
+    if (nSide && side) side.innerHTML = nSide.innerHTML;
+    if (box && nBox) {
+      const nearEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 90, keep = box.scrollTop;
+      if (box.innerHTML !== nBox.innerHTML) {
+        box.style.scrollBehavior = 'auto';
+        box.innerHTML = nBox.innerHTML;
+        box.scrollTop = nearEnd ? box.scrollHeight : keep;
+      }
+    }
+    showTyping();
+  };
+  A.chatMore = () => { const c = st(); c.limit = (c.limit || 150) + 150; c.atBottom = false; P.render(); };
 })(window.P);

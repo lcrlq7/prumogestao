@@ -1516,6 +1516,9 @@ body.dense .tbl small{font-size:11px}
 /* ---------- Comunicação: lista de conversas redimensionável e aviso de digitando ---------- */
 .chat{position:relative}
 @media (min-width:1021px){.chat{grid-template-columns:var(--cw,330px) minmax(0,1fr)}}
+.chat-msgs{scroll-behavior:auto!important}
+.msg{animation:none!important}
+.chat-more{align-self:center;margin:4px 0 10px}
 .chat-resize{display:none;position:absolute;top:12px;bottom:12px;left:calc(var(--cw,330px) + 12px);width:12px;cursor:col-resize;z-index:5}
 @media (min-width:1021px){.chat-resize{display:block}}
 .chat-resize::after{content:"";position:absolute;left:5px;top:42%;bottom:42%;width:2px;border-radius:2px;background:color-mix(in srgb,var(--ink) 30%,transparent);opacity:0;transition:opacity .15s}
