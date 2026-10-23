@@ -51,6 +51,8 @@
     { key: 'muralReactions', table: 'mural_reactions', optional: true, flag: 'muralMissing' },
     // lixeira: o que é excluído fica 30 dias e pode ser restaurado (se a tabela não existir, a exclusão segue definitiva)
     { key: 'trash', table: 'trash', optional: true, flag: 'trashMissing' },
+    // grupos personalizados do chat: se a tabela ainda não existe, o chat segue sem grupos (optional)
+    { key: 'chatGroups', table: 'chat_groups', optional: true, flag: 'groupsMissing' },
     { key: 'notifications', table: 'notifications' },
     { key: 'messages', table: 'messages' },
     { key: 'reportSchedules', table: 'report_schedules' },

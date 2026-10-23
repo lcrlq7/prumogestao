@@ -43,6 +43,7 @@
     const d = u.role === 'employee' ? P.dept(u.deptId) : P.ledDept(u);
     const dc = d && deptChannel(d);
     if (dc && dc.members().some(x => x.id === u.id)) list.splice(1, 0, dc);
+    if (P.chatGroups) list.push(...P.chatGroups.forUser(u)); // grupos personalizados (js/chatgroups.js)
     return list;
   };
   const dmId = (a, b) => 'dm:' + [a, b].sort().join('|');
@@ -193,7 +194,8 @@
     const people = dms.map(d => d.other).concat(contacts).filter(Boolean).slice(0, 24);
     const strip = !q && people.length ? `<div class="cv-strip" role="list" aria-label="Pessoas">${people.map(x => `<button type="button" role="listitem" class="cv-p" data-act="chatOpen" data-id="${esc(dmId(u.id, x.id))}" title="${esc(x.name)}">${V.avatar(x)}<span>${esc(P.firstName(x.name))}</span></button>`).join('')}</div>` : '';
     const tabs = `<div class="cv-tabs" role="tablist">${[['all', 'Tudo'], ['unread', 'Não lidas'], ['dm', 'Privadas'], ['ch', 'Canais']].map(([k, l]) => `<button type="button" role="tab" class="${f === k ? 'on' : ''}" aria-selected="${f === k}" data-act="chatFilter" data-k="${k}">${l}</button>`).join('')}</div>`;
-    const chList = showCh ? channels.filter(ch => match(ch.name) && okUnread(ch.id)) : [];
+    const chList = showCh ? channels.filter(ch => !ch.group && match(ch.name) && okUnread(ch.id)) : [];
+    const grpList = showCh ? channels.filter(ch => ch.group && match(ch.name) && okUnread(ch.id)) : [];
     const dmList = showDm ? dms.filter(d => match(d.name) && okUnread(d.id)) : [];
     const side = `<aside class="chat-side">
       <div class="chat-side-h"><b>Conversas</b><button type="button" class="ibtn" data-act="chatNewDm" title="Nova conversa privada" aria-label="Nova conversa privada">${icon('plus')}</button></div>
@@ -201,6 +203,7 @@
       ${strip}${tabs}
       <div class="cv-list">
         ${showCh ? `<div class="cv-g">Canais</div>${chList.map(ch => item(ch.id, ch.name, ch.desc, ch.icon)).join('') || `<p class="cv-none">${f === 'unread' ? 'Nenhum canal com mensagem nova.' : 'Nenhum canal.'}</p>`}` : ''}
+        ${grpList.length ? `<div class="cv-g">Grupos</div>${grpList.map(ch => item(ch.id, ch.name, ch.desc, ch.icon)).join('')}` : ''}
         ${showDm ? `<div class="cv-g">Conversas privadas</div>` : ''}
         ${dmList.map(d => item(d.id, d.name, d.desc, 'user', d.other)).join('')}
         ${showDm && f === 'unread' && !dmList.length ? '<p class="cv-none">Nenhuma conversa privada com mensagem nova.</p>' : ''}
