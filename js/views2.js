@@ -198,7 +198,7 @@
         <div><span>Mais antigo pendente</span><b>${pend.length ? D.relative(pend[pend.length - 1].date) : '—'}</b></div>
       </div>
       <div class="toolbar">${V.tabs([['pendente', 'Pendentes', pend.length], ['correcao', 'Correção solicitada', corr.length], ['revisados', 'Revisados recentemente']], tab, 'lancTab')}
-        ${tab === 'pendente' && pend.length ? `<div class="bulk">${V.btn('Aprovar selecionados', { act: 'bulkApprove', icon: 'check', cls: 'sm' })}</div>` : ''}</div>
+        ${tab === 'pendente' && pend.length ? `<div class="bulk">${V.btn('Aprovar selecionados', { act: 'bulkApprove', icon: 'check', cls: 'sm' })}${V.btn('Recusar selecionados', { act: 'bulkReject', icon: 'x', cls: 'sm ghost danger' })}</div>` : ''}</div>
       ${V.card('', V.entryTable(list, { actions, select: tab === 'pendente', emptyMsg: tab === 'pendente' ? 'Nenhum lançamento aguardando aprovação.' : 'Nada por aqui.' }), { cls: 'flush' })}`;
   };
 

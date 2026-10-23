@@ -659,6 +659,24 @@
       if (!ids.length) return toast('Selecione ao menos um lançamento.', 'err');
       guard(() => { ids.forEach(id => api.reviewEntry(U(), id, 'aprovar', { note: 'Aprovação em lote' })); toast(ids.length + ' lançamentos aprovados.'); render(); });
     },
+    // recusa em lote: um motivo para todos os selecionados; os que não podem ser recusados por quem está logado ficam de fora
+    bulkReject() {
+      const ids = [...document.querySelectorAll('.sel:checked')].map(c => c.value);
+      if (!ids.length) return toast('Selecione ao menos um lançamento.', 'err');
+      modal({
+        title: 'Recusar ' + ids.length + ' lançamento(s)', submit: 'Recusar selecionados', danger: true,
+        body: `<p class="prose">O mesmo motivo vai para todos os ${ids.length} lançamento(s) selecionado(s).</p>
+          <label class="field"><span>Origem do problema</span><select id="rv-cause">${Object.entries(P.REWORK_CAUSES).map(([k, l]) => `<option value="${k}">${l}${k === 'colaborador' ? ' (conta na qualidade)' : ' (não conta na qualidade)'}</option>`).join('')}</select></label>
+          <label class="field"><span>Motivo da recusa</span><textarea id="rv-note" rows="3" placeholder="Ex.: lançamento duplicado"></textarea></label>`,
+        onSubmit: m => {
+          const note = $('#rv-note', m).value.trim(), cause = $('#rv-cause', m).value;
+          if (note.length < 3) throw new Error('Explique o motivo da recusa para o colaborador.');
+          let ok = 0, fail = 0;
+          ids.forEach(id => { try { api.reviewEntry(U(), id, 'recusar', { note, cause }); ok++; } catch (e) { fail++; } });
+          toast(ok + ' lançamento(s) recusado(s).' + (fail ? ' ' + fail + ' não puderam ser recusados por você.' : ''), fail && !ok ? 'err' : undefined); render();
+        }
+      });
+    },
     submitEntry(el) {
       const form = el.closest('form');
       const d = readEntryForm(form); const er = validateEntry(d);
