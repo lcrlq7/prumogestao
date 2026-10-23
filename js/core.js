@@ -1587,8 +1587,15 @@ window.P = window.P || {};
           assert((data.reason || '').trim().length >= 5, 'Descreva o motivo da alteração do peso (mínimo 5 caracteres).');
           db().weightHistory.unshift({ id: P.uid('w'), activityId: a.id, from: a.weight, to: weight, at: D.iso(P.today()), by: u.id, reason: data.reason.trim() });
         }
+        const oldW = a.weight;
         Object.assign(a, { name: data.name, unit: data.unit, weight, deptId: data.deptId });
         audit(u, 'Atividade editada', a.id, a.name);
+        // o novo peso vale daqui para frente e para o que ainda está em aberto (lançamentos pendentes ou em correção); o que já foi aprovado não muda
+        if (weight !== oldW) {
+          const open = db().entries.filter(e => e.activityId === a.id && (e.status === 'pendente' || e.status === 'correcao'));
+          open.forEach(e => { e.weight = weight; e.points = round2(e.qty * weight); (e.history = e.history || []).push({ at: D.stamp(), by: u.id, action: 'Peso atualizado', note: 'Peso da atividade mudou de ' + oldW + ' para ' + weight }); });
+          if (open.length) audit(u, 'Peso aplicado aos lançamentos em aberto', a.id, a.name + ' · ' + open.length + ' lançamento(s)');
+        }
       }
       P.reindex(); P.store.save(); return a;
     },
