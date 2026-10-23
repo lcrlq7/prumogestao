@@ -90,6 +90,8 @@
   V.comunicacao = function (u) {
     let html = prev.apply(this, arguments);
     html = html.replace('<div class="chat-side-h">', '<div class="chat-side-h">').replace(/(<div class="chat-side-h">[\s\S]*?)(<button type="button" class="ibtn" data-act="chatNewDm")/, '$1' + V.ibtn('users', 'Novo grupo', { act: 'chatGroupNew', cls: 'chat-grp-new' }) + '$2');
+    // linha bem visível no começo da lista, além do botão do cabeçalho
+    html = html.replace('<div class="cv-list">', '<div class="cv-list"><button type="button" class="cv new-grp" data-act="chatGroupNew"><span class="cv-ic">' + icon('plus') + '</span><span class="cv-t"><b>Novo grupo</b><small>Crie um grupo e escolha quem entra</small></span></button>');
     const g = groups().find(x => x.id === st().conv);
     if (g && (g.members || []).includes(u.id)) {
       const b = g.owner === u.id ? V.ibtn('edit', 'Gerenciar grupo', { act: 'chatGroupManage', cls: 'chat-grp-btn' }) : '';
