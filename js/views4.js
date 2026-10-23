@@ -16,7 +16,8 @@
     const canEdit = P.canCompanies(u);
     // Responsáveis pela carteira (somente no escopo de quem consulta)
     const owners = {};
-    if (canEdit) api.clientAssignments(u).forEach(a => { (owners[a.client] = owners[a.client] || []).push(a); });
+    // quem cuida de cada empresa em cada departamento: todos consultam (só quem tem permissão edita)
+    (P.store.db.clientAssignments || []).forEach(a => { (owners[a.client] = owners[a.client] || []).push(a); });
     const deptsOf = c => [...new Set((c.depts || []).concat((owners[c.name] || []).map(a => a.deptId)))];
     const all = api.companies(u);
     let list = all;
@@ -81,7 +82,7 @@
         </div>
       </div>` : ''}
       ${V.card('', list.length ? `<div class="table-wrap"><table class="tbl">
-        <thead><tr>${canBulk ? `<th class="w-check"><input type="checkbox" data-act="compSelAll" ${allVisibleSel ? 'checked' : ''} aria-label="Selecionar as empresas desta página" title="Selecionar as ${shown.length} empresas desta página"></th>` : ''}<th>Código</th><th>Empresa</th><th>CNPJ</th><th>Regime tributário</th><th>Departamentos</th>${canEdit ? '<th>Responsáveis</th>' : ''}<th>Situação</th>${canEdit ? '<th class="actions-col"></th>' : ''}</tr></thead>
+        <thead><tr>${canBulk ? `<th class="w-check"><input type="checkbox" data-act="compSelAll" ${allVisibleSel ? 'checked' : ''} aria-label="Selecionar as empresas desta página" title="Selecionar as ${shown.length} empresas desta página"></th>` : ''}<th>Código</th><th>Empresa</th><th>CNPJ</th><th>Regime tributário</th><th>Departamentos</th><th>Responsáveis</th><th>Situação</th><th class="actions-col"></th></tr></thead>
         <tbody>${shown.map(c => `<tr class="${c.active ? '' : 'inactive'} ${sel.has(c.id) ? 'row-sel' : ''}">
           ${canBulk ? `<td class="w-check"><input type="checkbox" data-act="compSel" data-id="${c.id}" ${sel.has(c.id) ? 'checked' : ''} aria-label="Selecionar ${esc(c.name)}"></td>` : ''}
           <td class="mono nowrap">${c.code ? esc(c.code) : '<span class="muted">—</span>'}</td>
@@ -90,9 +91,9 @@
           <td>${V.regime(c.regime)}${c.history && c.history.length ? ` <small class="muted" title="Regime alterado">(antes: ${esc(P.REGIMES[c.history[0].from].short)})</small>` : ''}${(() => { const s = c.receita && c.receita.suggestion; return s && s.regime && P.REGIMES[c.regime] && s.regime !== c.regime ? `<small class="cnae t-warn" title="${esc(s.source)}">${icon('alert')}Receita indica ${esc(P.REGIMES[s.regime].label)}</small>`
             : c.receita && !P.REGIMES[c.regime] && !P.receita.hasRegimeSource(c.receita) ? `<small class="cnae" title="Será buscado de novo em Atualizar pela Receita">${icon('clock')}Regime pendente na Receita</small>` : ''; })()}</td>
           <td><div class="chips">${deptsOf(c).map(d => P.dept(d) ? `<span class="code" title="${esc((P.dept(d) || { name: '—' }).name)}">${esc((P.dept(d) || { code: '—' }).code)}</span>` : '').join('')}</div></td>
-          ${canEdit ? `<td>${(owners[c.name] || []).map(a => `<small class="owner">${esc((P.dept(a.deptId) || { code: '—' }).code)} · ${esc((P.user(a.userId) || {}).name || '—')}</small>`).join('') || '<span class="muted">—</span>'}</td>` : ''}
+          <td>${(owners[c.name] || []).map(a => `<small class="owner">${esc((P.dept(a.deptId) || { code: '—' }).code)} · ${esc((P.user(a.userId) || {}).name || '—')}</small>`).join('') || '<span class="muted">—</span>'}</td>
           <td>${c.receita && c.receita.situation && c.receita.situation !== 'ATIVA' ? `<span class="badge es-recusado" title="Situação cadastral na Receita">${icon('alert')}Receita: ${esc(c.receita.situation.toLowerCase())}</span>` : !c.active ? '<span class="badge st-sem">' + icon('x') + 'Inativa</span>' : incomplete(c) ? '<span class="badge es-correcao">' + icon('alert') + 'Incompleto</span>' : '<span class="badge es-aprovado">' + icon('check') + 'Ativa</span>'}</td>
-          ${canEdit ? `<td class="actions-col"><div class="row-actions">${V.ibtn('edit', 'Editar', { act: 'editCompany', attrs: `data-id="${c.id}"` })}${P.canCompanies(u) ? V.ibtn('toggle', c.active ? 'Inativar' : 'Reativar', { act: 'toggleCompany', attrs: `data-id="${c.id}"` }) : ''}</div></td>` : ''}
+          ${!canEdit ? `<td class="actions-col"><div class="row-actions">${V.ibtn('alert', 'Ver quem cuida desta empresa em cada departamento', { act: 'compWho', attrs: `data-id="${c.id}"` })}</div></td>` : canEdit ? `<td class="actions-col"><div class="row-actions">${V.ibtn('edit', 'Editar', { act: 'editCompany', attrs: `data-id="${c.id}"` })}${P.canCompanies(u) ? V.ibtn('toggle', c.active ? 'Inativar' : 'Reativar', { act: 'toggleCompany', attrs: `data-id="${c.id}"` }) : ''}</div></td>` : ''}
         </tr>`).join('')}</tbody></table></div>${pages > 1 ? `<div class="pager"><span>Página ${page} de ${pages}</span>${V.btn('Anterior', { act: 'compPage', cls: 'sm ghost', icon: 'left', attrs: `data-d="-1" ${page <= 1 ? 'disabled' : ''}` })}${V.btn('Próxima', { act: 'compPage', cls: 'sm ghost', icon: 'right', attrs: `data-d="1" ${page >= pages ? 'disabled' : ''}` })}</div>` : ''}` : V.empty('Nenhuma empresa encontrada com esses filtros.'), { cls: 'flush', sub: (list.length ? 'Mostrando ' + ((page - 1) * size + 1) + '–' + ((page - 1) * size + shown.length) + ' de ' + list.length : '0') + (list.length !== all.length ? ' filtradas (' + all.length + ' no total)' : ' empresas') })}`;
   };
 

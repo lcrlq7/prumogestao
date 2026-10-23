@@ -135,3 +135,22 @@
     P.toast(n + ' empresa(s) separada(s) da matriz. Agora coloque cada filial na carteira de quem cuida dela.'); P.render();
   };
 })(window.P);
+
+/* Empresas (somente consulta): quem cuida da empresa em cada departamento */
+(function (P) {
+  const V = P.V, esc = P.esc;
+  P.actions.compWho = el => {
+    const c = P.idx.companies.get(el.dataset.id); if (!c) return;
+    const as = (P.store.db.clientAssignments || []).filter(a => a.client === c.name);
+    const depts = P.store.db.departments.filter(d => d.active !== false && !d.support);
+    const row = d => {
+      const a = as.find(x => x.deptId === d.id), who = a && P.user(a.userId), mgr = d.managerId && P.user(d.managerId);
+      return `<li class="who-row"><b>${esc(d.name)}</b>${who ? `<span>${V.avatar(who, 'sm')} ${esc(who.name)}</span>` : `<span class="muted">Sem responsável${mgr ? ' · gestor(a): ' + esc(mgr.name) : ''}</span>`}</li>`;
+    };
+    P.ui.modal({
+      title: esc(c.name), cancel: 'Fechar',
+      body: `<p class="prose">${c.code ? 'Código ' + esc(c.code) + ' · ' : ''}Responsável por departamento. Só consulta.</p><ul class="who-list">${depts.map(row).join('')}</ul>`
+    });
+  };
+})(window.P);
+
