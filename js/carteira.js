@@ -90,6 +90,32 @@
     });
     return n;
   };
+
+  /* ---------- Definir os responsáveis de uma empresa (tela Empresas): gestor, gerência e diretoria ---------- */
+  // diretoria e gerência escolhem em todos os departamentos; o gestor só no dele
+  const canOwners = u => !!u && (P.isGlobal(u) || u.role === 'manager');
+  P.canEditOwners = canOwners;
+  A.compOwners = el => {
+    const u = U(), c = P.idx.companies.get(el.dataset.id); if (!c || !canOwners(u)) return;
+    const depts = db().departments.filter(d => d.active !== false && !d.support && (P.isGlobal(u) || d.id === u.deptId));
+    const cur = d => db().clientAssignments.find(a => a.deptId === d.id && a.client === c.name);
+    const opts = d => { const a = cur(d); return '<option value="">Sem responsável</option>' + api.workers(u, d.id).sort(byName).map(w => `<option value="${esc(w.id)}" ${a && a.userId === w.id ? 'selected' : ''}>${esc(w.name)}</option>`).join(''); };
+    P.ui.modal({
+      title: 'Responsáveis · ' + c.name, submit: 'Salvar',
+      body: `<p class="prose">${c.code ? 'Código ' + esc(c.code) + '. ' : ''}Escolha quem cuida desta empresa${P.isGlobal(u) ? ' em cada departamento' : ' no seu departamento'}. As tarefas automáticas pendentes passam para o novo responsável.</p>
+        <div class="fgrid">${depts.map(d => `<label class="field span3"><span>${esc(d.name)}</span><select class="own-sel" data-dept="${esc(d.id)}">${opts(d)}</select></label>`).join('')}</div>`,
+      onSubmit: m => {
+        let changed = 0, moved = 0;
+        m.querySelectorAll('.own-sel').forEach(sel => {
+          const d = depts.find(x => x.id === sel.dataset.dept), a = cur(d), v = sel.value;
+          if (!v) { if (a) { api.removeClientAssignment(u, a.id); changed++; } return; }
+          if (!a || a.userId !== v) { api.assignClient(u, { client: c.name, userId: v }); moved += moveTasks(d.id, c.name, v); changed++; }
+        });
+        if (moved) P.store.save();
+        P.toast(changed ? 'Responsáveis atualizados' + (moved ? ' (' + moved + ' tarefa(s) pendente(s) passaram para o novo responsável)' : '') + '.' : 'Nada mudou.'); P.render();
+      }
+    });
+  };
   const guard = fn => P.ui.guard(fn);
 
   A.cartPerson = el => { st().userId = el.dataset.id; st().limit = 100; P.render(); };
