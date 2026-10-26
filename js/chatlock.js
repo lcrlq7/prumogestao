@@ -27,7 +27,7 @@
     if (conv && isLocked(u, conv)) {
       const i = html.indexOf('<section class="chat-main'), j = html.lastIndexOf('</section>') + '</section>'.length;
       if (i >= 0 && j > i) html = html.slice(0, i) + `<section class="chat-main empty chat-locked"><div class="lk-box">${icon('lock')}<b>Conversa trancada</b><p>Digite o PIN para abrir.</p>
-        <form id="lk-form" autocomplete="off"><input type="password" id="lk-pin" inputmode="numeric" maxlength="12" placeholder="PIN" autocomplete="off" aria-label="PIN da conversa"><button type="submit" class="btn primary">${icon('check')}<span>Abrir</span></button></form>
+        <form id="lk-form" autocomplete="off"><input type="password" id="lk-pin" name="pin-conversa" inputmode="numeric" maxlength="12" placeholder="PIN" autocomplete="new-password" data-lpignore="true" aria-label="PIN da conversa"><button type="submit" class="btn primary">${icon('check')}<span>Abrir</span></button></form>
         <p class="lk-err" id="lk-err" hidden></p><button type="button" class="link" data-act="chatLockForgot">Esqueci o PIN</button></div></section>` + html.slice(j);
     } else if (conv) {
       const btn = hasLock(u, conv) ? V.ibtn('lock', 'Trancar de novo agora', { act: 'chatRelock', cls: 'chat-lock-btn on' }) + V.ibtn('x', 'Remover a tranca', { act: 'chatLockOff', cls: 'chat-lock-btn' })
@@ -58,8 +58,8 @@
     P.ui.modal({
       title: 'Trancar conversa', submit: 'Trancar',
       body: `<p class="prose">A conversa fica escondida atrás de um PIN. Vale só para você, neste navegador, e a prévia some da lista.</p>
-        <div class="fgrid"><label class="field"><span>PIN (4 a 12 números)</span><input type="password" id="lk-n1" inputmode="numeric" maxlength="12" autocomplete="off"></label>
-        <label class="field"><span>Repita o PIN</span><input type="password" id="lk-n2" inputmode="numeric" maxlength="12" autocomplete="off"></label></div>`,
+        <div class="fgrid"><label class="field"><span>PIN (4 a 12 números)</span><input type="password" id="lk-n1" inputmode="numeric" maxlength="12" autocomplete="new-password"></label>
+        <label class="field"><span>Repita o PIN</span><input type="password" id="lk-n2" inputmode="numeric" maxlength="12" autocomplete="new-password"></label></div>`,
       onSubmit: () => {
         const a = document.getElementById('lk-n1').value.trim(), b = document.getElementById('lk-n2').value.trim();
         if (!/^\d{4,12}$/.test(a)) throw new Error('Use de 4 a 12 números.');

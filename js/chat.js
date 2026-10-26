@@ -223,7 +223,7 @@
     const dmList = showDm ? dms.filter(d => match(d.name) && okUnread(d.id)) : [];
     const side = `<aside class="chat-side">
       <div class="chat-side-h"><b>Conversas</b><button type="button" class="ibtn" data-act="chatNewDm" title="Nova conversa privada" aria-label="Nova conversa privada">${icon('plus')}</button></div>
-      <label class="in-ic chat-q">${icon('search')}<input type="search" id="chat-q" placeholder="Buscar conversa ou pessoa" value="${esc(c.q || '')}" data-set="chat.q" data-live></label>
+      <label class="in-ic chat-q">${icon('search')}<input type="search" id="chat-q" name="chat-busca" autocomplete="off" data-lpignore="true" placeholder="Buscar conversa ou pessoa" value="${esc(c.q || '')}" data-set="chat.q" data-live></label>
       ${strip}${tabs}
       <div class="cv-list">
         ${showCh ? `<div class="cv-g">Canais</div>${chList.map(ch => item(ch.id, ch.name, ch.desc, ch.icon)).join('') || `<p class="cv-none">${f === 'unread' ? 'Nenhum canal com mensagem nova.' : 'Nenhum canal.'}</p>`}` : ''}
