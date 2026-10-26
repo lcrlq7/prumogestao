@@ -1554,6 +1554,17 @@ body.dense .tbl small{font-size:11px}
 .grp-row span{display:flex;flex-direction:column;min-width:0}
 .grp-row small{color:var(--muted);font-size:11.5px}
 .chat-grp-btn,.chat-grp-new{flex:none}
+.chat-lock-btn{flex:none;color:var(--muted)}
+.chat-lock-btn.on{color:var(--s1,#0f766e)}
+.chat-locked{display:flex;align-items:center;justify-content:center;padding:24px}
+.lk-box{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;width:min(320px,100%);padding:28px 26px;border-radius:18px;background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.12)}
+.lk-box>.ic{width:34px;height:34px;padding:14px;box-sizing:content-box;border-radius:50%;background:color-mix(in srgb,var(--s1,#0f766e) 14%,transparent);color:var(--s1,#0f766e);margin-bottom:6px}
+.lk-box b{font:700 17px var(--f-display)}
+.lk-box p{margin:0;color:var(--muted);font-size:13px}
+#lk-form{display:flex;gap:8px;width:100%;margin:12px 0 4px}
+#lk-pin{flex:1;min-width:0;text-align:center;letter-spacing:.35em;font-size:18px;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.lk-err{color:var(--bad,#c0392b)!important;font-weight:600}
+.lk-box .link{margin-top:8px;font-size:12.5px}
 .chat.side-min .chat-grp-new{display:none}
 /* ---------- Abertura (splash) ---------- */
 #splash{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(120% 90% at 50% 0%,#17324a 0%,#0f2231 55%,#0a1823 100%);color:#fff;transition:opacity .55s ease,visibility .55s}

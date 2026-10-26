@@ -22,6 +22,12 @@
   const msgs = () => (db().messages = db().messages || []);
   const reads = () => (db().chatReads = db().chatReads || {});
   const st = () => (S().chat = S().chat || { conv: null, q: '', drafts: {} });
+  // mensagem que não aparece: apagada para todos, apagada só para mim ou de uma conversa que eu limpei
+  const gone = m => {
+    if (m.deleted) return true;
+    const u = S().user, r = u && reads()[u.id];
+    return !!r && ((r._hid && r._hid[m.id]) || (r._clr && r._clr[m.conv] >= m.ts));
+  };
 
   /* ---------- Regras ---------- */
   // Conversa privada: quaisquer duas pessoas ativas (os canais continuam seguindo a hierarquia)
@@ -88,7 +94,7 @@
     const dms = [...new Set(msgs().filter(m => m.conv.startsWith('dm:') && m.conv.slice(3).split('|').includes(u.id)).map(m => m.conv))].filter(id => resolve(u, id));
     return ch.concat(dms);
   };
-  const unreadIn = (u, conv) => { const lr = lastRead(u, conv); return msgs().filter(m => m.conv === conv && m.ts > lr && m.from !== u.id && !m.deleted).length; };
+  const unreadIn = (u, conv) => { const lr = lastRead(u, conv); return msgs().filter(m => m.conv === conv && m.ts > lr && m.from !== u.id && !gone(m)).length; };
 
   P.chat = {
     canChat, channelsFor,
@@ -112,6 +118,15 @@
       const m = msgs().find(x => x.id === id);
       if (!m || m.from !== u.id) deny('Você só apaga as próprias mensagens.');
       m.deleted = true; m.text = ''; P.store.save();
+    },
+    // só para quem pede: a mensagem some da tela dele e continua para os outros
+    hide(u, id) {
+      const r = reads()[u.id] = reads()[u.id] || {};
+      (r._hid = r._hid || {})[id] = 1; P.store.save();
+    },
+    clear(u, conv) {
+      const r = reads()[u.id] = reads()[u.id] || {};
+      (r._clr = r._clr || {})[conv] = Date.now(); P.store.save();
     }
   };
 
@@ -126,7 +141,7 @@
   /* ---------- Página ---------- */
   const hm = ts => new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   const dayLabel = ts => { const iso = D.iso(new Date(ts)), t = D.iso(P.today()); return iso === t ? 'Hoje' : iso === D.iso(D.add(P.today(), -1)) ? 'Ontem' : D.fmt(iso); };
-  const lastMsg = conv => msgs().reduce((b, m) => m.conv === conv && (!b || m.ts > b.ts) ? m : b, null);
+  const lastMsg = conv => msgs().reduce((b, m) => m.conv === conv && !gone(m) && (!b || m.ts > b.ts) ? m : b, null);
   const linkify = t => esc(t).replace(/\n/g, '<br>');
 
   /* ---------- Emojis e figurinhas ---------- */
@@ -232,7 +247,7 @@
           <li><b>Geral:</b> comunicados da diretoria para todo o escritório</li></ul>
           <button type="button" class="btn primary" data-act="chatNewDm" style="margin-top:10px">${icon('plus')}<span>Nova conversa privada</span></button></div></section>`;
     } else {
-      const allMsgs = msgs().filter(m => m.conv === cur.id).sort((a, b) => a.ts - b.ts);
+      const allMsgs = msgs().filter(m => m.conv === cur.id && !gone(m)).sort((a, b) => a.ts - b.ts);
       const lim = c.limit || 150, hiddenN = Math.max(0, allMsgs.length - lim), list = hiddenN ? allMsgs.slice(-lim) : allMsgs;
       const members = cur.members();
       const canPost = cur.canPost(u);
@@ -255,7 +270,7 @@
             ${cur.dm ? `<time class="msg-t">${hm(m.ts)}</time>` : ''}
             ${seen != null ? `<small class="msg-seen">${icon('check')} Visto por ${seen} de ${total - 1}</small>` : ''}
           </div>
-          ${mine && !m.deleted ? V.ibtn('trash', 'Apagar mensagem', { act: 'chatDelete', cls: 'msg-del', attrs: `data-id="${m.id}"` }) : ''}
+          ${V.ibtn('trash', 'Apagar mensagem', { act: 'chatDelete', cls: 'msg-del', attrs: `data-id="${m.id}"` })}
         </div>`;
       }).join('') : `<div class="msg-empty">${icon('message')}<p>${cur.dm ? 'Comece a conversa com ' + esc(P.firstName(cur.name)) + '.' : 'Nenhuma mensagem neste canal ainda.'}</p></div>`;
       main = `<section class="chat-main">
@@ -263,6 +278,7 @@
           <button type="button" class="ibtn chat-back" data-act="chatOpen" data-id="" aria-label="Voltar para as conversas">${icon('left')}</button>
           ${cur.dm ? V.avatar(cur.other) : `<span class="cv-ic">${icon(cur.icon)}</span>`}
           <div><b>${esc(cur.name)}</b><small>${esc(cur.dm ? cur.desc : cur.desc + ' · ' + total + ' participante' + (total > 1 ? 's' : ''))}</small></div>
+          ${V.ibtn('trash', 'Apagar conversa só para mim', { act: 'chatClear', cls: 'chat-grp-btn' })}
           ${!cur.dm ? `<div class="chat-h-av" aria-label="${total} participantes">${members.slice(0, 4).map(x => V.avatar(x)).join('')}${total > 4 ? `<em>+${total - 4}</em>` : ''}</div>` : ''}
         </header>
         <div class="chat-msgs" id="chat-msgs">${hiddenN ? `<button type="button" class="link chat-more" data-act="chatMore">Ver mensagens anteriores (${hiddenN})</button>` : ''}${body}</div>
@@ -386,7 +402,22 @@
     if (c.panel && S().route.page === 'comunicacao' && ev.target.isConnected && !ev.target.closest('.chat-pick, .chat-tools')) { c.panel = null; c.emojiQ = ''; const p = $('.chat-pick'); if (p) p.remove(); document.querySelectorAll('.chat-tools .ibtn.on').forEach(x => x.classList.remove('on')); }
   });
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && st().panel && S().route.page === 'comunicacao') { st().panel = null; P.render(); } });
-  A.chatDelete = el => P.ui.guard(() => { P.chat.remove(S().user, el.dataset.id); P.render(); });
+  A.chatDelete = el => {
+    const m = msgs().find(x => x.id === el.dataset.id), u = S().user; if (!m || !u) return;
+    P.ui.modal({
+      title: 'Apagar mensagem', cancel: 'Cancelar',
+      body: `<p class="prose">Escolha como apagar esta mensagem.</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${m.from === u.id ? `<button type="button" class="btn danger" data-act="chatDelAll" data-id="${esc(m.id)}">${icon('trash')}<span>Apagar para todos</span></button>` : ''}
+          <button type="button" class="btn ghost" data-act="chatDelMe" data-id="${esc(m.id)}">${icon('trash')}<span>Apagar só para mim</span></button></div>`
+    });
+  };
+  A.chatDelAll = el => P.ui.guard(() => { P.chat.remove(S().user, el.dataset.id); P.ui.closeModal(); P.render(); });
+  A.chatDelMe = el => { P.chat.hide(S().user, el.dataset.id); P.ui.closeModal(); P.render(); };
+  A.chatClear = () => {
+    const c = st(); if (!c.conv || !confirm('Apagar toda esta conversa só para você? Os outros participantes continuam vendo as mensagens.')) return;
+    P.chat.clear(S().user, c.conv); P.render();
+  };
   // rascunho por conversa (não se perde se a tela redesenhar) e Enter para enviar
   document.addEventListener('input', ev => {
     if (ev.target.id === 'chat-text') {
@@ -414,12 +445,14 @@
     setTimeout(() => {
       const u = S().user; if (!u) return;
       const mine = new Set(convsFor(u));
-      const fresh = msgs().filter(m => m.ts > lastSeenTs && m.from !== u.id && mine.has(m.conv) && !m.deleted);
+      const fresh = msgs().filter(m => m.ts > lastSeenTs && m.from !== u.id && mine.has(m.conv) && !gone(m));
       lastSeenTs = Date.now();
       fresh.filter(m => !(S().route.page === 'comunicacao' && st().conv === m.conv)).slice(-2).forEach(m => {
         // remetente ou conversa ainda não carregados (ex.: pessoa recém-cadastrada): não quebra a tela
         const c = resolve(u, m.conv), who = P.user(m.from) || { name: 'Alguém' };
         if (!c) return;
+        // conversa trancada com PIN: nada de aviso com texto ou nome na tela
+        if (P.chatLock && P.chatLock.hasLock(u, m.conv)) return;
         P.fx.popNotif({ icon: 'message', title: c.dm ? 'Mensagem de ' + who.name : 'Nova mensagem em ' + c.name, text: (c.dm ? '' : P.firstName(who.name) + ': ') + previewText(m.text).slice(0, 120) }, { onClick: () => { st().conv = m.conv; P.go('comunicacao'); } });
       });
       if (S().route.page === 'comunicacao') keepScroll();
