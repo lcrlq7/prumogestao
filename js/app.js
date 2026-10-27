@@ -277,7 +277,7 @@
            ${r(4, `<div class="auth-back"><button type="button" class="link" data-act="authMode" data-mode="login">${icon('left')} Voltar para o login</button></div>`)}`;
     } else {
       const remembered = ls.get('prumo.lastEmail') || '';
-      card = `${logo}${r(1, `<h2>Bem-vindo(a)</h2><p class="lede">Entre com o seu e-mail e senha.</p>`)}
+      card = `${logo}${r(1, `<h2>${new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite'}!</h2><p class="lede">Bem-vindo(a). Entre com o seu e-mail e senha.</p>`)}
         <form class="auth-form" id="login-form" novalidate>
           ${r(2, `<label class="field"><span>E-mail</span><span class="in-ic">${icon('mail')}<input type="email" id="login-email" name="email" autocomplete="username" placeholder="nome@empresa.com.br" value="${esc(S.loginEmail || remembered)}" required></span></label>`)}
           ${r(3, `<label class="field"><span>Senha</span><span class="in-ic pass">${icon('lock')}<input type="${S.showPass ? 'text' : 'password'}" id="login-pass" name="password" autocomplete="current-password" placeholder="Sua senha" required><button type="button" class="eye" data-act="togglePass" aria-label="${S.showPass ? 'Ocultar senha' : 'Mostrar senha'}" title="${S.showPass ? 'Ocultar senha' : 'Mostrar senha'}">${icon(S.showPass ? 'eyeoff' : 'eye')}</button></span></label>`)}
@@ -290,7 +290,8 @@
         ${QUICK_ACCESS ? r(6, `<div class="auth-or">ou</div><button type="button" class="btn quick-btn" data-act="quickAccess">${icon('zap')}<span>Acesso rápido</span><span class="quick-tag">temporário</span></button>`) : ''}`;
     }
     return `
-    <div class="auth ${S.authSeen ? 'static' : ''}">
+    <div class="auth v2 ${S.authSeen ? 'static' : ''}">
+      <canvas class="lg-canvas" aria-hidden="true"></canvas><div class="lg-bob" aria-hidden="true"></div>
       <section class="auth-brand">
         <div class="auth-deco" aria-hidden="true"><span class="orb o1"></span><span class="orb o2"></span><span class="fio"></span></div>
         ${r(0, `<div class="brand lg">${icon('plumb', 'brand-ic')}<div><b>Prumo</b><small>${company}</small></div></div>`)}
@@ -302,7 +303,7 @@
         </ul>
         <p class="auth-foot rise" style="--d:5">© ${P.today().getFullYear()} ${company}</p>
       </section>
-      <section class="auth-panel"><div class="auth-card">${card}</div></section>
+      <section class="auth-panel"><div class="auth-card">${card}</div><p class="lg-tip" aria-hidden="true"></p></section>
     </div>`;
   }
   /* ---------- Render ---------- */

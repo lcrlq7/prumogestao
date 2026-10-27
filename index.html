@@ -1643,6 +1643,39 @@ body.dense .tbl small{font-size:11px}
 /* app entra com um fade ao logar */
 .app.enter{animation:appIn .45s ease both}
 @keyframes appIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* login interativo (v2): fundo vivo, prumo pendular, cartão de vidro */
+.auth.v2{display:block;background:radial-gradient(120% 90% at 15% 0%,#1b3a55 0%,#0f2231 52%,#08121b 100%);color:#c9d6e2}
+.auth.v2 .lg-canvas{position:absolute;inset:0;z-index:0;pointer-events:none}
+.auth.v2 .auth-brand{position:absolute;inset:0 auto auto 0;z-index:2;background:none;padding:34px 40px;width:auto;pointer-events:none}
+.auth.v2 .auth-brand h1,.auth.v2 .auth-brand .props,.auth.v2 .auth-deco .fio{display:none}
+.auth.v2 .auth-foot{position:fixed;left:40px;bottom:24px;margin:0}
+.auth.v2 .auth-panel{position:relative;z-index:2;min-height:100vh;min-height:100dvh;background:none;flex-direction:column;gap:18px}
+.auth.v2 .auth-card{position:relative;max-width:410px;color:#e6edf3;--surface:rgba(255,255,255,.06);--ink:#e6edf3;--ink-2:#a8b8c7;--muted:#8fa3b6;--line:rgba(255,255,255,.12);--line-2:rgba(255,255,255,.2);--crit:#f0726a;--crit-soft:rgba(240,114,106,.14);--good:#3cc46a;--good-soft:rgba(60,196,106,.14);--accent:#4aa3df;--accent-soft:rgba(74,163,223,.25);background:rgba(13,26,38,.55);-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 70px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08);transform:perspective(1000px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .12s ease-out}
+.auth.v2 .auth-card::before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(280px circle at var(--gx,50%) var(--gy,0%),rgba(255,255,255,.1),transparent 62%);pointer-events:none}
+.auth.v2 .auth-card h2{color:#fff}
+.auth.v2 .auth-logo{display:none;color:#fff}
+.auth.v2 .auth-deco{display:none}
+.auth.v2 .in-ic input{color:#fff}
+.auth.v2 .in-ic input::placeholder{color:#7f93a6}
+.auth.v2 .in-ic input:-webkit-autofill{-webkit-text-fill-color:#fff;box-shadow:0 0 0 40px #17293a inset;caret-color:#fff}
+.auth.v2 .in-ic:focus-within>.ic{color:#e0a63a}
+.auth.v2 .link{color:#6fb6ea}
+.auth.v2 .btn.primary{box-shadow:0 8px 22px rgba(74,163,223,.28)}
+.auth.v2 .btn:not(.primary){background:rgba(255,255,255,.06);color:#e6edf3;border-color:rgba(255,255,255,.16)}
+.lg-bob{position:absolute;left:50%;top:0;width:0;height:var(--bh,160px);z-index:3;pointer-events:none;transform-origin:50% 0;transform:rotate(var(--sw,0deg))}
+.lg-bob::before{content:"";position:absolute;left:0;top:0;bottom:6px;width:1px;background:linear-gradient(rgba(224,166,58,0),#e0a63a 40%)}
+.lg-bob::after{content:"";position:absolute;left:-8px;bottom:-14px;width:17px;height:24px;background:#e0a63a;clip-path:polygon(50% 0,100% 40%,50% 100%,0 40%);filter:drop-shadow(0 0 8px rgba(224,166,58,.7))}
+.lg-tip{margin:0;max-width:410px;text-align:center;font-size:13px;color:#9db2c4;transition:opacity .45s,transform .45s;min-height:20px}
+.lg-tip.out{opacity:0;transform:translateY(6px)}
+.lg-caps{display:block;margin-top:5px;color:#e8b04a;font-size:12px;font-weight:600}
+@media (max-width:1020px){
+  .auth.v2 .auth-brand{display:block}
+  .auth.v2 .auth-brand .brand{display:none}
+  .auth.v2 .auth-logo{display:flex}
+  .auth.v2 .auth-foot{display:none}
+  .auth.v2 .auth-panel{background:none}
+}
+@media (prefers-reduced-motion:reduce){.auth.v2 .auth-card{transform:none;transition:none}}
 /* acesso rápido */
 .qa-roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .qa-role{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer;text-align:left;transition:border-color .15s,transform .15s}
@@ -1720,6 +1753,7 @@ body.dense .tbl small{font-size:11px}
 <script src="js/chatx.js"></script>
 <script src="js/chatlock.js"></script>
 <script src="js/chatgroups.js"></script>
+<script src="js/loginfx.js"></script>
 
 </body>
 </html>
