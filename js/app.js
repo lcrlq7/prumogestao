@@ -292,19 +292,27 @@
     return `
     <div class="auth ${S.authSeen ? 'static' : ''}">
       <section class="auth-brand">
-        <div class="auth-deco" aria-hidden="true"><span class="orb o1"></span><span class="orb o2"></span><span class="fio"></span></div>
+        <div class="auth-deco" aria-hidden="true"><span class="aur"></span><span class="grid"></span><span class="pend"><i></i><b></b></span></div>
         ${r(0, `<div class="brand lg">${icon('plumb', 'brand-ic')}<div><b>Prumo</b><small>${company}</small></div></div>`)}
-        ${r(1, `<h1>Carga de trabalho, capacidade e evolução de cada equipe, <em>no prumo.</em></h1>`)}
-        <ul class="props">
-          ${r(2, `<li>${icon('scale')}<span><b>Pontos por atividade.</b> 1 ponto ≈ 1 hora média, com pesos calibráveis por departamento.</span></li>`)}
-          ${r(3, `<li>${icon('gauge')}<span><b>Capacidade, não pressão.</b> Mostra quem precisa de apoio e quem tem espaço para novas demandas.</span></li>`)}
-          ${r(4, `<li>${icon('lock')}<span><b>Acesso por hierarquia.</b> Cada pessoa vê somente o que o seu perfil permite.</span></li>`)}
-        </ul>
+        ${r(1, `<h1>Cada pessoa, cada prazo, <em>no prumo.</em></h1>`)}
+        ${r(2, `<p class="auth-sub">Carga, capacidade e obrigações do escritório em tempo real.</p>`)}
+        <div class="auth-fl" aria-hidden="true">
+          <div class="fl f1" data-d="18"><small>Obrigações no prazo</small><b>96%</b><span class="fl-bar"><i></i></span></div>
+          <div class="fl f2" data-d="32"><small>Alerta de multa</small><b class="crit">2 vencendo</b></div>
+          <div class="fl f3" data-d="10"><small>Carga da equipe</small><b class="gold">82%</b></div>
+        </div>
         <p class="auth-foot rise" style="--d:5">© ${P.today().getFullYear()} ${company}</p>
       </section>
       <section class="auth-panel"><div class="auth-card">${card}</div></section>
     </div>`;
   }
+  // login: cartões flutuantes e cartão de acesso acompanham o mouse em profundidade
+  document.addEventListener('mousemove', ev => {
+    const a = document.querySelector('.auth'); if (!a || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const x = ev.clientX / innerWidth - .5, y = ev.clientY / innerHeight - .5;
+    a.querySelectorAll('.auth-fl .fl').forEach(f => { const d = +f.dataset.d || 10; f.style.transform = `translate(${x * d}px,${y * d}px)`; });
+    const c = a.querySelector('.auth-card'); if (c) c.style.transform = `perspective(900px) rotateY(${x * 3}deg) rotateX(${-y * 3}deg)`;
+  }, { passive: true });
   /* ---------- Render ---------- */
   const root = () => $('#app');
   function render(scrollTop, opts = {}) {
