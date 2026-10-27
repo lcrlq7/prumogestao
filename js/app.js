@@ -291,8 +291,9 @@
     }
     return `
     <div class="auth ${S.authSeen ? 'static' : ''}">
+      <div class="pend" aria-hidden="true"><i></i><b></b></div>
       <section class="auth-brand">
-        <div class="auth-deco" aria-hidden="true"><span class="aur"></span><span class="grid"></span><span class="pend"><i></i><b></b></span></div>
+        <div class="auth-deco" aria-hidden="true"><span class="aur"></span><span class="grid"></span></div>
         ${r(0, `<div class="brand lg">${icon('plumb', 'brand-ic')}<div><b>Prumo</b><small>${company}</small></div></div>`)}
         ${r(1, `<h1>Cada pessoa, cada prazo, <em>no prumo.</em></h1>`)}
         ${r(2, `<p class="auth-sub">Carga, capacidade e obrigações do escritório em tempo real.</p>`)}
