@@ -83,11 +83,44 @@
     if (P.isLive && conv === 'geral' && geralReads && u.id !== (S().user || {}).id) return Number(geralReads[u.id]) || 0;
     return (reads()[u.id] || {})[conv] || 0;
   };
+  // Entregue = o aparelho de quem recebe já baixou a mensagem (guarda a última em _dlv); lida = abriu a conversa (chatReads).
+  // Em produção cada pessoa só lê as próprias marcações: o estado dos outros vem de uma função do servidor (chat_peer_reads).
+  let peer = null, peerAsked = 0, peerFail = false;
+  const peerOf = id => P.isLive ? (peer && peer[id]) || {} : reads()[id] || {};
+  const loadPeer = force => {
+    if (!P.isLive || !P.backend || !P.backend.client || peerFail || (!force && Date.now() - peerAsked < 6000)) return;
+    peerAsked = Date.now();
+    P.backend.client.rpc('chat_peer_reads').then(({ data, error }) => {
+      if (error) { peerFail = true; return; } // função ainda não criada no banco: fica só com ✓ (enviada)
+      const changed = JSON.stringify(data) !== JSON.stringify(peer); peer = data || {};
+      if (changed && S().route.page === 'comunicacao' && P.chatRefresh) P.chatRefresh();
+    });
+  };
+  const markDelivered = u => {
+    if (!u) return;
+    const mine = new Set(convsFor(u));
+    const ts = msgs().reduce((mx, m) => m.from !== u.id && mine.has(m.conv) && m.ts > mx ? m.ts : mx, 0);
+    const r = reads()[u.id] = reads()[u.id] || {};
+    if (ts && !(r._dlv >= ts)) { r._dlv = ts; P.store.save(); }
+  };
+  // situação da minha mensagem para quem deveria recebê-la: 'sent' (✓), 'dlv' (✓✓ cinza) ou 'read' (✓✓ azul)
+  const stateOf = (cur, m, u) => {
+    const others = cur.members().filter(x => x.id !== u.id);
+    const rows = others.map(x => { const p = peerOf(x.id), read = (Number(p[cur.id]) || 0) >= m.ts; return { x, read, dlv: read || (Number(p._dlv) || 0) >= m.ts }; });
+    const k = !rows.length ? 'sent' : rows.every(r => r.read) ? 'read' : rows.every(r => r.dlv) ? 'dlv' : 'sent';
+    return { st: k, rows };
+  };
+  const ticksHtml = (cur, m, u) => {
+    const k = stateOf(cur, m, u).st, n = k === 'sent' ? 1 : 2;
+    const tip = { sent: 'Enviada', dlv: 'Entregue', read: 'Lida' }[k];
+    return `<button type="button" class="tk tk-${k}" data-act="chatInfo" data-id="${esc(m.id)}" aria-label="${tip}" title="${tip}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12.5l4.5 4.5L15 7.5"/>${n === 2 ? '<path d="M10 16.5l1 1L21 7.5"/>' : ''}</svg></button>`;
+  };
   const markRead = (u, conv) => {
     const ts = msgs().reduce((mx, m) => m.conv === conv && m.ts > mx ? m.ts : mx, 0);
     const r = reads()[u.id] = reads()[u.id] || {};
     if (ts && r[conv] !== ts) { r[conv] = ts; P.store.save(); }
   };
+  P.chatMarkDelivered = () => markDelivered(S().user);
   const convsFor = u => {
     const ch = channelsFor(u).map(c => c.id);
     // só conversas que a pessoa consegue abrir (ex.: com alguém que foi removido do sistema não contam como "não lidas")
@@ -100,7 +133,7 @@
     canChat, channelsFor,
     contacts: u => active().filter(x => canChat(u, x)).sort((a, b) => P.LEVEL[b.role] - P.LEVEL[a.role] || a.name.localeCompare(b.name)),
     unread: u => u ? convsFor(u).reduce((n, c) => n + unreadIn(u, c), 0) : 0,
-    send(u, conv, text) {
+    send(u, conv, text, replyId) {
       const c = resolve(u, conv);
       if (!c && conv && conv.startsWith('dm:')) deny('Pelas regras de comunicação, vocês não podem conversar diretamente.');
       if (!c) deny('Você não participa desta conversa.');
@@ -109,6 +142,8 @@
       if (!t) deny('Escreva a mensagem.');
       if (t.length > 2000) deny('A mensagem pode ter no máximo 2.000 caracteres.');
       const m = { id: P.uid('m'), conv, from: u.id, text: t, at: D.stamp(), ts: Date.now() };
+      const o = replyId && msgs().find(x => x.id === replyId && x.conv === conv && !x.deleted);
+      if (o) m.rt = { id: o.id, from: o.from, text: previewText(o.text).slice(0, 90) }; // cópia curta: a citação continua se a original for apagada
       msgs().push(m);
       reads()[u.id] = Object.assign(reads()[u.id] || {}, { [conv]: m.ts });
       P.store.save();
@@ -136,6 +171,13 @@
     const dir = d.users.find(x => x.role === 'admin' && x.active !== false);
     if (dir) d.messages = (d.messages || []).concat([{ id: P.uid('m'), conv: 'geral', from: dir.id, text: 'Bem-vindos à aba Comunicação! Aqui a diretoria publica os comunicados para todo o escritório. Cada departamento tem o seu canal com o gestor, e gestores, gerência e diretoria têm canais próprios.', at: D.stamp(), ts: Date.now() - 60000 }]);
     d.chatSeeded = true;
+  };
+
+  const quoteHtml = (m, u) => `<div class="msg-q" data-act="chatGoto" data-id="${esc(m.rt.id)}"><b>${m.rt.from === u.id ? 'Você' : esc(P.firstName((P.user(m.rt.from) || {}).name || '—'))}</b><span>${esc(m.rt.text || 'Mensagem')}</span></div>`;
+  const replyBar = (cur, u) => {
+    const id = (st().reply || {})[cur.id], o = id && msgs().find(x => x.id === id && !x.deleted);
+    if (!o) return '';
+    return `<div class="chat-reply"><div><b>Respondendo a ${o.from === u.id ? 'você mesmo' : esc((P.user(o.from) || { name: '—' }).name)}</b><span>${esc(previewText(o.text).slice(0, 120))}</span></div>${V.ibtn('x', 'Cancelar resposta', { act: 'chatReplyX' })}</div>`;
   };
 
   /* ---------- Página ---------- */
@@ -254,6 +296,7 @@
       let lastDay = '', lastFrom = '', lastTs = 0;
       const geral = cur.id === 'geral';
       if (geral && u.role === 'admin') loadGeralReads();
+      loadPeer(); markDelivered(u);
       const total = members.length;
       const body = list.length ? list.map(m => {
         const who = P.user(m.from) || { name: '—', id: 'x' }, mine = m.from === u.id, dl = dayLabel(m.ts);
@@ -264,13 +307,14 @@
         // conversa privada: só balões, com o horário embaixo (estilo app de chat); canais: avatar e nome de quem escreveu
         return `${sep}<div class="msg ${mine ? 'me' : ''} ${cont ? 'cont' : ''} ${geral ? 'notice' : ''} ${cur.dm ? 'dm' : ''}">
           ${cur.dm ? '' : mine || cont ? '<span class="msg-av"></span>' : `<span class="msg-av">${V.avatar(who)}</span>`}
-          <div class="msg-b">${cont || cur.dm ? '' : `<div class="msg-h"><b>${mine ? 'Você' : esc(who.name)}</b><small>${esc(P.ROLES[who.role] || '')}</small><time>${hm(m.ts)}</time></div>`}
+          <div class="msg-b" data-mid="${esc(m.id)}">${cont || cur.dm ? '' : `<div class="msg-h"><b>${mine ? 'Você' : esc(who.name)}</b><small>${esc(P.ROLES[who.role] || '')}</small><time>${hm(m.ts)}</time></div>`}
+            ${m.rt && !m.deleted && stickerOf(m.text) ? quoteHtml(m, u) : ''}
             ${!m.deleted && stickerOf(m.text) ? `<div class="msg-stk">${stickerHtml(stickerOf(m.text))}</div>`
-              : `<div class="msg-txt ${m.deleted ? 'del' : ''} ${!m.deleted && /^(\p{Extended_Pictographic}|‍|️|\s){1,8}$/u.test(m.text) ? 'big-emoji' : ''}">${m.deleted ? icon('x') + ' Mensagem apagada' : linkify(m.text)}</div>`}
-            ${cur.dm ? `<time class="msg-t">${hm(m.ts)}</time>` : ''}
+              : `<div class="msg-txt ${m.deleted ? 'del' : ''} ${!m.deleted && /^(\p{Extended_Pictographic}|‍|️|\s){1,8}$/u.test(m.text) ? 'big-emoji' : ''}">${m.rt && !m.deleted ? quoteHtml(m, u) : ''}${m.deleted ? icon('x') + ' Mensagem apagada' : linkify(m.text)}</div>`}
+            ${cur.dm || (mine && !geral) ? `<span class="msg-t">${cur.dm ? `<time>${hm(m.ts)}</time>` : ''}${mine && !geral ? ticksHtml(cur, m, u) : ''}</span>` : ''}
             ${seen != null ? `<small class="msg-seen">${icon('check')} Visto por ${seen} de ${total - 1}</small>` : ''}
           </div>
-          ${V.ibtn('trash', 'Apagar mensagem', { act: 'chatDelete', cls: 'msg-del', attrs: `data-id="${m.id}"` })}
+          ${canPost ? `<button type="button" class="ibtn msg-del msg-re" data-act="chatReply" data-id="${esc(m.id)}" aria-label="Responder" title="Responder"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>` : ''}${V.ibtn('trash', 'Apagar mensagem', { act: 'chatDelete', cls: 'msg-del', attrs: `data-id="${m.id}"` })}
         </div>`;
       }).join('') : `<div class="msg-empty">${icon('message')}<p>${cur.dm ? 'Comece a conversa com ' + esc(P.firstName(cur.name)) + '.' : 'Nenhuma mensagem neste canal ainda.'}</p></div>`;
       main = `<section class="chat-main">
@@ -282,7 +326,7 @@
           ${!cur.dm ? `<div class="chat-h-av" aria-label="${total} participantes">${members.slice(0, 4).map(x => V.avatar(x)).join('')}${total > 4 ? `<em>+${total - 4}</em>` : ''}</div>` : ''}
         </header>
         <div class="chat-msgs" id="chat-msgs">${hiddenN ? `<button type="button" class="link chat-more" data-act="chatMore">Ver mensagens anteriores (${hiddenN})</button>` : ''}${body}</div>
-        ${canPost ? `<div class="chat-in">${c.panel ? pickerHtml(c.panel) : ''}
+        ${canPost ? `<div class="chat-in">${c.panel ? pickerHtml(c.panel) : ''}${replyBar(cur, u)}
           <div class="chat-pill"><div class="chat-tools">${V.ibtn('smile', 'Emojis', { act: 'chatPanel', cls: c.panel === 'emoji' ? 'on' : '', attrs: 'data-k="emoji"' })}${V.ibtn('sticker', 'Figurinhas', { act: 'chatPanel', cls: c.panel === 'fig' ? 'on' : '', attrs: 'data-k="fig"' })}</div><textarea id="chat-text" rows="1" placeholder="${geral ? 'Escreva um comunicado para todo o escritório…' : cur.dm ? 'Mensagem para ' + esc(P.firstName(cur.name)) + '…' : 'Escreva uma mensagem…'}" maxlength="2000">${esc((c.drafts || {})[cur.id] || '')}</textarea>
           <button type="button" class="chat-send" data-act="chatSend" aria-label="Enviar" title="Enviar (Enter)">${icon('right')}</button></div></div>
           <p class="chat-hint">Enter envia · Shift+Enter quebra a linha</p>`
@@ -355,8 +399,8 @@
   A.chatSend = () => {
     const c = st(), t = $('#chat-text'); if (!t || !c.conv) return;
     P.ui.guard(() => {
-      P.chat.send(S().user, c.conv, t.value);
-      c.drafts[c.conv] = ''; c.panel = null;
+      P.chat.send(S().user, c.conv, t.value, (c.reply || {})[c.conv]);
+      c.drafts[c.conv] = ''; c.panel = null; if (c.reply) delete c.reply[c.conv];
       P.render();
       requestAnimationFrame(() => { scrollEnd(); const n = $('#chat-text'); if (n) n.focus(); });
     });
@@ -380,8 +424,8 @@
   A.chatSticker = el => {
     const c = st(); if (!c.conv) return;
     P.ui.guard(() => {
-      P.chat.send(S().user, c.conv, '::fig:' + el.dataset.id + '::');
-      c.panel = null; P.render();
+      P.chat.send(S().user, c.conv, '::fig:' + el.dataset.id + '::', (c.reply || {})[c.conv]);
+      c.panel = null; if (c.reply) delete c.reply[c.conv]; P.render();
       requestAnimationFrame(scrollEnd);
     });
   };
@@ -402,6 +446,29 @@
     if (c.panel && S().route.page === 'comunicacao' && ev.target.isConnected && !ev.target.closest('.chat-pick, .chat-tools')) { c.panel = null; c.emojiQ = ''; const p = $('.chat-pick'); if (p) p.remove(); document.querySelectorAll('.chat-tools .ibtn.on').forEach(x => x.classList.remove('on')); }
   });
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && st().panel && S().route.page === 'comunicacao') { st().panel = null; P.render(); } });
+  A.chatReply = el => {
+    const c = st(); if (!c.conv) return;
+    (c.reply = c.reply || {})[c.conv] = el.dataset.id;
+    const t = $('#chat-text'); if (t) c.drafts[c.conv] = t.value;
+    P.render(); requestAnimationFrame(() => { const n = $('#chat-text'); if (n) n.focus(); });
+  };
+  A.chatReplyX = () => { const c = st(); if (c.reply) delete c.reply[c.conv]; const t = $('#chat-text'); if (t) c.drafts[c.conv] = t.value; P.render(); };
+  // toca na citação: vai até a mensagem original e a destaca
+  A.chatGoto = el => {
+    const box = $('#chat-msgs'), t = box && box.querySelector(`[data-mid="${el.dataset.id}"]`);
+    if (!t) return P.toast('A mensagem original está mais acima. Use "Ver mensagens anteriores".');
+    const row = t.closest('.msg'); box.scrollTop = Math.max(0, row.offsetTop - 80); st().atBottom = false; st().scrollTop = box.scrollTop;
+    row.classList.add('hl'); setTimeout(() => row.classList.remove('hl'), 1600);
+  };
+  // "Dados da mensagem": quem recebeu e quem leu
+  A.chatInfo = el => {
+    const u = S().user, m = msgs().find(x => x.id === el.dataset.id), cur = m && resolve(u, m.conv); if (!m || !cur || m.from !== u.id) return;
+    const rows = stateOf(cur, m, u).rows, grp = f => rows.filter(f).map(r => `<li>${V.avatar(r.x, 'sm')}<span>${esc(r.x.name)}</span></li>`).join('');
+    const part = (title, html, cls) => html ? `<h4 class="${cls}">${title}</h4><ul class="msg-info">${html}</ul>` : '';
+    P.ui.modal({ title: 'Dados da mensagem', cancel: 'Fechar', body: `<p class="prose">Enviada em ${D.fmt(D.iso(new Date(m.ts)))} às ${hm(m.ts)}.</p>
+      ${part('Lida por', grp(r => r.read), 'tk-read')}${part('Entregue a', grp(r => r.dlv && !r.read), 'tk-dlv')}${part('Ainda não recebeu', grp(r => !r.dlv), 'tk-sent')}
+      ${P.isLive && peerFail ? '<p class="fine">O status de leitura de outras pessoas ainda não foi ativado no banco.</p>' : ''}` });
+  };
   A.chatDelete = el => {
     const m = msgs().find(x => x.id === el.dataset.id), u = S().user; if (!m || !u) return;
     P.ui.modal({
@@ -459,5 +526,10 @@
     }, 30);
   };
   window.addEventListener('storage', ev => { if (!P.isLive && ev.key === 'prumo.db.v3') onExternal(); });
-  window.addEventListener('prumo:remote', onExternal);
+  window.addEventListener('prumo:remote', () => { onExternal(); markDelivered(S().user); loadPeer(true); });
+  // enquanto a conversa está aberta, confere de tempos em tempos quem recebeu e quem leu; em segundo plano só marca como entregue
+  setInterval(() => {
+    const u = S().user; if (!u || document.hidden) return;
+    markDelivered(u); if (S().route.page === 'comunicacao' && st().conv) loadPeer();
+  }, 8000);
 })(window.P);
