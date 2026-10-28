@@ -369,7 +369,7 @@
     const load = P.seesLoad(viewer);
 
     const head = own
-      ? V.pageHead('Meu desempenho', `${esc(emp.name)} · ${esc(dept.name)}${load ? ' · capacidade de referência ' + F.n(emp.capacity) + ' pts/semana' : ''}`, emp.role === 'manager' ? V.btn('Minhas tarefas', { go: 'atividades', icon: 'clipboard', cls: 'ghost' }) + V.btn('Registrar atividade', { act: 'newOwnEntry', icon: 'plus', cls: 'primary' }) : V.btn('Registrar atividade', { go: 'lancamentos', icon: 'plus', cls: 'primary' }))
+      ? V.pageHead('Meu desempenho', `${esc(emp.name)} · ${esc(dept.name)}${load ? ' · capacidade de referência ' + F.n(emp.capacity) + ' pts/semana' : ''}`, emp.role === 'manager' ? V.btn('Capacidade', { act: 'editCapacity', icon: 'gauge', cls: 'ghost', attrs: `data-id="${emp.id}"` }) + V.btn('Minhas tarefas', { go: 'atividades', icon: 'clipboard', cls: 'ghost' }) + V.btn('Registrar atividade', { act: 'newOwnEntry', icon: 'plus', cls: 'primary' }) : V.btn('Registrar atividade', { go: 'lancamentos', icon: 'plus', cls: 'primary' }))
       : `<div class="crumbs"><button type="button" class="link" data-go="equipe">${icon('left')}Minha equipe</button></div>
          <div class="profile-head">
            ${V.avatar(emp, 'lg')}

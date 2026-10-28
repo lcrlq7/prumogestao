@@ -938,7 +938,8 @@ window.P = window.P || {};
     notes(u, empId) { api.employee(u, empId); return u.role === 'employee' ? [] : db().notes.filter(n => n.empId === empId); },
     setCapacity(u, empId, cap) {
       const emp = api.employee(u, empId);
-      assert(P.canManageUser(u, emp), 'Você só ajusta a capacidade de quem está abaixo de você na hierarquia.');
+      // o gestor também ajusta a própria capacidade (no "Meu desempenho")
+      assert(P.canManageUser(u, emp) || (u.role === 'manager' && u.id === emp.id), 'Você só ajusta a capacidade de quem está abaixo de você na hierarquia.');
       const old = emp.capacity; emp.capacity = Number(cap);
       audit(u, 'Capacidade ajustada', emp.id, emp.name + ': ' + old + ' → ' + emp.capacity + ' pts/semana'); P.store.save();
     },
