@@ -39,12 +39,32 @@
 
   /* ---------- Filtros da lista de tarefas: busca (tarefa, empresa, responsável), empresa, prazo e atrasadas ---------- */
   const normT = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  // empresa do cadastro (tela Empresas) a partir do nome gravado na tarefa; refeito quando o cadastro muda
+  let compCache = { list: null, n: -1, map: null };
+  V.companyOfClient = client => {
+    const list = P.store.db.companies || [];
+    if (compCache.list !== list || compCache.n !== list.length) {
+      const map = new Map();
+      list.forEach(c => { if (c.tradeName) map.set(normT(c.tradeName).trim(), c); });
+      list.forEach(c => map.set(normT(c.name).trim(), c)); // razão social tem prioridade sobre nome fantasia
+      compCache = { list, n: list.length, map };
+    }
+    return client ? compCache.map.get(normT(client).trim()) || null : null;
+  };
+  // filtro "Empresa": aceita o código do cadastro (igual ou começando por ele) ou parte do nome
+  const clientHit = (client, term) => {
+    const k = normT(term).trim();
+    if (!k) return true;
+    if (normT(client).includes(k)) return true;
+    const c = V.companyOfClient(client);
+    return !!(c && c.code && normT(c.code).startsWith(k));
+  };
   V.taskFilter = list => {
     const f = P.state.tf || {}, q = normT(f.q).trim(), today = D.iso(P.today());
     if (!q && !f.client && !f.from && !f.to && !f.late) return list;
     return list.filter(t => {
-      if (q && !normT(t.title + ' ' + (t.client || '') + ' ' + ((P.user(t.userId) || {}).name || '') + ' ' + ((P.act(t.activityId) || {}).name || '')).includes(q)) return false;
-      if (f.client && !normT(t.client).includes(normT(f.client).trim())) return false;
+      if (q && !normT(t.title + ' ' + (t.client || '') + ' ' + ((V.companyOfClient(t.client) || {}).code || '') + ' ' + ((P.user(t.userId) || {}).name || '') + ' ' + ((P.act(t.activityId) || {}).name || '')).includes(q)) return false;
+      if (f.client && !clientHit(t.client, f.client)) return false;
       if (f.from && t.due < f.from) return false;
       if (f.to && t.due > f.to) return false;
       if (f.late && !(t.status === 'pendente' && t.due && t.due < today)) return false;
@@ -58,12 +78,17 @@
     const on = !!(f.q || f.client || f.from || f.to || f.late);
     return `<div class="toolbar tfilter">
       <label class="picker grow">${icon('search')}<input type="search" id="tf-q" list="tf-names" data-set="tf.q" data-live value="${esc(f.q || '')}" placeholder="Buscar por tarefa, empresa ou responsável" aria-label="Buscar tarefas" autocomplete="off"><datalist id="tf-names">${names.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist></label>
-      <label class="picker grow">${icon('building')}<input type="search" id="tf-client" list="tf-clients" data-set="tf.client" data-live value="${esc(f.client || '')}" placeholder="Empresa: digite para buscar" aria-label="Empresa" autocomplete="off"><datalist id="tf-clients">${clients.map(c => `<option value="${esc(c)}"></option>`).join('')}</datalist></label>
+      <label class="picker grow">${icon('building')}<input type="search" id="tf-client" list="tf-clients" data-set="tf.client" data-live value="${esc(f.client || '')}" placeholder="Empresa: código ou nome" aria-label="Empresa (código ou nome)" autocomplete="off"><datalist id="tf-clients">${clients.map(c => { const co = V.companyOfClient(c); return `<option value="${esc(c)}" label="${co && co.code ? esc(co.code) : ''}"></option>`; }).join('')}</datalist></label>
       <label class="picker"><span>Prazo de</span><input type="date" data-set="tf.from" value="${esc(f.from || '')}" aria-label="Prazo a partir de"></label>
       <label class="picker"><span>até</span><input type="date" data-set="tf.to" value="${esc(f.to || '')}" aria-label="Prazo até"></label>
       <label class="check-inline"><input type="checkbox" data-set="tf.late" ${f.late ? 'checked' : ''}> Só atrasadas</label>
       ${on ? V.btn('Limpar filtros', { act: 'tfClear', icon: 'x', cls: 'sm ghost' }) : ''}
-      <span class="fine tf-count">${shown} de ${base.length} tarefa(s)</span></div>`;
+      <span class="fine tf-count">${shown} de ${base.length} tarefa(s)</span></div>${(() => {
+        // código digitado igual ao de uma empresa do cadastro: mostra qual é
+        const k = normT(f.client).trim(); if (!k) return '';
+        const co = (P.store.db.companies || []).find(c => c.code && normT(c.code) === k);
+        return co ? `<p class="fine tf-hit">${icon('building')} Código <b>${esc(co.code)}</b> · ${esc(co.name)}${co.active === false ? ' (inativa)' : ''}</p>` : '';
+      })()}`;
   };
 
   /* ---------- Atividades / tarefas ---------- */
@@ -124,7 +149,7 @@
       return `<li class="task ${late ? 'late' : ''}">
         ${selectable && canDelTask(u, t) ? `<input type="checkbox" class="task-chk" data-act="taskSel" data-id="${t.id}" aria-label="Selecionar tarefa" ${teamSel().has(t.id) ? 'checked' : ''}>` : ''}
         <span class="task-ic ${t.status === 'concluida' ? 'done' : ''}">${icon(t.status === 'concluida' ? 'check' : 'clock')}</span>
-        <div class="task-main"><b>${esc(t.title)}</b>
+        <div class="task-main"><b>${(co => co && co.code ? `<span class="code co-code" title="Código da empresa no cadastro">${esc(co.code)}</span> ` : '')(V.companyOfClient(t.client))}${esc(t.title)}</b>
           <small>${showWho ? esc(who.name) + ' · ' : ''}${a ? F.n(a.weight, 2) + ' pt/' + esc(a.unit) + ' · ' : ''}${t.status === 'concluida' ? 'Concluída em ' + D.fmt(t.doneAt || t.due) : t.due ? 'Prazo ' + D.fmt(t.due) : 'Sem prazo'}</small></div>
         ${late ? '<span class="badge st-sobrecarga">' + icon('alert') + 'Em atraso</span>' : soon ? '<span class="badge st-baixa">' + icon('clock') + 'Vence em breve</span>' : ''}
         ${t.status === 'pendente' && u.id === t.userId ? V.btn('Concluir e registrar', { act: 'completeTask', cls: 'sm primary', icon: 'check', attrs: `data-id="${t.id}"` }) : ''}
