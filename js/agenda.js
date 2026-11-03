@@ -5,7 +5,8 @@
  *   funcionário convida o próprio gestor; gestor convida a equipe, outros gestores e o gerente;
  *   gerente convida gestores e diretoria; a diretoria pode convidar todo o escritório.
  * - Cada reunião/evento aparece só para quem criou e para os participantes.
- * - Os convidados recebem notificação ao criar, alterar e cancelar, e um lembrete no dia.
+ * - Os convidados recebem notificação ao criar, alterar e cancelar, um lembrete 1 dia antes, outro 30 minutos antes
+ *   e um aviso no primeiro acesso do dia.
  * Eventos antigos sem participantes (prazos e eventos por departamento) continuam valendo como antes.
  * Carregado antes do app.js: ações entram por P.ext.actions.
  */
@@ -143,7 +144,7 @@
       ${groups.length ? `<div class="ag-groups">${groups.map(([l, ids]) => `<button type="button" class="chip-btn" data-act="agendaGroup" data-ids="${ids.join(',')}">${icon('plus')}${esc(l)}</button>`).join('')}<button type="button" class="chip-btn ghost" data-act="agendaGroup" data-ids="">${icon('x')}Limpar</button></div>` : ''}
       <label class="in-ic ag-q">${icon('search')}<input type="search" id="ag-q" placeholder="Buscar pessoa"></label>
       <div class="ag-people" id="ag-people">${Object.entries(byDept).map(([k, list]) => `<div class="ag-dg"><small>${esc(k)}</small>${list.map(p => `<label class="ag-p" data-name="${esc(p.name.toLowerCase())}"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}>${V.avatar(p)}<span><b>${esc(p.name)}</b><small>${esc(P.ROLES[p.role])}</small></span></label>`).join('')}</div>`).join('')}</div>
-      <p class="fine">Os participantes recebem uma notificação com o convite e um lembrete no dia. Você só convida quem a regra de comunicação permite${u.role === 'admin' ? ' (a diretoria pode convidar todo o escritório)' : ''}.</p></form>`,
+      <p class="fine">Os participantes recebem uma notificação com o convite e lembretes 1 dia antes e 30 minutos antes do início. Você só convida quem a regra de comunicação permite${u.role === 'admin' ? ' (a diretoria pode convidar todo o escritório)' : ''}.</p></form>`,
       onSubmit: m => {
         const r = P.agenda.save(u, { id: e && e.id, kind: (m.querySelector('input[name=ag-kind]:checked') || {}).value, title: $('#ag-title', m).value, date: $('#ag-date', m).value, start: $('#ag-start', m).value, end: $('#ag-end', m).value, place: $('#ag-place', m).value, notes: $('#ag-notes', m).value, participants: [...m.querySelectorAll('#ag-people input:checked')].map(i => i.value) });
         S().cal.sel = r.date; S().cal.month = D.monthStart(D.parse(r.date));
@@ -169,6 +170,62 @@
   document.addEventListener('input', ev => { if (ev.target.id === 'ag-q') paintPeople(); if (ev.target.id === 'ag-date') dayWarn(); });
   document.addEventListener('change', ev => { if (ev.target.closest && ev.target.closest('#ag-people')) paintPeople(); });
 
+  /*
+   * Lembretes 1 dia antes e 30 minutos antes do início, para cada participante e para quem agendou.
+   * O Prumo de cada pessoa confere a agenda a cada minuto e gera os lembretes dela (o banco só deixa cada um
+   * gravar e ler os próprios avisos). Com o Prumo aberto, o aviso aparece na hora, também no canto da tela do
+   * computador se as notificações do computador estiverem ativas; fechado, o lembrete aparece ao abrir, se o
+   * compromisso ainda não tiver começado.
+   * - 1 dia antes: só para compromissos marcados com mais de 24 horas de antecedência (senão o convite já basta)
+   * - 30 minutos antes: sempre; se a pessoa abrir o Prumo depois disso, diz quantos minutos faltam
+   * - mudou a data ou o horário: os lembretes valem para o novo horário
+   */
+  const REM_MIN = 30, DAY_MS = 864e5;
+  const stampMs = s => { const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(String(s || '')); return m ? new Date(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)).getTime() : 0; };
+  const startMs = e => stampMs(e.date + ' ' + (e.start || '00:00'));
+  const remKey = (e, kind, uid) => 'rem-' + e.id + '-' + e.date + '-' + String(e.start || '').replace(':', '') + '-' + kind + '-' + uid;
+  P.agenda.dueReminders = (u, now = Date.now()) => {
+    const out = [];
+    db().events.filter(e => e.participants && e.start && !e.canceled && (e.createdBy === u.id || e.participants.includes(u.id))).forEach(e => {
+      const t = startMs(e); if (!(t > now)) return;
+      const left = Math.round((t - now) / 60e3);
+      if (now >= t - REM_MIN * 60e3) out.push({ e, kind: '30m', left });
+      else if (now >= t - DAY_MS && stampMs(e.createdAt) <= t - DAY_MS) out.push({ e, kind: '1d', left });
+    });
+    return out;
+  };
+  const dayWord = e => e.date === D.iso(P.today()) ? 'hoje' : e.date === D.iso(D.add(P.today(), 1)) ? 'amanhã' : D.fmt(e.date);
+  const sendReminders = () => {
+    const su = S() && S().user; if (!su || !db()) return 0;
+    const u = P.user(su.id); if (!u || u.active === false) return 0;
+    const lsKey = 'prumo.agendaRem.' + u.id;
+    let sent; try { sent = new Set(JSON.parse(P.ui.ls.get(lsKey) || '[]')); } catch (err) { sent = new Set(); }
+    const have = new Set((db().notifications || []).filter(n => n.userId === u.id).map(n => n.id));
+    const fresh = [];
+    P.agenda.dueReminders(u).forEach(({ e, kind, left }) => {
+      const id = remKey(e, kind, u.id);
+      if (sent.has(id) || have.has(id)) return;
+      const k = (KIND[e.type] || 'Compromisso').toLowerCase(), extra = (e.place ? ' · ' + e.place : '');
+      const n = kind === '30m'
+        ? { id, type: 'agenda', icon: 'clock', title: (left >= 25 ? 'Daqui a 30 minutos: ' : 'Começa em ' + Math.max(1, left) + ' min: ') + k + ' ' + e.title, text: 'Hoje às ' + e.start + (e.end ? '–' + e.end : '') + extra + '.', link: 'calendario' }
+        : { id, type: 'agenda', icon: 'calendar', title: 'Lembrete: ' + k + ' ' + e.title + ' ' + dayWord(e), text: D.fmt(e.date) + ' às ' + e.start + (e.end ? '–' + e.end : '') + extra + '.', link: 'calendario' };
+      P.notify([u.id], n);
+      sent.add(id); fresh.push(Object.assign({ userId: u.id }, n));
+    });
+    if (!fresh.length) return 0;
+    // guarda só os lembretes dos últimos dias (a lista não cresce para sempre)
+    const keep = [...sent].filter(id => { const m = /-(\d{4}-\d{2}-\d{2})-\d{3,4}-/.exec(id); return !m || m[1] >= D.iso(D.add(P.today(), -3)); });
+    P.ui.ls.set(lsKey, JSON.stringify(keep));
+    P.store.save();
+    if (!$('#modal-root') || $('#modal-root').hidden) P.render();
+    fresh.slice(-3).forEach(n => P.fx.popNotif(n));
+    if (P.fx.shakeBell) P.fx.shakeBell();
+    return fresh.length;
+  };
+  P.agenda.sendReminders = sendReminders;
+  setInterval(() => { try { sendReminders(); } catch (err) { console.warn('lembretes da agenda', err); } }, 60e3);
+  window.addEventListener('focus', () => { try { sendReminders(); } catch (err) { console.warn(err); } });
+
   // Lembrete no dia: uma notificação por compromisso, na primeira entrada do dia
   const origLogin = P.fx.onLogin;
   P.fx.onLogin = (user, boot) => {
@@ -182,5 +239,6 @@
       P.ui.ls.set(key, JSON.stringify([...done])); P.store.save();
     } catch (err) { console.warn(err); }
     origLogin(user, boot);
+    setTimeout(() => { try { sendReminders(); } catch (err) { console.warn(err); } }, 3000);
   };
 })(window.P);

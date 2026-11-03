@@ -31,7 +31,8 @@
   const notifs = () => (db().notifications = db().notifications || []);
   P.notify = (userIds, n) => {
     const at = D.stamp(), ts = Date.now();
-    [...new Set((userIds || []).filter(Boolean))].forEach(uid => notifs().push({ id: P.uid('n'), userId: uid, at, ts, read: false, type: n.type || 'info', icon: n.icon || 'bell', title: n.title, text: n.text || '', link: n.link || '', sched: n.sched || null }));
+    const ids = [...new Set((userIds || []).filter(Boolean))];
+    ids.forEach(uid => notifs().push({ id: n.id && ids.length === 1 ? n.id : P.uid('n'), userId: uid, at, ts, read: false, type: n.type || 'info', icon: n.icon || 'bell', title: n.title, text: n.text || '', link: n.link || '', sched: n.sched || null }));
     if (notifs().length > 3000) notifs().splice(0, notifs().length - 3000);
   };
   fx.unreadNotifs = u => notifs().filter(n => n.userId === u.id && !n.read).length;
