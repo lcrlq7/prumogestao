@@ -63,6 +63,20 @@
       fx.success();
     }
   });
+  // pedido de alteração ou cancelamento de férias aprovadas: mesmo caminho de avisos do pedido
+  const changeApprovers = v => db().users.filter(x => x.active !== false && api.canReviewVacationChange(x, v)).map(x => x.id);
+  const changeWhat = v => (v.change && v.change.type === 'cancelar') ? 'cancelamento' : 'alteração';
+  wrap('requestVacationChange', (v, u) => P.notify(changeApprovers(v), { type: 'ferias', icon: 'palm', title: 'Pedido de ' + changeWhat(v) + ' de férias', text: `${u.name} pediu ${changeWhat(v) === 'cancelamento' ? 'o cancelamento das férias de ' + D.fmt(v.start) + ' a ' + D.fmt(v.end) : 'para mudar as férias para ' + D.fmt(v.change.start) + ' a ' + D.fmt(v.change.end)}.`, link: 'ferias' }));
+  wrap('reviewVacationChange', (v, u) => {
+    const c = v.change, who = P.user(v.userId), what = changeWhat(v);
+    if (c.status === 'aprovada') { P.notify([v.userId], { type: 'ferias', icon: 'check', title: (what === 'cancelamento' ? 'Cancelamento' : 'Alteração') + ' de férias aprovad' + (what === 'cancelamento' ? 'o' : 'a'), text: what === 'cancelamento' ? `Suas férias foram canceladas, como você pediu (aprovado por ${u.name}).` : `Suas férias agora são de ${D.fmt(v.start)} a ${D.fmt(v.end)} (aprovado por ${u.name}).`, link: 'ferias' }); fx.success(); }
+    else if (c.status === 'recusada') P.notify([v.userId], { type: 'ferias', icon: 'x', title: 'Pedido de ' + what + ' recusado', text: `${u.name} recusou o pedido. Suas férias de ${D.fmt(v.start)} a ${D.fmt(v.end)} continuam valendo. Veja o motivo na página de férias.`, link: 'ferias' });
+    else {
+      P.notify([v.userId], { type: 'ferias', icon: 'right', title: 'Pedido de ' + what + ' avançou', text: `${u.name} aprovou o seu pedido. Agora ele segue para ${P.VAC[c.status].short.toLowerCase()}.`, link: 'ferias' });
+      P.notify(changeApprovers(v), { type: 'ferias', icon: 'palm', title: 'Mudança de férias aguardando você', text: `Pedido de ${what} de ${who ? who.name : '—'} aprovado por ${u.name}.`, link: 'ferias' });
+      fx.success();
+    }
+  });
   wrap('reviewEntry', (r, u, id, action, opts = {}) => {
     const e = P.idx.byId.get(id); if (!e || e.userId === u.id) return;
     const lbl = { aprovar: 'aprovado', recusar: 'recusado', correcao: 'precisa de correção', editar: 'ajustado e aprovado' }[action];
@@ -619,7 +633,7 @@
     const ids = new Set(emps.map(e => e.id));
     const vacs = api.vacations(u).filter(v => v.status === 'aprovada' && ids.has(v.userId) && !(v.end < D.iso(ws) || v.start > D.iso(we)));
     const pendEntries = api.entries(u, { status: 'pendente' }).filter(e => e.userId !== u.id).length;
-    const vacWaiting = (db().vacations || []).filter(v => api.canReviewVacation(u, v)).length;
+    const vacWaiting = (db().vacations || []).filter(v => api.canReviewVacation(u, v) || api.canReviewVacationChange(u, v)).length;
     const late = api.tasks(u).filter(x => x.status === 'pendente' && x.due && x.due < today && ids.has(x.userId)).length;
     const obr = P.obligationsFor(u, t.getFullYear(), t.getMonth(), P.isGlobal(u) ? (S().dept || undefined) : undefined).filter(o => o.date >= D.iso(ws) && o.date <= D.iso(D.add(ws, 6)));
     const h = new Date().getHours(), hi = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';

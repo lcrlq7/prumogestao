@@ -122,7 +122,7 @@
     const pendCount = emp ? (P.idx.byUser.get(u.id) || []).filter(e => e.status === 'correcao').length
       : P.store.db.entries.filter(e => ((e.status === 'pendente' && e.userId !== u.id) || (u.role === 'manager' && e.status === 'correcao' && e.userId === u.id)) && (P.isGlobal(u) || e.deptId === u.deptId)).length;
     const vacs = P.store.db.vacations || [];
-    const vacCount = vacs.filter(v => api.canReviewVacation(u, v)).length;
+    const vacCount = vacs.filter(v => api.canReviewVacation(u, v) || api.canReviewVacationChange(u, v)).length;
     const main = [
       ['dashboard', P.isSupport(u) ? 'Início' : emp ? 'Meu desempenho' : 'Dashboard', 'grid'],
       ['comunicacao', 'Comunicação', 'message', P.chat ? P.chat.unread(u) : 0],
@@ -1613,6 +1613,53 @@
     cancelVacation(el) {
       modal({ title: 'Cancelar solicitação de férias', submit: 'Cancelar solicitação', cancel: 'Voltar', danger: true, body: '<p class="prose">A solicitação sai da fila de aprovação. Você pode enviar outra depois.</p>',
         onSubmit: () => { api.cancelVacation(U(), el.dataset.id); toast('Solicitação cancelada.'); render(); } });
+    },
+    /* Pedido de alteração ou cancelamento de férias aprovadas */
+    vacChange(el) {
+      const v = (P.store.db.vacations || []).find(x => x.id === el.dataset.id), cancel = el.dataset.type === 'cancelar';
+      if (!v) return;
+      const stage = P.VAC[api._nextStage(P.LEVEL[U().role], U().deptId)].short.toLowerCase();
+      modal({
+        title: cancel ? 'Pedir cancelamento das férias' : 'Pedir alteração das férias', wide: !cancel, danger: cancel,
+        submit: cancel ? 'Enviar pedido de cancelamento' : 'Enviar pedido de alteração', cancel: 'Voltar',
+        body: `<p class="prose">Férias aprovadas: <b>${D.fmt(v.start)} a ${D.fmt(v.end)}</b> · ${v.days} dias corridos.</p>
+          ${cancel ? '' : `<form class="form" data-vac-form data-vac-change novalidate><div class="fgrid">
+            <label class="field"><span>Novo início</span><input type="date" name="start" id="vc-start" value="${v.start}" min="${D.iso(D.add(P.today(), 1))}" data-vf></label>
+            <label class="field"><span>Novo fim</span><input type="date" name="end" id="vc-end" value="${v.end}" min="${D.iso(D.add(P.today(), 1))}" data-vf></label>
+            <div class="field calc"><span>Período</span><output data-vac-calc>${V.vacCalcText(v.start, v.end)}</output></div></div></form>`}
+          <label class="field"><span>Motivo do pedido</span><textarea id="vc-reason" rows="3" placeholder="${cancel ? 'Ex.: viagem cancelada; prefiro tirar as férias no próximo ano' : 'Ex.: mudança na data da viagem'}"></textarea></label>
+          <p class="fine">O pedido passa pelas mesmas etapas da solicitação de férias, começando pela etapa "${stage}". Até a aprovação final, as férias continuam valendo como estão.</p>`,
+        onSubmit: m => {
+          api.requestVacationChange(U(), v.id, { type: cancel ? 'cancelar' : 'alterar', start: ($('#vc-start', m) || {}).value, end: ($('#vc-end', m) || {}).value, reason: $('#vc-reason', m).value });
+          toast('Pedido de ' + (cancel ? 'cancelamento' : 'alteração') + ' enviado.'); render();
+        }
+      });
+    },
+    reviewVacationChange(el) {
+      const v = (P.store.db.vacations || []).find(x => x.id === el.dataset.id), op = el.dataset.op;
+      if (!v || !v.change) return;
+      const c = v.change, who = P.user(v.userId) || { name: '—' }, cancel = c.type === 'cancelar';
+      const direct = api.canOverrideVacationChange(U(), v), last = c.status === 'diretoria' || direct;
+      const conflicts = cancel ? [] : api.vacationConflicts(Object.assign({}, v, { start: c.start, end: c.end }));
+      modal({
+        title: (op === 'aprovar' ? 'Aprovar ' : 'Recusar ') + (cancel ? 'cancelamento' : 'alteração') + ' de férias · ' + esc(who.name), danger: op === 'recusar',
+        submit: op === 'aprovar' ? (last ? (cancel ? 'Aprovar e cancelar as férias' : 'Aprovar e mudar as datas') : 'Aprovar e enviar à próxima etapa') : 'Recusar',
+        body: `${direct ? `<div class="banner info sm">${icon('shield')}<div>Este pedido ainda está na etapa do <b>${c.status === 'gestor' ? 'gestor' : 'gerente'}</b>. Como diretoria, sua decisão é final.</div></div>` : ''}
+          <p class="prose">Férias aprovadas: <b>${D.fmt(v.start)} a ${D.fmt(v.end)}</b> (${v.days} dias).<br>${cancel ? 'Pedido: <b>cancelar estas férias</b>.' : `Novas datas pedidas: <b>${D.fmt(c.start)} a ${D.fmt(c.end)}</b> (${c.days} dias).`}</p>
+          <blockquote class="vac-comment">${icon('message')}<span>${esc(c.reason)}</span></blockquote>
+          ${conflicts.length ? `<div class="banner warn sm">${icon('users')}<div>Nas novas datas: ${conflicts.map(x => esc((P.user(x.userId) || { name: '—' }).name) + ' (' + P.VAC[x.status].short.toLowerCase() + ')').join(', ')}.</div></div>` : ''}
+          <label class="field"><span>${op === 'aprovar' ? 'Observação (opcional)' : 'Motivo da recusa'}</span><textarea id="vcr-note" rows="3"></textarea></label>
+          <p class="fine">${op === 'aprovar' ? (last ? (cancel ? 'As férias saem do calendário.' : 'As datas no calendário mudam para o novo período.') : 'O pedido segue para a próxima etapa; as férias continuam como estão até a decisão final.') : 'As férias continuam valendo como estão.'}</p>`,
+        onSubmit: m => {
+          const r = api.reviewVacationChange(U(), v.id, op, $('#vcr-note', m).value);
+          toast(r.change.status === 'aprovada' ? (cancel ? 'Férias canceladas.' : 'Datas das férias alteradas.') : r.change.status === 'recusada' ? 'Pedido recusado. As férias continuam como estavam.' : 'Aprovado. Seguiu para a etapa: ' + P.VAC[r.change.status].short.toLowerCase() + '.');
+          render();
+        }
+      });
+    },
+    cancelVacationChange(el) {
+      modal({ title: 'Desistir do pedido de mudança', submit: 'Desistir do pedido', cancel: 'Voltar', danger: true, body: '<p class="prose">O pedido sai da fila de aprovação e as férias continuam como estão.</p>',
+        onSubmit: () => { api.cancelVacationChange(U(), el.dataset.id); toast('Pedido de mudança retirado.'); render(); } });
     },
     vacSel(el) { S.vac.sel = el.dataset.date; const d = D.parse(el.dataset.date); if (d.getMonth() !== S.vac.month.getMonth()) S.vac.month = D.monthStart(d); render(); },
     vacMove(el) { S.vac.month = D.addMonths(S.vac.month, Number(el.dataset.d)); render(); },

@@ -228,10 +228,10 @@
   const STEPS = ['Solicitada', 'Gestor', 'Gerente', 'Diretoria', 'No calendário'];
   const STAGE_KEY = { 1: 'gestor', 2: 'gerente', 3: 'diretoria' };
   const STAGE_WHO = { 1: 'pelo gestor', 2: 'pelo gerente', 3: 'pela diretoria' };
-  V.vacSteps = v => {
+  V.vacSteps = (v, lastLabel) => {
     const h = (v.history || []).map(x => x.action);
     const pos = { gestor: 1, gerente: 2, diretoria: 3, aprovada: 4 }[v.status];
-    return `<ol class="steps">${STEPS.map((s, i) => {
+    return `<ol class="steps">${STEPS.map((s, i) => { if (i === 4 && lastLabel) s = lastLabel;
       let st = '';
       if (i === 0) st = 'done';
       else if (i === 4) st = v.status === 'aprovada' ? 'done' : (v.status === 'recusada' || v.status === 'cancelada') ? 'off' : '';
@@ -268,10 +268,30 @@
       ${v.abono || v.adiant13 ? `<div class="chips">${v.abono ? '<span class="chip-s">Abono pecuniário (vender 10 dias)</span>' : ''}${v.adiant13 ? '<span class="chip-s">Adiantar 1ª parcela do 13º</span>' : ''}</div>` : ''}
       ${o.comment && v.comment ? `<blockquote class="vac-comment">${icon('message')}<span>${esc(v.comment)}</span></blockquote>` : ''}
       ${V.vacSteps(v)}
+      ${v.change && !v.restricted && (api._changeOpen(v) || o.change) ? V.vacChangeBox(v) : ''}
       ${notes.length && o.history !== false ? `<ul class="vac-notes">${notes.map(h => `<li><b>${esc(h.action)}</b> · ${esc((P.user(h.by) || {}).name || '—')}: ${esc(h.note)}</li>`).join('')}</ul>` : ''}
       ${conflicts.length ? `<div class="banner warn sm">${icon('users')}<div><b>${conflicts.length} colega${conflicts.length > 1 ? 's' : ''} do departamento fora no mesmo período:</b> ${conflicts.map(c => `${esc(whoOf(c.userId).name)} (${D.short(c.start)}–${D.short(c.end)}, ${P.VAC[c.status].short.toLowerCase()})`).join(', ')}</div></div>` : ''}
       ${o.actions ? `<div class="vac-actions">${o.actions}</div>` : ''}
     </li>`;
+  };
+
+  V.vacChangeBox = v => {
+    const c = v.change, cancel = c.type === 'cancelar', open = api._changeOpen(v);
+    const st = open ? P.VAC[c.status].label : { aprovada: 'Aprovado', recusada: 'Recusado', cancelada: 'Retirado' }[c.status] || '';
+    return `<div class="vac-change ${open ? 'open' : ''}">
+      <div class="vac-change-h">${icon(cancel ? 'x' : 'calendar')}<b>Pedido de ${cancel ? 'cancelamento' : 'alteração'}</b><span class="badge ${open ? 'es-pendente' : c.status === 'aprovada' ? 'es-aprovado' : 'st-sem'}">${esc(st)}</span></div>
+      <p>${cancel ? 'Cancelar as férias de ' + period(v) + '.' : 'De ' + period(c.from || v) + ' para <b>' + D.fmt(c.start) + ' a ' + D.fmt(c.end) + '</b> (' + c.days + ' dias).'}</p>
+      <blockquote class="vac-comment">${icon('message')}<span>${esc(c.reason)}</span></blockquote>
+      ${V.vacSteps({ status: c.status, history: c.history }, 'Concluído')}
+    </div>`;
+  };
+  // botões do colaborador numa férias própria: pedir alteração/cancelamento ou desistir do pedido aberto
+  V.vacOwnActions = (u, v) => {
+    if (v.userId !== u.id) return '';
+    if (['gestor', 'gerente', 'diretoria'].includes(v.status)) return V.btn('Cancelar solicitação', { act: 'cancelVacation', cls: 'sm ghost', icon: 'x', attrs: `data-id="${v.id}"` });
+    if (api._changeOpen(v)) return V.btn('Desistir do pedido de mudança', { act: 'cancelVacationChange', cls: 'sm ghost', icon: 'x', attrs: `data-id="${v.id}"` });
+    if (api.canRequestVacationChange(u, v)) return V.btn('Pedir alteração', { act: 'vacChange', cls: 'sm ghost', icon: 'calendar', attrs: `data-id="${v.id}" data-type="alterar"` }) + V.btn('Pedir cancelamento', { act: 'vacChange', cls: 'sm ghost danger', icon: 'x', attrs: `data-id="${v.id}" data-type="cancelar"` });
+    return '';
   };
 
   V.vacForm = (u, id = 'vac-form') => {
@@ -337,13 +357,14 @@
 
     if (u.role === 'employee') {
       const mine = all.filter(v => v.userId === u.id).sort((a, b) => a.createdAt < b.createdAt ? 1 : -1);
-      const cancel = v => ['gestor', 'gerente', 'diretoria'].includes(v.status) ? V.btn('Cancelar solicitação', { act: 'cancelVacation', cls: 'sm ghost', icon: 'x', attrs: `data-id="${v.id}"` }) : '';
+      const cancel = v => V.vacOwnActions(u, v);
       const gm = V.deptManager(u.deptId);
       return `${V.pageHead('Minhas férias', `Sua solicitação passa pelo gestor${gm ? ' (' + esc(gm.name) + ')' : ''}, pelo gerente do escritório e por um diretor. Aprovadas, as datas entram no calendário geral.`)}
         <div class="grid g-1-1">
           ${V.card('Solicitar férias', V.vacForm(u) + `<div class="form-foot"><span></span>${V.btn('Enviar solicitação', { act: 'requestVacation', cls: 'primary', icon: 'check' })}</div>`)}
-          ${V.card('Minhas solicitações', mine.length ? `<ul class="vacs">${mine.map(v => V.vacItem(u, v, { self: true, comment: true, actions: cancel(v) })).join('')}</ul>` : V.empty('Você ainda não solicitou férias por aqui.', 'palm'), { cls: 'flush-b' })}
+          ${V.card('Minhas solicitações', mine.length ? `<ul class="vacs">${mine.map(v => V.vacItem(u, v, { self: true, comment: true, change: true, actions: cancel(v) })).join('')}</ul>` : V.empty('Você ainda não solicitou férias por aqui.', 'palm'), { cls: 'flush-b' })}
         </div>
+        <p class="fine">Férias já aprovadas podem ser alteradas ou canceladas por pedido, até a véspera do início. O pedido passa pelo gestor, pelo gerente e pela diretoria.</p>
         ${V.card('Calendário de férias da equipe', V.vacCalendar(u, all, false), { sub: 'Férias aprovadas dos colegas do seu departamento e as suas solicitações em andamento.', cls: 'bare' })}`;
     }
 
@@ -353,12 +374,14 @@
     const scoped = scope ? all.filter(v => v.deptId === scope) : all;
     const inFlow = ['gestor', 'gerente', 'diretoria'];
     const mine = v => api.canReviewVacation(u, v);
-    const waitingMe = scoped.filter(mine).sort(sortStart);
-    const other = scoped.filter(v => inFlow.includes(v.status) && !mine(v)).sort(sortStart);
+    const mineCh = v => api.canReviewVacationChange(u, v);
+    const waitingMe = scoped.filter(v => mine(v) || mineCh(v)).sort(sortStart);
+    const other = scoped.filter(v => (inFlow.includes(v.status) && !mine(v)) || (api._changeOpen(v) && !mineCh(v))).sort(sortStart);
     const history = scoped.filter(v => ['aprovada', 'recusada', 'cancelada'].includes(v.status)).sort((a, b) => a.start < b.start ? 1 : -1).slice(0, 40);
     const tab = S.vac.tab;
     const led = P.ledDept(u);
-    const actions = v => api.canOverrideVacation(u, v)
+    const chBtns = (v, label) => `${V.btn(label, { act: 'reviewVacationChange', cls: 'sm primary', icon: 'check', attrs: `data-id="${v.id}" data-op="aprovar"` })}${V.btn('Recusar', { act: 'reviewVacationChange', cls: 'sm ghost', icon: 'x', attrs: `data-id="${v.id}" data-op="recusar"` })}`;
+    const actions = v => api._changeOpen(v) ? (api.canOverrideVacationChange(u, v) ? chBtns(v, 'Aprovar direto') : mineCh(v) ? chBtns(v, 'Aprovar') : '') : api.canOverrideVacation(u, v)
       ? `${V.btn('Aprovar direto', { act: 'reviewVacation', cls: 'sm primary', icon: 'check', attrs: `data-id="${v.id}" data-op="aprovar" title="Aprovar sem esperar as etapas anteriores"` })}${V.btn('Recusar', { act: 'reviewVacation', cls: 'sm ghost', icon: 'x', attrs: `data-id="${v.id}" data-op="recusar"` })}`
       : mine(v) ? `${V.btn('Aprovar', { act: 'reviewVacation', cls: 'sm primary', icon: 'check', attrs: `data-id="${v.id}" data-op="aprovar"` })}${V.btn('Recusar', { act: 'reviewVacation', cls: 'sm ghost', icon: 'x', attrs: `data-id="${v.id}" data-op="recusar"` })}` : '';
     const shown = tab === 'fila' ? waitingMe : tab === 'outra' ? other : history;
@@ -379,7 +402,7 @@
       </div>
       <div class="toolbar">${V.tabs([['fila', 'Aguardando você', waitingMe.length], ['outra', 'Nas outras etapas', other.length], ['historico', 'Histórico']], tab, 'vac.tab')}</div>
       ${V.card('', shown.length ? `<ul class="vacs">${shown.map(v => V.vacItem(u, v, { comment: true, conflicts: v.status !== 'recusada' && v.status !== 'cancelada', actions: actions(v) })).join('')}</ul>` : V.empty(tab === 'fila' ? 'Nenhuma solicitação aguardando sua decisão.' : 'Nada por aqui.', 'check'), { cls: 'flush' })}
-      ${myPending.length ? V.card('Minhas férias', `<ul class="vacs">${myPending.map(v => V.vacItem(u, v, { self: true, comment: true })).join('')}</ul>`, { cls: 'flush-b' }) : ''}
+      ${myPending.length ? V.card('Minhas férias', `<ul class="vacs">${myPending.map(v => V.vacItem(u, v, { self: true, comment: true, change: true, actions: V.vacOwnActions(u, v) })).join('')}</ul>`, { cls: 'flush-b' }) : ''}
       ${V.card('Calendário de férias', V.vacCalendar(u, scoped, true), { sub: 'Inclui as solicitações em aprovação (tracejadas). Os comentários aparecem só para quem aprova.', cls: 'bare' })}`;
   };
 })(window.P);

@@ -1314,6 +1314,114 @@ window.P = window.P || {};
       v.status = 'cancelada'; v.history.push({ at: D.stamp(), by: u.id, action: 'Cancelada pelo colaborador', note: '' });
       audit(u, 'Férias canceladas', v.id); P.store.save();
     },
+    /* ---------- Mudança em férias já aprovadas: alteração de datas ou cancelamento ----------
+       Segue o mesmo fluxo e as mesmas regras do pedido (gestor → gerente → diretoria; ninguém aprova a própria mudança).
+       Enquanto o pedido de mudança está em aprovação, as férias continuam valendo com as datas atuais. */
+    _changeOpen(v) { return !!(v && v.change && ['gestor', 'gerente', 'diretoria'].includes(v.change.status)); },
+    // o pedido de mudança visto como um pedido de férias, para reaproveitar as regras de quem decide cada etapa
+    _changeAsReq(v) { return { id: v.id, userId: v.userId, deptId: v.deptId, status: v.change.status, history: v.change.history || [] }; },
+    canRequestVacationChange(u, v) {
+      return !!u && !!v && v.userId === u.id && v.status === 'aprovada' && v.start > D.iso(P.today()) && !api._changeOpen(v);
+    },
+    requestVacationChange(u, id, data) {
+      const v = db().vacations.find(x => x.id === id);
+      assert(v && v.userId === u.id, 'Só é possível pedir mudança nas próprias férias.');
+      if (v.status !== 'aprovada') throw new Error('Só férias já aprovadas passam por pedido de mudança. Uma solicitação ainda em aprovação pode ser cancelada direto.');
+      if (v.start <= D.iso(P.today())) throw new Error('Estas férias já começaram. Fale com o seu gestor.');
+      if (api._changeOpen(v)) throw new Error('Já existe um pedido de mudança em aprovação para estas férias.');
+      const type = data.type === 'cancelar' ? 'cancelar' : 'alterar';
+      const reason = String(data.reason || '').trim();
+      if (reason.length < 3) throw new Error('Explique o motivo do pedido.');
+      const c = { type, reason, by: u.id, createdAt: D.stamp(), status: api._nextStage(P.LEVEL[u.role], v.deptId), history: [{ at: D.stamp(), by: u.id, action: 'Solicitada', note: '' }] };
+      if (type === 'alterar') {
+        const err = api.vacationRules(data.start, data.end);
+        if (err) throw new Error(err);
+        if (data.start === v.start && data.end === v.end) throw new Error('As novas datas são iguais às atuais.');
+        const clash = api._vacClash(v, data.start, data.end);
+        if (clash) throw new Error('Você já tem férias ' + (clash.status === 'aprovada' ? 'aprovadas' : 'solicitadas') + ' de ' + D.fmt(clash.start) + ' a ' + D.fmt(clash.end) + '.');
+        Object.assign(c, { start: data.start, end: data.end, days: Math.round((D.parse(data.end) - D.parse(data.start)) / 864e5) + 1 });
+      }
+      v.change = c;
+      v.history.push({ at: D.stamp(), by: u.id, action: type === 'cancelar' ? 'Cancelamento solicitado' : 'Alteração solicitada para ' + D.fmt(c.start) + ' a ' + D.fmt(c.end), note: reason });
+      audit(u, type === 'cancelar' ? 'Férias: cancelamento solicitado' : 'Férias: alteração solicitada', v.id, D.fmt(v.start) + ' a ' + D.fmt(v.end) + (type === 'alterar' ? ' → ' + D.fmt(c.start) + ' a ' + D.fmt(c.end) : ''));
+      P.store.save();
+      return v;
+    },
+    // outras férias da mesma pessoa que se sobrepõem às datas (ignora o próprio pedido)
+    _vacClash(v, start, end) {
+      return db().vacations.find(x => x.id !== v.id && x.userId === v.userId && ['gestor', 'gerente', 'diretoria', 'aprovada'].includes(x.status) && !(end < x.start || start > x.end));
+    },
+    canReviewVacationChange(u, v) { return api._changeOpen(v) && api.canReviewVacation(u, api._changeAsReq(v)); },
+    canOverrideVacationChange(u, v) { return api._changeOpen(v) && api.canOverrideVacation(u, api._changeAsReq(v)); },
+    reviewVacationChange(u, id, action, note) {
+      const v = db().vacations.find(x => x.id === id);
+      assert(v, 'Solicitação não encontrada.');
+      if (!api._changeOpen(v)) throw new Error('Este pedido de mudança já foi finalizado.');
+      note = String(note || '').trim();
+      if (action === 'recusar' && note.length < 3) throw new Error('Explique o motivo da recusa para o colaborador.');
+      assert(v.userId !== u.id, 'Ninguém aprova a mudança das próprias férias.');
+      const c = v.change, req = api._changeAsReq(v), ok = action === 'aprovar', prev = c.status;
+      let by;
+      if (api.canOverrideVacation(u, req)) {
+        by = 'direto pela diretoria (sem a etapa do ' + (c.status === 'gestor' ? 'gestor' + (api._stageExists('gerente') ? ' e gerente' : '') : 'gerente') + ')';
+        c.status = ok ? 'aprovada' : 'recusada';
+      } else if (c.status === 'gestor') {
+        const d = P.dept(v.deptId);
+        assert(d && d.managerId === u.id && (u.role === 'manager' || u.role === 'admin'), 'Este pedido aguarda a aprovação do gestor do departamento.');
+        by = 'pelo gestor'; c.status = ok ? api._nextStage(P.LEVEL.manager, v.deptId) : 'recusada';
+      } else if (c.status === 'gerente') {
+        assert(u.role === 'office', 'Este pedido aguarda a aprovação do gerente do escritório.');
+        by = 'pelo gerente'; c.status = ok ? 'diretoria' : 'recusada';
+      } else {
+        // Basta um dos diretores; quem aprovou como gestor não decide também a etapa da diretoria
+        assert(u.role === 'admin', 'Este pedido aguarda a aprovação da diretoria.');
+        assert(!api._approvedBy(req, u.id), 'Você já aprovou este pedido como gestor. A etapa da diretoria precisa de outro diretor.');
+        by = 'pela diretoria'; c.status = ok ? 'aprovada' : 'recusada';
+      }
+      if (c.status === 'aprovada' && c.type === 'alterar') {
+        // confere de novo na decisão final: o tempo pode ter passado desde o pedido
+        if (c.start <= D.iso(P.today())) { c.status = prev; throw new Error('As novas datas já começaram. Recuse e peça um novo pedido.'); }
+        const clash = api._vacClash(v, c.start, c.end);
+        if (clash) { c.status = prev; throw new Error('As novas datas se sobrepõem a outras férias da pessoa (' + D.fmt(clash.start) + ' a ' + D.fmt(clash.end) + ').'); }
+      }
+      c.history.push({ at: D.stamp(), by: u.id, action: (ok ? 'Aprovada ' : 'Recusada ') + by, note });
+      const what = c.type === 'cancelar' ? 'Cancelamento' : 'Alteração';
+      if (c.status === 'aprovada') {
+        c.doneAt = D.stamp();
+        if (c.type === 'cancelar') {
+          v.status = 'cancelada';
+          v.history.push({ at: D.stamp(), by: u.id, action: 'Férias canceladas (pedido de cancelamento aprovado)', note });
+        } else {
+          c.from = { start: v.start, end: v.end, days: v.days };
+          v.start = c.start; v.end = c.end; v.days = c.days;
+          v.history.push({ at: D.stamp(), by: u.id, action: 'Datas alteradas para ' + D.fmt(v.start) + ' a ' + D.fmt(v.end) + ' (antes: ' + D.fmt(c.from.start) + ' a ' + D.fmt(c.from.end) + ')', note });
+        }
+        api._releaseCover(v, c.type === 'cancelar');
+      } else if (c.status === 'recusada') {
+        c.doneAt = D.stamp();
+        v.history.push({ at: D.stamp(), by: u.id, action: what + ' recusad' + (c.type === 'cancelar' ? 'o ' : 'a ') + by + ' (as férias continuam como estavam)', note });
+      }
+      P.reindex();
+      audit(u, 'Férias: ' + what.toLowerCase() + ' ' + (ok ? 'aprovad' : 'recusad') + (c.type === 'cancelar' ? 'o ' : 'a ') + by, v.id, (P.user(v.userId) || {}).name + ' · ' + D.fmt(v.start) + ' a ' + D.fmt(v.end));
+      P.store.save();
+      return v;
+    },
+    // tarefas que um substituto cobria nestas férias: voltam para o titular se as férias foram canceladas
+    // ou se o prazo ficou fora das novas datas; as demais seguem com o substituto até o novo fim
+    _releaseCover(v, all) {
+      const yesterday = D.iso(D.add(P.today(), -1));
+      (db().tasks || []).filter(t => t.coverOf && t.coverOf.vacId === v.id).forEach(t => {
+        t.coverOf.until = all || !t.due || t.due < v.start || t.due > v.end ? yesterday : v.end;
+      });
+    },
+    cancelVacationChange(u, id) {
+      const v = db().vacations.find(x => x.id === id);
+      assert(v && v.userId === u.id && api._changeOpen(v), 'Só é possível desistir de um pedido de mudança próprio ainda em aprovação.');
+      v.change.status = 'cancelada'; v.change.doneAt = D.stamp();
+      v.change.history.push({ at: D.stamp(), by: u.id, action: 'Desistência do colaborador', note: '' });
+      v.history.push({ at: D.stamp(), by: u.id, action: 'Pedido de ' + (v.change.type === 'cancelar' ? 'cancelamento' : 'alteração') + ' retirado pelo colaborador', note: '' });
+      audit(u, 'Férias: pedido de mudança retirado', v.id); P.store.save();
+    },
     /* Colegas do mesmo departamento ausentes no mesmo período (aprovadas ou em aprovação) */
     vacationConflicts(v) {
       return (db().vacations || []).filter(x => x.id !== v.id && x.userId !== v.userId && x.deptId === v.deptId && ['gestor', 'gerente', 'diretoria', 'aprovada'].includes(x.status) && !(x.end < v.start || x.start > v.end));
@@ -1938,6 +2046,10 @@ window.P = window.P || {};
     if (u.role === 'office') {
       const n = vacs.filter(v => v.status === 'gerente' && v.userId !== u.id).length;
       if (n) out.push({ id: 'vac-o-' + n, color: 'orange', date: D.iso(t), link: 'ferias', title: 'Férias aguardando o gerente', text: `${n} solicitaç${n > 1 ? 'ões' : 'ão'} de férias aprovada${n > 1 ? 's' : ''} pelos gestores aguardando a sua decisão.` });
+    }
+    {
+      const n = vacs.filter(v => api.canReviewVacationChange(u, v)).length;
+      if (n) out.push({ id: 'vac-ch-' + u.id + '-' + n, color: 'orange', date: D.iso(t), link: 'ferias', title: 'Mudança de férias aguardando você', text: `${n} pedido${n > 1 ? 's' : ''} de alteração ou cancelamento de férias aguardando a sua decisão.` });
     }
     if (u.role === 'admin') {
       const n = vacs.filter(v => v.status === 'diretoria' && api.canReviewVacation(u, v)).length;
