@@ -102,12 +102,19 @@
   };
 
   /* ---------- Leitura ---------- */
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // erro que costuma passar sozinho: tempo limite do banco, rede instável ou servidor ocupado (502/503/504)
+  const transient = e => /timeout|57014|failed to fetch|networkerror|load failed|\b50[234]\b/i.test(String((e && e.message) || '') + String((e && e.code) || ''));
   const fetchAll = async (table, opts = {}) => {
     // só as mais recentes (ex.: auditoria): uma consulta só
     if (opts.limit) {
-      const { data, error } = await sb.from(table).select('id, doc').order('updated_at', { ascending: false }).order('id').range(0, Math.min(PAGE, opts.limit) - 1);
-      if (error) throw new Error(table + ': ' + error.message);
-      return data;
+      let n = Math.min(PAGE, opts.limit);
+      for (let k = 0; ; k++) {
+        const { data, error } = await sb.from(table).select('id, doc').order('updated_at', { ascending: false }).order('id').range(0, n - 1);
+        if (!error) return data;
+        if (transient(error) && k < 3) { n = Math.max(100, Math.floor(n / 3)); await sleep(400 * (k + 1)); continue; }
+        throw new Error(table + ': ' + error.message);
+      }
     }
     // ordem FIXA por id e paginação "a partir do último id" (não por posição): com milhares de tarefas, pular N linhas a cada página
     // fica cada vez mais lento e estourava o tempo limite do banco no login (statement timeout)
@@ -119,8 +126,8 @@
       if (last !== null) q = q.gt('id', last);
       const { data, error } = await q;
       if (error) {
-        // tempo limite do banco: tenta de novo com páginas bem menores (a consulta termina antes do limite) em vez de travar o login
-        if (/timeout|57014/i.test(error.message + (error.code || '')) && size > 40 && tries++ < 6) { size = Math.max(40, Math.floor(size / 3)); continue; }
+        // tempo limite do banco ou falha passageira de rede: tenta de novo (com páginas menores, a consulta termina antes do limite) em vez de travar o login
+        if (transient(error) && tries++ < 6) { if (/timeout|57014/i.test(error.message + (error.code || ''))) size = Math.max(40, Math.floor(size / 3)); else await sleep(500 * tries); continue; }
         throw new Error(table + ': ' + error.message);
       }
       out.push(...data);
@@ -263,7 +270,12 @@
       (pending[table] = pending[table] || new Set()).add(id);
       clearTimeout(rtTimer); rtTimer = setTimeout(applyRemote, 250);
     }));
-    channel.subscribe();
+    let wasDown = false;
+    channel.subscribe(status => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') wasDown = true;
+      // eventos perdidos durante a queda: recarrega do servidor (só com tudo já salvo) para não ficar com dados velhos
+      else if (status === 'SUBSCRIBED' && wasDown) { wasDown = false; if (session && !timer && !saving) P.backend.reload().then(() => P.render && P.render()).catch(() => { }); }
+    });
   }
   function unsubscribe() { if (channel) { sb.removeChannel(channel); channel = null; } }
   async function applyRemote() {
@@ -271,6 +283,7 @@
     if (timer || saving) { clearTimeout(rtTimer); rtTimer = setTimeout(applyRemote, 600); return; }
     const work = pending; pending = {};
     const added = { notifications: [], messages: [] };
+    let changed = false; // só avisa a tela se chegou algo diferente do que este navegador já tem (as próprias gravações voltam como eco)
     for (const [table, idsSet] of Object.entries(work)) {
       const c = byTable[table]; if (!c) continue;
       const ids = [...idsSet];
@@ -291,12 +304,12 @@
       const got = new Map(data.map(r => [r.id, c.priv && privMap.get(r.id) ? Object.assign({}, r.doc, privMap.get(r.id)) : r.doc]));
       const s = snap[c.key] = snap[c.key] || new Map();
       if (c.single) {
-        const row = data[0]; if (row) { P.store.db.settings = Object.assign(P.store.db.settings || {}, row.doc); s.set(row.id, sj(row.doc)); }
+        const row = data[0]; if (row && s.get(row.id) !== sj(row.doc)) { P.store.db.settings = Object.assign(P.store.db.settings || {}, row.doc); s.set(row.id, sj(row.doc)); changed = true; }
         continue;
       }
       if (c.map) {
         const obj = P.store.db[c.key] = P.store.db[c.key] || {};
-        ids.forEach(id => { if (got.has(id)) { const d = got.get(id); obj[id] = Array.isArray(d.ids) ? d.ids : d; s.set(id, sj(d)); } });
+        ids.forEach(id => { if (got.has(id)) { const d = got.get(id); if (s.get(id) === sj(d)) return; obj[id] = Array.isArray(d.ids) ? d.ids : d; s.set(id, sj(d)); changed = true; } });
         continue;
       }
       // índice por id: antes cada registro recebido varria a lista inteira (lento com milhares de tarefas)
@@ -304,15 +317,18 @@
       const byId = new Map(cur.map(x => [String(x.id), x]));
       ids.forEach(id => {
         if (got.has(id)) {
-          const doc = got.get(id);
+          const doc = got.get(id), parts = split(c, doc), js = sj(parts.pub), pj = c.priv ? sj(parts.priv) : null;
+          // igual ao que já temos (eco da própria gravação): não troca o objeto em memória nem refaz a tela
+          if (byId.has(id) && s.get(id) === js && (!c.priv || (privSnap[c.key] || new Map()).get(id) === pj)) return;
           if (!byId.has(id) && added[c.key]) added[c.key].push(doc);
-          byId.set(id, doc);
-          s.set(id, sj(split(c, doc).pub));
-          if (c.priv) { (privSnap[c.key] = privSnap[c.key] || new Map()).set(id, sj(split(c, doc).priv)); }
-        } else if (byId.has(id)) { byId.delete(id); s.delete(id); }
+          byId.set(id, doc); changed = true;
+          s.set(id, js);
+          if (c.priv) { (privSnap[c.key] = privSnap[c.key] || new Map()).set(id, pj); }
+        } else if (byId.has(id)) { byId.delete(id); s.delete(id); changed = true; }
       });
       P.store.db[c.key] = [...byId.values()];
     }
+    if (!changed) return;
     P.reindex(); refreshUser();
     // chegou registro de alguém que este navegador ainda não conhece (ex.: cadastro novo): busca os perfis
     const db = P.store.db, missing = ['vacations', 'entries', 'tasks', 'clientAssignments'].some(k => (db[k] || []).some(x => x.userId && !P.user(x.userId)));
