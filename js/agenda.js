@@ -241,4 +241,23 @@
     origLogin(user, boot);
     setTimeout(() => { try { sendReminders(); } catch (err) { console.warn(err); } }, 3000);
   };
+
+  /* ---------- Tela inicial: compromissos de hoje de quem está logado (criador ou participante) ---------- */
+  const todayCard = u => {
+    const today = D.iso(P.today());
+    const list = db().events.filter(e => e.participants && !e.canceled && e.date === today && (e.createdBy === u.id || e.participants.includes(u.id)))
+      .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    if (!list.length) return '';
+    return V.card(`${icon('calendar')} Sua agenda de hoje`, `<div class="ag-today">${list.map(e => V.agendaItem(u, e)).join('')}</div>`,
+      { cls: 'ag-today-card', sub: list.length + ' compromisso' + (list.length > 1 ? 's' : '') + ' em ' + D.fmt(today), actions: V.btn('Ver calendário', { go: 'calendario', icon: 'right', cls: 'ghost sm' }) });
+  };
+  const origDash = V.dashboard;
+  V.dashboard = u => {
+    const html = origDash(u), c = todayCard(u);
+    if (!c) return html;
+    const box = document.createElement('div'); box.innerHTML = html;
+    const head = box.querySelector('.wsum') || box.querySelector('.page-head');
+    if (head) head.insertAdjacentHTML('afterend', c); else box.insertAdjacentHTML('afterbegin', c);
+    return box.innerHTML;
+  };
 })(window.P);
