@@ -46,7 +46,13 @@
       if (data.end && data.end <= data.start) deny('O horário de término deve ser depois do início.');
       const allowed = new Set(invitable(u).map(x => x.id));
       const parts = [...new Set(data.participants || [])].filter(id => id !== u.id);
-      if (!parts.length) deny('Escolha pelo menos um participante.');
+      const room = !!data.room;
+      if (!parts.length && !room) deny('Escolha pelo menos um participante.');
+      if (room) {
+        if (!data.end) data.end = String(Math.min(23, +data.start.slice(0, 2) + 1)).padStart(2, '0') + data.start.slice(2);
+        const c = P.room && P.room.conflict(data.date, data.start, data.end, data.id);
+        if (c) { const f = P.room.freeHint(data.date, P.room.mins(data.end) - P.room.mins(data.start)); deny(`A sala de reuniões está ocupada das ${c.start} às ${c.end || '—'} (${c.title}, por ${(P.user(c.createdBy) || {}).name || '—'}).` + (f.length ? ' Horários livres neste dia: ' + f.join(', ') + '.' : ' Não há outro horário livre neste dia.')); }
+      }
       const bad = parts.filter(id => !allowed.has(id));
       if (bad.length) deny('Pelas regras de comunicação, você não pode convidar: ' + bad.map(id => (P.user(id) || {}).name).join(', ') + '.');
       let e = data.id && db().events.find(x => x.id === data.id);
@@ -55,7 +61,8 @@
       const before = e ? JSON.stringify([e.date, e.start, e.end, e.place]) : '';
       const prevParts = e ? e.participants.slice() : [];
       if (!e) { e = { id: P.uid('ev'), createdBy: u.id, createdAt: D.stamp() }; db().events.push(e); }
-      Object.assign(e, { type: data.kind, title, date: data.date, start: data.start, end: data.end || '', place: String(data.place || '').trim(), notes: String(data.notes || '').trim(), participants: parts, deptId: null });
+      Object.assign(e, { type: data.kind, title, date: data.date, start: data.start, end: data.end || '', place: String(data.place || '').trim(), notes: String(data.notes || '').trim(), participants: parts, deptId: null, room });
+      if (room && !e.place) e.place = 'Sala de reuniões';
       const org = P.user(e.createdBy) || u;
       if (isNew) P.notify(parts, { type: 'agenda', icon: 'calendar', title: `Convite: ${KIND[e.type].toLowerCase()} ${e.title}`, text: `${when(e)}${e.place ? ' · ' + e.place : ''} · agendado por ${org.name}.`, link: 'calendario' });
       else {
@@ -121,7 +128,7 @@
     const n = box.querySelectorAll('input:checked').length;
     $('#ag-count').textContent = n + ' selecionado' + (n === 1 ? '' : 's');
   };
-  const openForm = (e, preDate) => {
+  const openForm = (e, preDate, opts = {}) => {
     const u = S().user, people = invitable(u);
     if (!people.length) return P.toast('Pelas regras de comunicação, não há pessoas que você possa convidar.', 'err');
     const sel = new Set(e ? e.participants : []);
@@ -135,9 +142,10 @@
         <label class="field span2"><span>Título</span><input type="text" id="ag-title" maxlength="80" value="${esc(e ? e.title : '')}" placeholder="Ex.: Alinhamento do fechamento de outubro"></label>
         <p class="ag-dwarn span3" id="ag-dwarn" hidden></p>
         <label class="field"><span>Data</span><input type="date" id="ag-date" min="${D.iso(P.today())}" value="${e ? e.date : preDate || D.iso(P.today())}"></label>
-        <label class="field"><span>Início</span><input type="time" id="ag-start" value="${e ? e.start : '09:00'}"></label>
-        <label class="field"><span>Término</span><input type="time" id="ag-end" value="${e ? e.end : '10:00'}"></label>
+        <label class="field"><span>Início</span><input type="time" id="ag-start" value="${e ? e.start : opts.start || '09:00'}"></label>
+        <label class="field"><span>Término</span><input type="time" id="ag-end" value="${e ? e.end : opts.start ? String(Math.min(23, +opts.start.slice(0, 2) + 1)).padStart(2, '0') + opts.start.slice(2) : '10:00'}"></label>
         <label class="field span3"><span>Local ou link <small>(opcional)</small></span><input type="text" id="ag-place" maxlength="160" value="${esc(e ? e.place : '')}" placeholder="Sala de reuniões, Google Meet, Teams…"></label>
+        <label class="field span3 check-inline ag-room"><input type="checkbox" id="ag-room" ${(e ? e.room : opts.room) ? 'checked' : ''}> ${icon('building')} Usar a sala de reuniões <small>(o Prumo não deixa reservar em cima de outra reunião)</small></label>
         <label class="field span3"><span>Pauta / observações <small>(opcional)</small></span><textarea id="ag-notes" rows="2" maxlength="600">${esc(e ? e.notes : '')}</textarea></label>
       </div>
       <div class="ag-ph"><b>Participantes</b><span id="ag-count"></span></div>
@@ -146,7 +154,7 @@
       <div class="ag-people" id="ag-people">${Object.entries(byDept).map(([k, list]) => `<div class="ag-dg"><small>${esc(k)}</small>${list.map(p => `<label class="ag-p" data-name="${esc(p.name.toLowerCase())}"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}>${V.avatar(p)}<span><b>${esc(p.name)}</b><small>${esc(P.ROLES[p.role])}</small></span></label>`).join('')}</div>`).join('')}</div>
       <p class="fine">Os participantes recebem uma notificação com o convite e lembretes 1 dia antes e 30 minutos antes do início. Você só convida quem a regra de comunicação permite${u.role === 'admin' ? ' (a diretoria pode convidar todo o escritório)' : ''}.</p></form>`,
       onSubmit: m => {
-        const r = P.agenda.save(u, { id: e && e.id, kind: (m.querySelector('input[name=ag-kind]:checked') || {}).value, title: $('#ag-title', m).value, date: $('#ag-date', m).value, start: $('#ag-start', m).value, end: $('#ag-end', m).value, place: $('#ag-place', m).value, notes: $('#ag-notes', m).value, participants: [...m.querySelectorAll('#ag-people input:checked')].map(i => i.value) });
+        const r = P.agenda.save(u, { id: e && e.id, kind: (m.querySelector('input[name=ag-kind]:checked') || {}).value, title: $('#ag-title', m).value, date: $('#ag-date', m).value, start: $('#ag-start', m).value, end: $('#ag-end', m).value, place: $('#ag-place', m).value, notes: $('#ag-notes', m).value, participants: [...m.querySelectorAll('#ag-people input:checked')].map(i => i.value), room: !!($('#ag-room', m) || {}).checked });
         S().cal.sel = r.date; S().cal.month = D.monthStart(D.parse(r.date));
         P.toast(e ? 'Compromisso atualizado. Os participantes foram avisados.' : `${KIND[r.type]} agendada. ${r.participants.length} participante${r.participants.length > 1 ? 's foram convidados' : ' foi convidado'}.`);
         P.fx && P.fx.success(); P.render();
@@ -154,7 +162,7 @@
     });
     paintPeople(); dayWarn();
   };
-  A.agendaNew = el => openForm(null, (el && el.dataset && el.dataset.date) || S().cal.sel || null);
+  A.agendaNew = el => { const ds = (el && el.dataset) || {}; openForm(null, ds.date || S().cal.sel || null, { room: ds.room === '1', start: ds.start }); };
   A.agendaEdit = el => { const e = db().events.find(x => x.id === el.dataset.id); if (e) openForm(e); };
   A.agendaCancel = el => {
     const e = db().events.find(x => x.id === el.dataset.id); if (!e) return;
@@ -240,5 +248,49 @@
     } catch (err) { console.warn(err); }
     origLogin(user, boot);
     setTimeout(() => { try { sendReminders(); } catch (err) { console.warn(err); } }, 3000);
+  };
+
+  /* ---------- Tela inicial: compromissos de hoje de quem está logado (criador ou participante) ---------- */
+  const todayCard = u => {
+    const today = D.iso(P.today());
+    const list = db().events.filter(e => e.participants && !e.canceled && e.date === today && (e.createdBy === u.id || e.participants.includes(u.id)))
+      .concat(P.evSug ? P.evSug.agendaFor(u).filter(e => e.date === today && e.participants.includes(u.id)) : [])
+      .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    const strip = P.room ? P.room.strip() : '';
+    if (!list.length) return strip ? V.card(`${icon('calendar')} Sua agenda de hoje`, strip, { cls: 'ag-today-card', sub: 'Nenhum compromisso seu hoje · ' + D.fmt(today), actions: V.btn('Ver calendário', { go: 'calendario', icon: 'right', cls: 'ghost sm' }) }) : '';
+    // situação pelo horário: em andamento, começa em X min, encerrado
+    const now = new Date(), mins = s => { const [h, m] = String(s || '').split(':').map(Number); return h * 60 + (m || 0); }, cur = now.getHours() * 60 + now.getMinutes();
+    const state = e => {
+      if (!e.start) return { k: 'dia', l: 'Dia todo' };
+      const s = mins(e.start), f = e.end ? mins(e.end) : s + 60;
+      if (cur >= f) return { k: 'fim', l: 'Encerrado' };
+      if (cur >= s) return { k: 'agora', l: 'Acontecendo agora' };
+      const d = s - cur; return { k: d <= 60 ? 'logo' : 'depois', l: d <= 60 ? 'Começa em ' + d + ' min' : 'Às ' + e.start };
+    };
+    const next = list.find(e => ['agora', 'logo', 'depois'].includes(state(e).k));
+    // uma linha por compromisso: horário, título, local e situação; observação e participantes ficam no "passar o mouse"
+    const rows = list.map(e => {
+      const st = state(e), parts = e.participants.concat(e.createdBy).filter((x, i, a) => a.indexOf(x) === i).map(id => P.user(id)).filter(Boolean), org = P.user(e.createdBy);
+      const tip = [KIND[e.type] || 'Evento', e.place, org ? 'agendado por ' + (org.id === u.id ? 'você' : org.name) : '', parts.length + ' participante(s): ' + parts.map(p => p.name).join(', '), e.notes].filter(Boolean).join(' · ');
+      return `<li class="agt ${e.type} ${st.k}${e === next ? ' next' : ''}" title="${esc(tip)}">
+        <span class="agt-time">${e.start || '—'}${e.end ? `<small>–${e.end}</small>` : ''}</span>
+        <span class="agt-dot" aria-hidden="true"></span>
+        <span class="agt-main">${icon(e.type === 'reuniao' ? 'users' : 'calendar')}<b>${esc(e.title)}</b>${e.place ? `<small>${esc(e.place)}</small>` : ''}</span>
+        <span class="agt-people">${parts.slice(0, 3).map(p => V.avatar(p, 'xs')).join('')}${parts.length > 3 ? `<em>+${parts.length - 3}</em>` : ''}</span>
+        <span class="agt-st">${st.l}</span>
+        ${canEdit(u, e) ? `<span class="agt-acts">${V.btn('', { act: 'agendaEdit', cls: 'sm ghost icon', icon: 'edit', attrs: `data-id="${e.id}" title="Editar" aria-label="Editar"` })}${V.btn('', { act: 'agendaCancel', cls: 'sm ghost icon', icon: 'x', attrs: `data-id="${e.id}" title="Cancelar" aria-label="Cancelar"` })}</span>` : '<span class="agt-acts"></span>'}
+      </li>`;
+    }).join('');
+    return V.card(`${icon('calendar')} Sua agenda de hoje`, strip + `<ol class="agt-list">${rows}</ol>`,
+      { cls: 'ag-today-card', sub: list.length + ' compromisso' + (list.length > 1 ? 's' : '') + ' · ' + D.fmt(today) + (next ? ' · próximo: ' + esc(next.title) : ''), actions: V.btn('Ver calendário', { go: 'calendario', icon: 'right', cls: 'ghost sm' }) });
+  };
+  const origDash = V.dashboard;
+  V.dashboard = u => {
+    const html = origDash(u), c = todayCard(u);
+    if (!c) return html;
+    const box = document.createElement('div'); box.innerHTML = html;
+    const head = box.querySelector('.wsum') || box.querySelector('.page-head');
+    if (head) head.insertAdjacentHTML('afterend', c); else box.insertAdjacentHTML('afterbegin', c);
+    return box.innerHTML;
   };
 })(window.P);

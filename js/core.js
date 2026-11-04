@@ -470,6 +470,13 @@ window.P = window.P || {};
     return e.status === 'recusado' || e.status === 'correcao';
   };
 
+  // município da empresa: o informado no cadastro ou, sem ele, o endereço da Receita ("RIO DE JANEIRO" vira "Rio de Janeiro/RJ")
+  const cityCase = s => String(s || '').toLowerCase().replace(/(^|[\s-])(\S)/g, (m, a, b) => a + b.toUpperCase()).replace(/\b(De|Da|Do|Das|Dos|E)\b/g, w => w.toLowerCase());
+  P.cityOf = c => {
+    if (!c) return '';
+    const r = c.receita || {}, city = String(c.city || '').trim() || r.city || '', uf = String(c.uf || '').trim() || r.uf || '';
+    return city ? cityCase(city) + (uf ? '/' + uf.toUpperCase() : '') : '';
+  };
   const M = P.M = {
     entries(userId, p) {
       const list = P.idx.byUser.get(userId) || [];
@@ -972,7 +979,7 @@ window.P = window.P || {};
         (c.history = c.history || []).unshift({ at: D.stamp(), by: u.id, from: c.regime, to: data.regime, note: data.regimeNote || '' });
       }
       if (!isNew) api._renameCompany(c, name);
-      Object.assign(c, { code, name, tradeName: (data.tradeName || '').trim() || name, cnpj, regime: data.regime, depts: data.depts || [], since: data.since || c.since, notes: (data.notes || '').trim() });
+      Object.assign(c, { code, name, tradeName: (data.tradeName || '').trim() || name, cnpj, regime: data.regime, city: String(data.city || '').trim(), uf: String(data.uf || '').trim().toUpperCase().slice(0, 2), depts: data.depts || [], since: data.since || c.since, notes: (data.notes || '').trim() });
       if (data.receita && P.cnpj.digits(data.receita.cnpj) === digits) c.receita = data.receita;
       P.reindex(); audit(u, isNew ? 'Empresa cadastrada' : 'Empresa editada', c.id, c.name + ' · ' + P.REGIMES[c.regime].label + (data.receita ? ' · dados da Receita' : '')); P.store.save();
       // empresa nova (ou que mudou de regime) já entra nas tarefas padrão do regime dela

@@ -88,7 +88,7 @@
   const PAGE_LABEL = {
     dashboard: 'Dashboard', melhorias: 'Sugestões de melhoria', carteira: 'Carteira de empresas', lixeira: 'Lixeira', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
-    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR', datasdp: 'Datas do DP'
+    configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR', datasdp: 'Datas do DP', sala: 'Sala de reuniões', eventos: 'Eventos do setor'
   };
   function parse(path) {
     path = String(path || '').replace(/^#?\/?/, '');
@@ -134,6 +134,8 @@
       ['insights', 'Insights', 'bulb'],
       ['ranking', 'Ranking', 'rank'],
       ['calendario', 'Calendário', 'calendar'],
+      ['sala', 'Sala de reuniões', 'building'],
+      ['eventos', 'Eventos do setor', 'bulb', P.evSug ? P.evSug.badge(u) : 0],
       ['datasdp', 'Datas do DP', 'calendar'],
       ['ferias', 'Férias', 'palm', vacCount],
       ['mural', 'Mural', 'medal'],
@@ -166,7 +168,7 @@
   }
   /* Menu agrupado em blocos que abrem e fecham (o bloco da página atual fica sempre aberto) */
   const NAV_GROUPS = [
-    ['trabalho', 'Trabalho', ['atividades', 'os', 'lancamentos', 'calendario', 'datasdp']],
+    ['trabalho', 'Trabalho', ['atividades', 'os', 'lancamentos', 'calendario', 'sala', 'eventos', 'datasdp']],
     ['pessoas', 'Pessoas', ['comunicacao', 'equipe', 'mural', 'ranking', 'metas', 'ferias', 'melhorias']],
     ['clientes', 'Clientes', ['empresas', 'carteira', 'inadimplencia']],
     ['gestao', 'Gestão', ['insights', 'relatorios', 'historico']],
@@ -1565,6 +1567,7 @@
             id: el.dataset.id, code: $('#co-code', m).value, name: $('#co-name', m).value, tradeName: $('#co-trade', m).value, cnpj: $('#co-cnpj', m).value,
             regime: $('#co-reg', m).value, regimeNote: ($('#co-regnote', m) || {}).value, since: $('#co-since', m).value,
             depts: [...m.querySelectorAll('input[name=co-dept]:checked')].map(x => x.value), notes: $('#co-notes', m).value,
+            city: ($('#co-city', m) || {}).value, uf: ($('#co-uf', m) || {}).value,
             receita: A._receita
           });
           toast('Empresa salva: ' + r.name + ' · ' + P.REGIMES[r.regime].label + '.'); render();

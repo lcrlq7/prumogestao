@@ -110,8 +110,8 @@
     const html = origDash(u), card = myCard(u);
     if (!card) return html;
     const box = document.createElement('div'); box.innerHTML = html;
-    // logo abaixo do resumo da semana (ou do título, se não houver resumo)
-    const head = box.querySelector('.wsum') || box.querySelector('.page-head');
+    // logo abaixo da agenda de hoje (se houver), senão abaixo do resumo da semana ou do título
+    const head = box.querySelector('.ag-today-card') || box.querySelector('.wsum') || box.querySelector('.page-head');
     if (head) head.insertAdjacentHTML('afterend', card); else box.insertAdjacentHTML('afterbegin', card);
     return box.innerHTML;
   };
