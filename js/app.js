@@ -86,7 +86,7 @@
 
   /* ---------- Rotas ---------- */
   const PAGE_LABEL = {
-    dashboard: 'Dashboard', carteira: 'Carteira de empresas', lixeira: 'Lixeira', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
+    dashboard: 'Dashboard', melhorias: 'Sugestões de melhoria', carteira: 'Carteira de empresas', lixeira: 'Lixeira', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
     configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR', datasdp: 'Datas do DP'
   };
@@ -137,6 +137,7 @@
       ['datasdp', 'Datas do DP', 'calendar'],
       ['ferias', 'Férias', 'palm', vacCount],
       ['mural', 'Mural', 'medal'],
+      ['melhorias', 'Sugestões de melhoria', 'bulb', P.sugBadge ? P.sugBadge(u) : 0],
       ['empresas', 'Empresas', 'briefcase'],
       ['carteira', u.role === 'employee' ? 'Minhas empresas' : 'Carteira de empresas', 'users'],
       ['inadimplencia', 'Inadimplência', 'alert'],
@@ -166,7 +167,7 @@
   /* Menu agrupado em blocos que abrem e fecham (o bloco da página atual fica sempre aberto) */
   const NAV_GROUPS = [
     ['trabalho', 'Trabalho', ['atividades', 'os', 'lancamentos', 'calendario', 'datasdp']],
-    ['pessoas', 'Pessoas', ['comunicacao', 'equipe', 'mural', 'ranking', 'metas', 'ferias']],
+    ['pessoas', 'Pessoas', ['comunicacao', 'equipe', 'mural', 'ranking', 'metas', 'ferias', 'melhorias']],
     ['clientes', 'Clientes', ['empresas', 'carteira', 'inadimplencia']],
     ['gestao', 'Gestão', ['insights', 'relatorios', 'historico']],
     ['adm', 'Financeiro e compras', ['plr', 'solicitacoes', 'financeiro']]
