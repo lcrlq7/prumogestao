@@ -526,10 +526,10 @@
     }, 30);
   };
   window.addEventListener('storage', ev => { if (!P.isLive && ev.key === 'prumo.db.v3') onExternal(); });
-  window.addEventListener('prumo:remote', () => { onExternal(); markDelivered(S().user); loadPeer(true); });
+  window.addEventListener('prumo:remote', () => { if (!S() || !S().user) return; onExternal(); markDelivered(S().user); loadPeer(true); });
   // enquanto a conversa está aberta, confere de tempos em tempos quem recebeu e quem leu; em segundo plano só marca como entregue
   setInterval(() => {
-    const u = S().user; if (!u || document.hidden) return;
+    const u = S() && S().user; if (!u || document.hidden) return;
     markDelivered(u); if (S().route.page === 'comunicacao' && st().conv) loadPeer();
   }, 8000);
 })(window.P);

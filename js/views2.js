@@ -27,7 +27,7 @@
         <label class="field"><span>Departamento</span><select name="deptId" id="${o.id || 'ef'}-dept" ${!P.isGlobal(u) || pre.entryId ? 'disabled' : ''} data-ef="dept">${depts.map(d => `<option value="${d.id}" ${d.id === deptId ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Responsável</span><select name="userId" id="${o.id || 'ef'}-user" ${own || pre.entryId ? 'disabled' : ''}>${emps.map(e => `<option value="${e.id}" ${e.id === userId ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label>
         <label class="field span2"><span>Atividade</span><select name="activityId" id="${o.id || 'ef'}-act" data-ef="act" required>${acts.map(x => `<option value="${x.id}" data-w="${x.weight}" data-unit="${esc(x.unit)}" ${x.id === actId ? 'selected' : ''}>${esc(x.name)} · ${F.n(x.weight, 2)} pt/${esc(x.unit)}</option>`).join('')}</select></label>
-        <label class="field"><span>Cliente</span><input type="text" name="client" id="${o.id || 'ef'}-client" list="${o.id || 'ef'}-clients" value="${esc(pre.client || '')}" placeholder="Razão social ou Interno" autocomplete="off"><datalist id="${o.id || 'ef'}-clients">${clients.map(c => `<option value="${esc(c)}">`).join('')}</datalist></label>
+        <label class="field"><span>Cliente</span><input type="text" name="client" id="${o.id || 'ef'}-client" list="${o.id || 'ef'}-clients" value="${esc(pre.client || '')}" placeholder="Razão social, código ou Interno" autocomplete="off" data-co><datalist id="${o.id || 'ef'}-clients">${V.companyOptions(clients)}</datalist></label>
         <label class="field"><span>Quantidade <small data-unit>(${esc(a.unit)})</small></span><input type="number" name="qty" id="${o.id || 'ef'}-qty" value="${qty}" min="0.25" step="0.25" required data-ef="qty"></label>
         <label class="field"><span>Peso da atividade</span><input type="text" id="${o.id || 'ef'}-w" value="${F.n(a.weight, 2)}" readonly tabindex="-1" class="ro" data-weight></label>
         <div class="field calc"><span>Pontos calculados</span><output data-calc>${F.n(qty, 2)} × ${F.n(a.weight, 2)} = <b>${F.n(qty * a.weight, 2)} pontos</b></output></div>
@@ -41,6 +41,16 @@
   const normT = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   // empresa do cadastro (tela Empresas) a partir do nome gravado na tarefa; refeito quando o cadastro muda
   let compCache = { list: null, n: -1, map: null };
+  // opções de empresa para campos com busca: o código do cadastro aparece ao lado e também filtra ao digitar
+  V.companyOptions = names => names.map(n => { const c = V.companyOfClient(n); return `<option value="${esc(n)}"${c && c.code ? ` label="Cód. ${esc(c.code)}"` : ''}></option>`; }).join('');
+  V.companyLabel = n => { const c = V.companyOfClient(n); return (c && c.code ? c.code + ' · ' : '') + n; };
+  // se a pessoa digitar só o código e sair do campo, vira o nome da empresa (campos marcados com data-co)
+  document.addEventListener('change', ev => {
+    const t = ev.target; if (!t || !t.hasAttribute || !t.hasAttribute('data-co') || !t.value.trim()) return;
+    const k = normT(t.value).trim(), all = (P.store.db.companies || []).filter(c => c.active !== false && c.code);
+    const hit = all.find(c => normT(c.code) === k) || (() => { const m = all.filter(c => normT(c.code).startsWith(k)); return k.length >= 2 && m.length === 1 && /^[\d.\-/]+$/.test(k) ? m[0] : null; })();
+    if (hit) { t.value = hit.name; t.dispatchEvent(new Event('input', { bubbles: true })); }
+  });
   V.companyOfClient = client => {
     const list = P.store.db.companies || [];
     if (compCache.list !== list || compCache.n !== list.length) {

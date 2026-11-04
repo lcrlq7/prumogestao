@@ -111,16 +111,20 @@
     }
     // ordem FIXA por id e paginação "a partir do último id" (não por posição): com milhares de tarefas, pular N linhas a cada página
     // fica cada vez mais lento e estourava o tempo limite do banco no login (statement timeout)
-    const out = []; let last = null;
+    const out = []; let last = null, size = PAGE, tries = 0;
     for (;;) {
       let q = sb.from(table).select('id, doc');
       if (opts.or) q = q.or(opts.or);
-      q = q.order('id').limit(PAGE);
+      q = q.order('id').limit(size);
       if (last !== null) q = q.gt('id', last);
       const { data, error } = await q;
-      if (error) throw new Error(table + ': ' + error.message);
+      if (error) {
+        // tempo limite do banco: tenta de novo com páginas bem menores (a consulta termina antes do limite) em vez de travar o login
+        if (/timeout|57014/i.test(error.message + (error.code || '')) && size > 40 && tries++ < 6) { size = Math.max(40, Math.floor(size / 3)); continue; }
+        throw new Error(table + ': ' + error.message);
+      }
       out.push(...data);
-      if (data.length < PAGE) break;
+      if (data.length < size) break;
       last = data[data.length - 1].id;
     }
     // proteção extra: nunca devolve o mesmo id duas vezes

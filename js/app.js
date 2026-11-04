@@ -226,6 +226,12 @@
    */
   const QUICK_ACCESS = !P.isLive; // em produção (Supabase) o acesso rápido nunca aparece
 
+  // banco lento, fora do ar ou sem rede: em vez da mensagem técnica, um aviso leve (erros de senha continuam com a mensagem normal)
+  const friendlyErr = err => {
+    const m = String((err && err.message) || err || '');
+    return /timeout|statement|57014|failed to fetch|networkerror|load failed|\b50[234]\b|^[a-z_]+: /i.test(m) ? 'CALMAAAAA O PRUMO JÁ VOLTA :)))))))' : m;
+  };
+
   /* Tela de entrada: e-mail, senha, "esqueci minha senha" e (temporário) acesso rápido. Nenhum dado de usuário aparece aqui. */
   function loginView(err) {
     const mode = S.authMode || 'login';
@@ -739,7 +745,7 @@
             ? [...new Set(emps.map(e => e.deptId))].map(d => `<optgroup label="${esc((P.dept(d) || { name: '—' }).name)}">${emps.filter(e => e.deptId === d).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</optgroup>`).join('')
             : emps.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
           <label class="field span3"><span>Atividade</span><select id="nt-act" data-dept="${deptId}">${acts.map(a => `<option value="${a.id}" data-dept="${a.deptId}">${esc(a.name)} · ${F.n(a.weight, 2)} pt</option>`).join('')}</select></label>
-          <label class="field span2"><span>Empresa da carteira</span><select id="nt-client"><option value="">${clients.length ? 'Sem empresa vinculada' : 'Nenhuma empresa vinculada'}</option>${clients.map(client => `<option value="${esc(client)}">${esc(client)}</option>`).join('')}</select></label>
+          <label class="field span2"><span>Empresa da carteira</span><select id="nt-client"><option value="">${clients.length ? 'Sem empresa vinculada' : 'Nenhuma empresa vinculada'}</option>${clients.map(client => `<option value="${esc(client)}">${esc(V.companyLabel(client))}</option>`).join('')}</select></label>
           <div class="field"><span>&nbsp;</span><button type="button" class="link" data-act="manageClientAssignments">Gerenciar carteira</button></div>
           <p class="fine span3" id="nt-client-help">${clients.length ? `${clients.length} empresa(s) vinculada(s) a ${esc(emps[0].name)}.` : `Nenhuma empresa vinculada a ${esc(emps[0].name)}. A tarefa pode ser geral ou você pode cadastrar uma empresa na carteira.`}</p>
           <label class="field"><span>Prazo</span><input type="date" id="nt-due" value="${D.iso(D.add(P.today(), 3))}"></label>
@@ -765,7 +771,7 @@
         actSel.innerHTML = api.activities(U(), person.deptId).map(a => `<option value="${a.id}" data-dept="${a.deptId}">${esc(a.name)} · ${F.n(a.weight, 2)} pt</option>`).join('') || '<option value="">Nenhuma atividade cadastrada neste departamento</option>';
       }
       const clients = api.clientsFor(U(), el.value), select = $('#nt-client'), help = $('#nt-client-help');
-      select.innerHTML = `<option value="">${clients.length ? 'Sem empresa vinculada' : 'Nenhuma empresa vinculada'}</option>` + clients.map(client => `<option value="${esc(client)}">${esc(client)}</option>`).join('');
+      select.innerHTML = `<option value="">${clients.length ? 'Sem empresa vinculada' : 'Nenhuma empresa vinculada'}</option>` + clients.map(client => `<option value="${esc(client)}">${esc(V.companyLabel(client))}</option>`).join('');
       help.textContent = clients.length ? `${clients.length} empresa(s) vinculada(s) a ${(P.user(el.value) || { name: '—' }).name}.` : `Nenhuma empresa vinculada a ${(P.user(el.value) || { name: '—' }).name}. A tarefa pode ser geral ou você pode cadastrar uma empresa na carteira.`;
     },
     manageClientAssignments() {
@@ -777,7 +783,7 @@
       modal({
         title: 'Carteira de empresas · ' + esc((P.dept(deptId) || { name: '—' }).name), submit: 'Salvar responsável', wide: true,
         body: `${P.isGlobal(u) ? `<label class="field"><span>Departamento</span><select id="ca-dept">${depts.map(d => `<option value="${d.id}" ${d.id === deptId ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}
-          <div class="fgrid"><label class="field span2"><span>Empresa</span><input type="search" id="ca-client" list="ca-client-options" placeholder="Buscar empresa"><datalist id="ca-client-options">${P.catalog().map(client => `<option value="${esc(client)}">`).join('')}</datalist></label>
+          <div class="fgrid"><label class="field span2"><span>Empresa</span><input type="search" id="ca-client" list="ca-client-options" placeholder="Buscar por nome ou código" data-co><datalist id="ca-client-options">${V.companyOptions(P.catalog())}</datalist></label>
           <label class="field"><span>Pessoa responsável</span><select id="ca-user">${people.map(person => `<option value="${person.id}">${esc(person.name)}${person.role === 'manager' ? ' · Gestor(a)' : ''}</option>`).join('')}</select></label></div>
           <p class="fine">Cada empresa pode ter uma pessoa responsável por departamento. Salvar uma empresa já cadastrada transfere a responsabilidade.</p>
           ${assignments.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Pessoa responsável</th><th class="actions-col"></th></tr></thead><tbody>${rows}</tbody></table></div>` : V.empty('Nenhuma empresa vinculada neste departamento.')}`,
@@ -1719,7 +1725,7 @@
         const remember = ev.target.remember.checked;
         S.authBusy = true; S.loginErr = null; render();
         P.backend.signIn(email, pass).then(user => { S.authBusy = false; ls.set('prumo.lastEmail', remember ? email : null); login(user); })
-          .catch(err => { S.authBusy = false; S.loginErr = err.message; render(); });
+          .catch(err => { S.authBusy = false; S.loginErr = friendlyErr(err); render(); });
         return;
       }
       const user = P.store.db.users.find(x => x.email === email && x.password === pass && x.active !== false);
@@ -1868,7 +1874,7 @@
     Promise.all([start, wait]).then(([su]) => {
       if (P.backend.flow) { S.authMode = 'newpass'; }
       else if (su) { enterAs(su, 400); try { if (/access_token|type=|code=/.test(location.href)) history.replaceState(null, '', location.pathname + '#/dashboard'); } catch (e) { } }
-    }).catch(err => { S.loginErr = err.message; })
+    }).catch(err => { S.loginErr = friendlyErr(err); })
       .finally(() => { render(true); hideSplash(); });
   } else {
     const sid = ls.get('prumo.session');
