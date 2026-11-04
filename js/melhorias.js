@@ -74,10 +74,70 @@
       }
     });
   };
+  // visualizador: zoom (botões, Ctrl + roda do mouse, duplo clique), arrastar, baixar e passar entre as imagens
+  const view = { s: null, i: 0, z: 0 };
+  const fileName = (s, i) => 'sugestao-' + String(s.title || 'imagem').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 40) + '-' + (i + 1) + '.jpg';
+  const paint = () => {
+    const box = document.getElementById('sgv'); if (!box) return;
+    const img = box.querySelector('img'), n = view.s.imgs.length;
+    img.src = view.s.imgs[view.i];
+    img.classList.toggle('fit', view.z === 0); img.style.width = view.z === 0 ? '' : Math.round(img.naturalWidth * view.z) + 'px';
+    box.querySelector('.sgv-z').textContent = view.z === 0 ? 'Ajustar' : Math.round(view.z * 100) + '%';
+    box.querySelector('.sgv-n').textContent = n > 1 ? (view.i + 1) + ' de ' + n : '';
+    box.querySelectorAll('.sgv-nav').forEach(b => { b.hidden = n < 2; });
+    const a = box.querySelector('.sgv-dl'); a.href = view.s.imgs[view.i]; a.download = fileName(view.s, view.i);
+  };
+  const zoomTo = z => { view.z = Math.max(0.25, Math.min(4, z)); paint(); };
+  const curZoom = () => { if (view.z) return view.z; const img = document.querySelector('#sgv img'); return img && img.naturalWidth ? img.clientWidth / img.naturalWidth : 1; };
   A.sugImg = el => {
-    const s = list().find(x => x.id === el.closest('[data-sid]').dataset.sid), src = s && s.imgs[Number(el.dataset.src)];
-    if (!okImg(src)) return;
-    P.ui.modal({ title: s.title, cancel: 'Fechar', wide: true, body: `<img class="sg-full" src="${src}" alt="">` });
+    const s = list().find(x => x.id === el.closest('[data-sid]').dataset.sid), i = Number(el.dataset.src);
+    if (!s || !okImg(s.imgs[i])) return;
+    Object.assign(view, { s, i, z: 0 });
+    P.ui.modal({ title: s.title, cancel: 'Fechar', wide: true, body: `<div class="sgv" id="sgv">
+      <div class="sgv-bar"><button type="button" class="btn sm ghost sgv-nav" data-act="sugImgGo" data-d="-1" aria-label="Imagem anterior">${icon('left')}</button><span class="sgv-n"></span><button type="button" class="btn sm ghost sgv-nav" data-act="sugImgGo" data-d="1" aria-label="Próxima imagem">${icon('right')}</button>
+        <span class="sgv-sp"></span>
+        <button type="button" class="btn sm ghost" data-act="sugZoom" data-k="-" aria-label="Diminuir zoom" title="Diminuir zoom">−</button>
+        <button type="button" class="btn sm ghost sgv-z" data-act="sugZoom" data-k="0" title="Alternar entre ajustar à tela e tamanho real">Ajustar</button>
+        <button type="button" class="btn sm ghost" data-act="sugZoom" data-k="+" aria-label="Aumentar zoom" title="Aumentar zoom">+</button>
+        <a class="btn sm primary sgv-dl" href="#" download>${icon('download')}<span>Baixar imagem</span></a></div>
+      <div class="sgv-stage"><img alt="Imagem anexada à sugestão"></div>
+      <small class="muted">Ctrl + roda do mouse dá zoom · arraste para mover · clique duas vezes para alternar entre ajustar e 100%.</small></div>` });
+    const stage = document.querySelector('#sgv .sgv-stage'), img = stage.querySelector('img');
+    img.onload = () => { if (view.z) paint(); };
+    paint();
+    stage.addEventListener('wheel', ev => { if (!ev.ctrlKey) return; ev.preventDefault(); zoomTo(curZoom() * (ev.deltaY < 0 ? 1.2 : 1 / 1.2)); }, { passive: false });
+    stage.addEventListener('dblclick', () => { view.z = view.z === 0 ? 1 : 0; paint(); });
+    let drag = null;
+    stage.addEventListener('mousedown', ev => { if (view.z === 0) return; drag = { x: ev.clientX, y: ev.clientY, l: stage.scrollLeft, t: stage.scrollTop }; stage.classList.add('drag'); ev.preventDefault(); });
+    stage.addEventListener('mousemove', ev => { if (drag) { stage.scrollLeft = drag.l - (ev.clientX - drag.x); stage.scrollTop = drag.t - (ev.clientY - drag.y); } });
+    ['mouseup', 'mouseleave'].forEach(t => stage.addEventListener(t, () => { drag = null; stage.classList.remove('drag'); }));
+  };
+  A.sugZoom = el => { const k = el.dataset.k; if (k === '0') { view.z = view.z === 0 ? 1 : 0; paint(); } else zoomTo(curZoom() * (k === '+' ? 1.25 : 0.8)); };
+  A.sugImgGo = el => { const n = view.s.imgs.length; view.i = (view.i + Number(el.dataset.d) + n) % n; view.z = 0; paint(); };
+
+  // assumir: quem recebe pega a sugestão para si; os outros veem que já tem responsável e não precisam tratar
+  const done = s => ['feita', 'descartada'].includes(s.status);
+  A.sugTake = el => {
+    const u = U(), s = list().find(x => x.id === el.dataset.id); if (!s || !isRecipient(u, s)) return;
+    if (s.owner && s.owner !== u.id && !confirm(P.firstName((P.user(s.owner) || {}).name || '') + ' já assumiu esta sugestão. Assumir no lugar?')) return;
+    const prev = s.owner; s.owner = u.id; s.ownerAt = D.stamp(); if (s.status === 'nova') s.status = 'analise';
+    (s.history = s.history || []).push({ at: D.stamp(), by: u.id, status: s.status, reply: 'Assumiu a sugestão' });
+    P.notify((s.to || []).filter(id => id !== u.id), { type: 'melhoria', icon: 'check', title: u.name + ' assumiu uma sugestão', text: s.title + ' · você não precisa tratar esta.', link: 'melhorias' });
+    if (s.from !== u.id) P.notify([s.from], { type: 'melhoria', icon: 'bulb', title: 'Sua sugestão está em análise', text: s.title + ' · com ' + u.name + '.', link: 'melhorias' });
+    P.store.save(); P.toast(prev ? 'Sugestão transferida para você.' : 'Sugestão assumida. Os outros gestores foram avisados.'); P.render();
+  };
+  A.sugDrop = el => {
+    const u = U(), s = list().find(x => x.id === el.dataset.id); if (!s || s.owner !== u.id) return;
+    delete s.owner; delete s.ownerAt; (s.history = s.history || []).push({ at: D.stamp(), by: u.id, status: s.status, reply: 'Liberou a sugestão' });
+    P.notify((s.to || []).filter(id => id !== u.id), { type: 'melhoria', icon: 'bulb', title: u.name + ' liberou uma sugestão', text: s.title + ' · está sem responsável de novo.', link: 'melhorias' });
+    P.store.save(); P.toast('Sugestão liberada.'); P.render();
+  };
+  const sgActs = (s, u) => {
+    const b = (l, act, cls, ic) => V.btn(l, { act, cls: 'sm ' + cls, icon: ic, attrs: `data-id="${esc(s.id)}"` });
+    if (done(s)) return `<span class="sg-acts">${b('Editar resposta', 'sugReply', 'ghost', 'edit')}</span>`;
+    if (!s.owner) return `<span class="sg-acts">${b('Assumir', 'sugTake', 'primary', 'check')}${b('Responder', 'sugReply', 'ghost', 'edit')}</span>`;
+    if (s.owner === u.id) return `<span class="sg-acts">${b('Responder', 'sugReply', 'primary', 'edit')}${b('Liberar', 'sugDrop', 'ghost')}</span>`;
+    return `<span class="sg-acts">${b('Assumir no lugar', 'sugTake', 'ghost')}</span>`;
   };
   A.sugTab = el => { st().tab = el.dataset.k; P.render(); };
   // quem recebe muda a situação e pode responder; quem enviou é avisado
@@ -91,7 +151,7 @@
       onSubmit: () => {
         const status = document.getElementById('sg-st').value, reply = document.getElementById('sg-rep').value.trim();
         if (status === s.status && reply === (s.reply || '')) return;
-        s.status = status; s.reply = reply; s.replyBy = u.id; s.replyAt = D.stamp();
+        s.status = status; s.reply = reply; s.replyBy = u.id; s.replyAt = D.stamp(); if (!s.owner) { s.owner = u.id; s.ownerAt = D.stamp(); }
         (s.history = s.history || []).push({ at: D.stamp(), by: u.id, status, reply });
         if (s.from !== u.id) P.notify([s.from], { type: 'melhoria', icon: 'bulb', title: 'Sua sugestão: ' + STATUS[status][0].toLowerCase(), text: s.title + (reply ? ' · ' + reply.slice(0, 120) : ''), link: 'melhorias' });
         P.store.save(); P.toast('Sugestão atualizada.'); P.render();
@@ -102,7 +162,8 @@
   const card = (s, u) => {
     const who = P.user(s.from) || { name: '—' }, by = s.replyBy && P.user(s.replyBy), stt = STATUS[s.status] || STATUS.nova;
     return `<article class="sg-card" data-sid="${esc(s.id)}">
-      <header><span class="badge ${stt[1]}">${stt[0]}</span><b>${esc(s.title)}</b>${isRecipient(u, s) ? V.ibtn('edit', 'Responder / mudar situação', { act: 'sugReply', attrs: `data-id="${esc(s.id)}"` }) : ''}</header>
+      <header><span class="badge ${stt[1]}">${stt[0]}</span><b>${esc(s.title)}</b>${isRecipient(u, s) ? sgActs(s, u) : ''}</header>
+      ${s.owner ? `<div class="sg-own ${s.owner === u.id ? 'me' : ''}">${V.avatar(P.user(s.owner) || { name: '?' }, 'xs')}<span>${s.owner === u.id ? 'Com você' : 'Com ' + esc((P.user(s.owner) || { name: '—' }).name) + (isRecipient(u, s) && !done(s) ? ' · você não precisa tratar esta' : '')}</span><small>desde ${D.fmt(String(s.ownerAt || '').slice(0, 10))}</small></div>` : ''}
       <small class="muted">${V.avatar(who, 'sm')} ${esc(who.name)}${P.dept(s.deptId) ? ' · ' + esc(P.dept(s.deptId).name) : ''} · ${esc(String(s.at || '').slice(0, 16).replace('T', ' '))}</small>
       ${s.text ? `<p class="sg-text">${esc(s.text)}</p>` : ''}
       ${(s.imgs || []).length ? `<div class="sg-imgs">${thumbs(s.imgs, false)}</div>` : ''}
@@ -115,11 +176,11 @@
     const tab = s.tab || (rec ? 'recebidas' : 'minhas');
     const mine = list().filter(x => x.from === u.id), got = list().filter(x => (x.to || []).includes(u.id));
     const shown = (tab === 'recebidas' ? got : mine).slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    const novas = got.filter(x => x.status === 'nova').length;
+    const novas = got.filter(x => !x.owner && !done(x)).length;
     const head = V.pageHead('Sugestões de melhoria', 'Mande ideias para melhorar o sistema e o dia a dia. Pode anexar prints. Chegam para os gestores do BPO Financeiro e do Contábil.', V.btn('Nova sugestão', { act: 'sugNew', icon: 'plus', cls: 'primary' }));
-    const tabs = rec ? `<div class="chips" style="margin-bottom:12px">${[['recebidas', 'Recebidas' + (novas ? ' (' + novas + ' novas)' : '')], ['minhas', 'Enviadas por mim']].map(([k, l]) => `<button type="button" class="chip ${tab === k ? 'on' : ''}" data-act="sugTab" data-k="${k}">${l}</button>`).join('')}</div>` : '';
+    const tabs = rec ? `<div class="chips" style="margin-bottom:12px">${[['recebidas', 'Recebidas' + (novas ? ' (' + novas + ' sem responsável)' : '')], ['minhas', 'Enviadas por mim']].map(([k, l]) => `<button type="button" class="chip ${tab === k ? 'on' : ''}" data-act="sugTab" data-k="${k}">${l}</button>`).join('')}</div>` : '';
     const warn = !available() ? `<div class="banner warn">${icon('alert')}<div>As sugestões ainda não foram ativadas no banco. Peça para rodar o SQL de ativação.</div></div>` : '';
     return `${head}${warn}${tabs}${shown.length ? `<div class="sg-list">${shown.map(x => card(x, u)).join('')}</div>` : V.empty(tab === 'recebidas' ? 'Nenhuma sugestão recebida ainda.' : 'Você ainda não enviou sugestões. Clique em "Nova sugestão".', 'bulb')}`;
   };
-  P.sugBadge = u => u ? list().filter(x => (x.to || []).includes(u.id) && x.status === 'nova').length : 0;
+  P.sugBadge = u => u ? list().filter(x => (x.to || []).includes(u.id) && !x.owner && !done(x)).length : 0;
 })(window.P);
