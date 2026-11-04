@@ -7,7 +7,7 @@
   const db = () => P.store.db, U = () => S().user;
   const groups = () => (db().chatGroups = db().chatGroups || []);
   const available = () => !(P.isLive && P.groupsMissing);
-  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const norm = P.norm;
   const mine = u => groups().filter(g => (g.members || []).includes(u.id));
   const okPhoto = p => typeof p === 'string' && /^data:image\/jpeg;base64,/.test(p);
   const photoHtml = (p, cls) => `<span class="avatar has-photo ${cls || ''}" aria-hidden="true"><img src="${p}" alt=""></span>`;

@@ -388,6 +388,8 @@ window.P = window.P || {};
   };
   const db = () => P.store.db;
   // listas de pessoas, departamentos e atividades saem sempre em ordem alfabética (sem diferenciar acentos nem maiúsculas)
+  // texto para busca: sem acento e em minúsculas (usado nas buscas de todas as telas)
+  P.norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const byName = P.byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
 
   /* Índices em memória (reconstruídos a cada escrita) */

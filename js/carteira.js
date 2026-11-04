@@ -5,8 +5,8 @@
   const D = P.date, esc = P.esc, V = P.V, A = P.actions, api = P.api, icon = V.icon;
   const db = () => P.store.db, U = () => P.state.user;
   const st = () => (P.state.cart = P.state.cart || { userId: '', q: '', view: 'ela', limit: 100 });
-  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+  const norm = P.norm;
+  const byName = P.byName;
   const scopeDept = u => V.scopeDept(u) || (u.role === 'manager' ? u.deptId : '');
   P.PAGES.carteira = ['admin', 'office', 'manager', 'employee'];
 

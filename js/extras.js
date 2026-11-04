@@ -18,7 +18,7 @@
   const ui = () => P.ui;
   const $ = (s, r = document) => r.querySelector(s);
   const reduceMotion = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const norm = P.norm;
   const first = name => P.firstName(name || '');
   const deny = msg => { throw new P.AccessError(msg); };
   const A = {};
@@ -46,7 +46,6 @@
     return new Date(ts).toLocaleDateString('pt-BR');
   };
   const vacApprovers = v => db().users.filter(x => x.active !== false && api.canReviewVacation(x, v)).map(x => x.id);
-  const teamOf = deptId => db().users.filter(x => x.active !== false && x.deptId === deptId).map(x => x.id);
 
   // Cada ação relevante gera notificação para quem precisa saber
   const wrap = (name, after) => {
@@ -569,10 +568,6 @@
     const list = P.obligationsFor(u, m.getFullYear(), m.getMonth(), deptId).sort((a, b) => a.date < b.date ? -1 : 1);
     const today = D.iso(P.today());
     return V.card('Obrigações fiscais do mês', list.length ? `<ul class="obr-list">${list.map(o => `<li class="${o.date < today ? 'past' : o.date <= D.iso(D.add(P.today(), 5)) ? 'soon' : ''}"><button type="button" class="link" data-act="calSel" data-date="${o.date}">${D.fmt(o.date)}</button><span><b>${esc(o.name)}</b><small>${esc(P.dept(o.dept) ? (P.dept(o.dept) || { name: '—' }).name : '')} · ${o.total ? o.total + ' empresa' + (o.total > 1 ? 's' : '') : 'nenhuma empresa com esse regime cadastrado'}${o.mine ? ' · ' + o.mine + ' na sua carteira' : ''}</small></span></li>`).join('')}</ul><p class="fine obr-note">Datas de referência, ajustadas para dia útil. Confira prorrogações e mudanças na legislação.</p>` : V.empty('Nenhuma obrigação para o seu departamento neste mês.', 'calendar'), { cls: 'flush-b' });
-  };
-  V.obligationTags = (u, iso, deptId) => {
-    const d = D.parse(iso);
-    return P.obligationsFor(u, d.getFullYear(), d.getMonth(), deptId).filter(o => o.date === iso).map(o => `<i class="tag obr" title="${esc(o.name)} · ${o.total} empresas">${esc(o.short)}</i>`).join('');
   };
 
   /* ======================================================================

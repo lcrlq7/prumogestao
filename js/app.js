@@ -506,7 +506,6 @@
     sheets.push(['Lançamentos', entryRows(rep.entries)]);
     return sheets;
   }
-  const pdfSafe = s => String(s == null ? '' : s).replace(/−/g, '-').replace(/→/g, '->').replace(/≈/g, '~').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/[^\x00-\xFF—–·×…•]/g, '');
   async function toPdf(rep) {
     await loadScript(JSPDF_SRC, () => window.jspdf && window.jspdf.jsPDF); await loadScript(AUTOTABLE_SRC, () => window.jspdf && window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable);
     // logo do site; o PDF segue o tema atual (claro ou noturno)
@@ -544,7 +543,6 @@
     colorPreset(el) { const p = COLOR_PRESETS[Number(el.dataset.i)]; if (!p) return; saveColors(U(), { accent: p[1] || '', side: p[2] || '', bg: p[3] || '' }); render(); toast('Cores aplicadas: ' + p[0] + '.'); },
     colorReset() { saveColors(U(), { accent: '', side: '', bg: '' }); render(); toast('Cores restauradas para o padrão.'); },
     logout,
-    quickLogin(el) { login(P.user(el.dataset.id)); },
     authMode(el) { S.authMode = el.dataset.mode; S.loginErr = null; S.authSeen = false; render(); const f = $('#forgot-email') || $('#login-email'); if (f) f.focus(); },
     togglePass() { const p = $('#login-pass'), v = p ? p.value : '', em = $('#login-email'); if (em) S.loginEmail = em.value; S.showPass = !S.showPass; render(); const np = $('#login-pass'); if (np) { np.value = v; np.focus(); } },
     /* Acesso rápido (temporário): escolhe o perfil, sem listar nomes de usuários */
@@ -1049,18 +1047,6 @@
       const b = $('#modal-root [data-act=modalSubmit]'); if (!b) return;
       const n = A._cart ? A._cart.plan.novas + A._cart.plan.transferir : 0;
       b.disabled = !n; b.querySelector('span').textContent = n ? `Importar ${n} empresa${n > 1 ? 's' : ''}` : 'Importar';
-    },
-    portfolioTemplate() {
-      toXlsx([
-        ['Carteira', [['Código', 'Nome da empresa', 'CNPJ']]],
-        ['Instruções', [['Como preencher a planilha de carteira'], [''],
-          ['1. Use a aba "Carteira". Mantenha o cabeçalho na linha 1 e preencha uma empresa por linha a partir da linha 2.'],
-          ['2. Código: o código da empresa no Prumo (coluna Código da aba Empresas). É o jeito mais seguro de localizar.'],
-          ['3. Nome da empresa e CNPJ: opcionais se o código estiver preenchido; são usados quando o código não for encontrado.'],
-          ['4. A empresa precisa já estar cadastrada e ativa na aba Empresas.'],
-          ['5. No Prumo: Empresas > Importar carteira > escolha o responsável e envie o arquivo. Confira a prévia antes de importar.'],
-          ['6. Empresa que já é de outra pessoa só pode ser transferida pelo gestor do departamento, gerente ou diretoria.']]]
-      ], 'modelo-importacao-carteira');
     },
     async readPortfolioFile(file) {
       const box = $('#cart-preview'); if (!box) return;

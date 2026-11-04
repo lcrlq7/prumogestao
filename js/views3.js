@@ -232,15 +232,6 @@
       ? V.ibtn('refresh', 'Readmitir', { act: 'readmitUser', attrs: `data-id="${x.id}"` })
       : V.ibtn('userminus', 'Desligar', { act: 'dismissUser', cls: 'danger', attrs: `data-id="${x.id}"` });
   };
-  V.dismissedCard = u => {
-    const gone = P.store.db.users.filter(x => x.active === false && (x.dismissals || []).length && !x.dismissals[0].readmittedAt)
-      .sort((a, b) => a.dismissals[0].at < b.dismissals[0].at ? 1 : -1);
-    if (!gone.length) return '';
-    return V.card('Desligados', `<div class="table-wrap"><table class="tbl"><thead><tr><th>Nome</th><th>Função na saída</th><th>Departamento</th><th>Data</th><th>Motivo</th><th>Registrado por</th><th class="actions-col"></th></tr></thead>
-      <tbody>${gone.map(x => { const dm = x.dismissals[0], d = P.dept(dm.deptId); return `<tr class="inactive"><td>${V.person(x, false)}</td><td>${V.roleBadge(dm.role)}</td><td>${d ? esc(d.name) : '—'}</td><td class="nowrap">${D.fmt(dm.at)}</td><td>${esc(dm.reason)}</td><td>${esc((P.user(dm.by) || {}).name || '—')}</td><td class="actions-col">${V.dismissBtns(u, x)}</td></tr>`; }).join('')}</tbody></table></div>`,
-      { cls: 'flush', sub: 'O histórico de lançamentos, metas e auditoria dessas pessoas é preservado. O acesso ao sistema fica bloqueado.' });
-  };
-
   V.funcionarios = u => {
     const S = P.state, f = S.empFilter;
     let list = api.allEmployees(u);

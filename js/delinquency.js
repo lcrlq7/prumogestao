@@ -16,7 +16,6 @@
   const S = () => P.state;
   const U = () => S().user;
   const $ = (s, r = document) => r.querySelector(s);
-  const deny = m => { throw new P.AccessError(m); };
 
   P.PAGES.inadimplencia = ['admin', 'office', 'manager', 'employee'];
   const isDir = u => !!u && u.role === 'admin' && u.active !== false;

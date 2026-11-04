@@ -120,7 +120,6 @@
     const r = reads()[u.id] = reads()[u.id] || {};
     if (ts && r[conv] !== ts) { r[conv] = ts; P.store.save(); }
   };
-  P.chatMarkDelivered = () => markDelivered(S().user);
   const convsFor = u => {
     const ch = channelsFor(u).map(c => c.id);
     // só conversas que a pessoa consegue abrir (ex.: com alguém que foi removido do sistema não contam como "não lidas")

@@ -38,7 +38,7 @@
   };
 
   /* ---------- Filtros da lista de tarefas: busca (tarefa, empresa, responsável), empresa, prazo e atrasadas ---------- */
-  const normT = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const normT = P.norm;
   // empresa do cadastro (tela Empresas) a partir do nome gravado na tarefa; refeito quando o cadastro muda
   let compCache = { list: null, n: -1, map: null };
   // opções de empresa para campos com busca: o código do cadastro aparece ao lado e também filtra ao digitar
@@ -381,7 +381,7 @@
   };
   V.mural = u => {
     // o mural é da empresa toda: todo mundo vê os reconhecimentos de todos os departamentos; o filtro é opcional
-    const global = P.isGlobal(u), scope = P.state.muralDept || '';
+    const scope = P.state.muralDept || '';
     const list = api.teamWall(u, scope || undefined);
     const filter = `<label class="picker">${icon('building')}<select data-set="muralDept" aria-label="Departamento"><option value="">Todos os departamentos</option>${P.store.db.departments.filter(x => x.active !== false).sort((a, b) => a.name.localeCompare(b.name)).map(x => `<option value="${x.id}" ${scope === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>`;
     return `${V.pageHead('Mural de reconhecimentos', 'Reconhecimentos de toda a empresa, de todos os departamentos. Aqui não aparecem notas, ranking nem números de desempenho.', filter + V.btn('Reconhecer um colega', { act: 'recognize', icon: 'medal', cls: 'primary' }))}
