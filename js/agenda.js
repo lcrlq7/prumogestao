@@ -248,8 +248,31 @@
     const list = db().events.filter(e => e.participants && !e.canceled && e.date === today && (e.createdBy === u.id || e.participants.includes(u.id)))
       .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
     if (!list.length) return '';
-    return V.card(`${icon('calendar')} Sua agenda de hoje`, `<div class="ag-today">${list.map(e => V.agendaItem(u, e)).join('')}</div>`,
-      { cls: 'ag-today-card', sub: list.length + ' compromisso' + (list.length > 1 ? 's' : '') + ' em ' + D.fmt(today), actions: V.btn('Ver calendário', { go: 'calendario', icon: 'right', cls: 'ghost sm' }) });
+    // situação pelo horário: em andamento, começa em X min, encerrado
+    const now = new Date(), mins = s => { const [h, m] = String(s || '').split(':').map(Number); return h * 60 + (m || 0); }, cur = now.getHours() * 60 + now.getMinutes();
+    const state = e => {
+      if (!e.start) return { k: 'dia', l: 'Dia todo' };
+      const s = mins(e.start), f = e.end ? mins(e.end) : s + 60;
+      if (cur >= f) return { k: 'fim', l: 'Encerrado' };
+      if (cur >= s) return { k: 'agora', l: 'Acontecendo agora' };
+      const d = s - cur; return { k: d <= 60 ? 'logo' : 'depois', l: d <= 60 ? 'Começa em ' + d + ' min' : 'Às ' + e.start };
+    };
+    const next = list.find(e => ['agora', 'logo', 'depois'].includes(state(e).k));
+    // uma linha por compromisso: horário, título, local e situação; observação e participantes ficam no "passar o mouse"
+    const rows = list.map(e => {
+      const st = state(e), parts = e.participants.concat(e.createdBy).filter((x, i, a) => a.indexOf(x) === i).map(id => P.user(id)).filter(Boolean), org = P.user(e.createdBy);
+      const tip = [KIND[e.type] || 'Evento', e.place, org ? 'agendado por ' + (org.id === u.id ? 'você' : org.name) : '', parts.length + ' participante(s): ' + parts.map(p => p.name).join(', '), e.notes].filter(Boolean).join(' · ');
+      return `<li class="agt ${e.type} ${st.k}${e === next ? ' next' : ''}" title="${esc(tip)}">
+        <span class="agt-time">${e.start || '—'}${e.end ? `<small>–${e.end}</small>` : ''}</span>
+        <span class="agt-dot" aria-hidden="true"></span>
+        <span class="agt-main">${icon(e.type === 'reuniao' ? 'users' : 'calendar')}<b>${esc(e.title)}</b>${e.place ? `<small>${esc(e.place)}</small>` : ''}</span>
+        <span class="agt-people">${parts.slice(0, 3).map(p => V.avatar(p, 'xs')).join('')}${parts.length > 3 ? `<em>+${parts.length - 3}</em>` : ''}</span>
+        <span class="agt-st">${st.l}</span>
+        ${canEdit(u, e) ? `<span class="agt-acts">${V.btn('', { act: 'agendaEdit', cls: 'sm ghost icon', icon: 'edit', attrs: `data-id="${e.id}" title="Editar" aria-label="Editar"` })}${V.btn('', { act: 'agendaCancel', cls: 'sm ghost icon', icon: 'x', attrs: `data-id="${e.id}" title="Cancelar" aria-label="Cancelar"` })}</span>` : '<span class="agt-acts"></span>'}
+      </li>`;
+    }).join('');
+    return V.card(`${icon('calendar')} Sua agenda de hoje`, `<ol class="agt-list">${rows}</ol>`,
+      { cls: 'ag-today-card', sub: list.length + ' compromisso' + (list.length > 1 ? 's' : '') + ' · ' + D.fmt(today) + (next ? ' · próximo: ' + esc(next.title) : ''), actions: V.btn('Ver calendário', { go: 'calendario', icon: 'right', cls: 'ghost sm' }) });
   };
   const origDash = V.dashboard;
   V.dashboard = u => {

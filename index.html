@@ -1305,7 +1305,19 @@ body.dense .tbl small{font-size:11px}
 .top-title{min-width:0;overflow:hidden;flex:1}
 .top-title>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 /* ================= Agenda: reuniões e eventos (js/agenda.js) ================= */
-.ag-today-card{margin:16px 0}.ag-today{display:grid;gap:8px}
+.ag-today-card{margin:16px 0}
+.agt-list{list-style:none;margin:0;padding:0}
+.agt{display:grid;grid-template-columns:88px 12px minmax(0,1fr) auto auto 56px;align-items:center;gap:10px;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}.agt:last-child{border-bottom:0}
+.agt-time{font-family:var(--f-mono);font-weight:600;white-space:nowrap}.agt-time small{color:var(--muted);font-weight:400}
+.agt-dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--accent);box-sizing:border-box}.agt.evento .agt-dot{border-color:#e0a63a}.agt.fim .agt-dot{background:var(--line-2);border-color:var(--line-2)}.agt.agora .agt-dot{background:var(--good);border-color:var(--good);animation:agtpulse 1.8s ease-out infinite}
+@keyframes agtpulse{0%{box-shadow:0 0 0 0 rgba(17,130,59,.45)}100%{box-shadow:0 0 0 7px rgba(17,130,59,0)}}
+.agt-main{display:flex;align-items:center;gap:6px;min-width:0}.agt-main .ic{flex:none;width:14px;height:14px;color:var(--accent)}.agt.evento .agt-main .ic{color:#c08a24}.agt-main b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.agt-main small{color:var(--muted);white-space:nowrap}
+.agt.fim{opacity:.55}.agt.next{background:var(--accent-soft);border-radius:8px}
+.agt-people{display:flex;align-items:center}.agt-people .avatar{margin-left:-5px;border:2px solid var(--surface)}.agt-people .avatar:first-child{margin-left:0}.agt-people em{font-size:11px;color:var(--muted);margin-left:4px;font-style:normal}
+.agt-st{font-size:11.5px;padding:1px 8px;border-radius:20px;background:var(--surface-2);color:var(--ink-2);font-weight:600;white-space:nowrap}.agt.agora .agt-st{background:var(--good-soft);color:var(--good)}.agt.logo .agt-st{background:var(--warn-soft);color:var(--warn)}
+.agt-acts{display:flex;justify-content:flex-end;gap:0}.agt-acts .btn{padding:4px}
+@media(max-width:640px){.agt{grid-template-columns:64px 10px minmax(0,1fr) auto}.agt-time small,.agt-people,.agt-acts,.agt-main small{display:none}}
+@media(prefers-reduced-motion:reduce){.agt.agora .agt-dot{animation:none}}
 .tag.reuniao{background:color-mix(in srgb,var(--s1) 16%,var(--surface));border-color:color-mix(in srgb,var(--s1) 50%,transparent);color:var(--ink)}
 .tag.evento{background:color-mix(in srgb,var(--s5) 16%,var(--surface));border-color:color-mix(in srgb,var(--s5) 50%,transparent);color:var(--ink)}
 .tag.reuniao b,.tag.evento b{font-family:var(--f-mono);font-weight:600;font-size:10px}
