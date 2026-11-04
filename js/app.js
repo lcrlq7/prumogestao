@@ -1564,6 +1564,7 @@
             id: el.dataset.id, code: $('#co-code', m).value, name: $('#co-name', m).value, tradeName: $('#co-trade', m).value, cnpj: $('#co-cnpj', m).value,
             regime: $('#co-reg', m).value, regimeNote: ($('#co-regnote', m) || {}).value, since: $('#co-since', m).value,
             depts: [...m.querySelectorAll('input[name=co-dept]:checked')].map(x => x.value), notes: $('#co-notes', m).value,
+            city: ($('#co-city', m) || {}).value, uf: ($('#co-uf', m) || {}).value,
             receita: A._receita
           });
           toast('Empresa salva: ' + r.name + ' · ' + P.REGIMES[r.regime].label + '.'); render();

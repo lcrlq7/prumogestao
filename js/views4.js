@@ -28,6 +28,7 @@
       list = list.filter(c => (c.code || '').toLowerCase().startsWith(k))
         .sort((a, b) => ((b.code || '').toLowerCase() === k) - ((a.code || '').toLowerCase() === k) || (a.code || '').localeCompare(b.code || '', 'pt-BR', { numeric: true }));
     }
+    if (f.city) list = list.filter(c => f.city === 'nao' ? !P.cityOf(c) : P.cityOf(c) === f.city);
     if (f.regime) list = list.filter(c => f.regime === 'nao' ? !P.REGIMES[c.regime] : c.regime === f.regime);
     if (f.dept) list = list.filter(c => deptsOf(c).includes(f.dept));
     if (f.status) list = list.filter(c => f.status === 'ativas' ? c.active : f.status === 'incompletas' ? c.active && incomplete(c) : f.status === 'semcodigo' ? !c.code : !c.active);
@@ -38,7 +39,7 @@
     // Quantidade exibida por página (10, 50, 100 ou todas); volta à 1ª página quando os filtros mudam
     const LIMITS = [['10', 'Até 10'], ['50', 'Até 50'], ['100', 'Até 100'], ['all', 'Todas']];
     const limit = LIMITS.some(([k]) => k === f.limit) ? f.limit : '50';
-    const sig = [f.q, f.code, f.regime, f.dept, f.status, limit].join('|');
+    const sig = [f.q, f.code, f.regime, f.city, f.dept, f.status, limit].join('|');
     if (S.compSig !== sig) { S.compSig = sig; S.compPage = 1; }
     const size = limit === 'all' ? Math.max(list.length, 1) : Number(limit);
     const pages = Math.max(1, Math.ceil(list.length / size));
@@ -69,6 +70,7 @@
         <label class="field"><span>Código</span><input type="search" id="cp-code" value="${esc(f.code || '')}" data-set="comp.code" data-live placeholder="Ex.: 120" inputmode="search" style="max-width:140px"></label>
         <label class="field"><span>Buscar</span><input type="search" id="cp-q" value="${esc(f.q)}" data-set="comp.q" data-live placeholder="Razão social ou CNPJ"></label>
         <label class="field"><span>Regime tributário</span><select id="cp-reg" data-set="comp.regime"><option value="">Todos</option>${regFilters.map(([k, l]) => `<option value="${k}" ${f.regime === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="field"><span>Município</span><select id="cp-city" data-set="comp.city"><option value="">Todos</option>${[...new Set(all.map(P.cityOf).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(x => `<option value="${esc(x)}" ${f.city === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="nao" ${f.city === 'nao' ? 'selected' : ''}>Não informado</option></select></label>
         <label class="field"><span>Departamento</span><select id="cp-dept" data-set="comp.dept"><option value="">Todos</option>${depts.map(d => `<option value="${d.id}" ${f.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Situação</span><select id="cp-st" data-set="comp.status"><option value="">Todas</option><option value="ativas" ${f.status === 'ativas' ? 'selected' : ''}>Ativas</option><option value="incompletas" ${f.status === 'incompletas' ? 'selected' : ''}>Cadastro incompleto</option><option value="inativas" ${f.status === 'inativas' ? 'selected' : ''}>Inativas</option><option value="semcodigo" ${f.status === 'semcodigo' ? 'selected' : ''}>Sem código (não vieram da planilha)</option></select></label>
         <label class="field"><span>Exibir</span><select id="cp-limit" data-set="comp.limit">${LIMITS.map(([k, l]) => `<option value="${k}" ${limit === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -82,11 +84,12 @@
         </div>
       </div>` : ''}
       ${V.card('', list.length ? `<div class="table-wrap"><table class="tbl">
-        <thead><tr>${canBulk ? `<th class="w-check"><input type="checkbox" data-act="compSelAll" ${allVisibleSel ? 'checked' : ''} aria-label="Selecionar as empresas desta página" title="Selecionar as ${shown.length} empresas desta página"></th>` : ''}<th>Código</th><th>Empresa</th><th>CNPJ</th><th>Regime tributário</th><th>Departamentos</th><th>Responsáveis</th><th>Situação</th><th class="actions-col"></th></tr></thead>
+        <thead><tr>${canBulk ? `<th class="w-check"><input type="checkbox" data-act="compSelAll" ${allVisibleSel ? 'checked' : ''} aria-label="Selecionar as empresas desta página" title="Selecionar as ${shown.length} empresas desta página"></th>` : ''}<th>Código</th><th>Empresa</th><th>Município</th><th>CNPJ</th><th>Regime tributário</th><th>Departamentos</th><th>Responsáveis</th><th>Situação</th><th class="actions-col"></th></tr></thead>
         <tbody>${shown.map(c => `<tr class="${c.active ? '' : 'inactive'} ${sel.has(c.id) ? 'row-sel' : ''}">
           ${canBulk ? `<td class="w-check"><input type="checkbox" data-act="compSel" data-id="${c.id}" ${sel.has(c.id) ? 'checked' : ''} aria-label="Selecionar ${esc(c.name)}"></td>` : ''}
           <td class="mono nowrap">${c.code ? esc(c.code) : '<span class="muted">—</span>'}</td>
           <td><b>${esc(c.name)}</b>${P.delinq ? P.delinq.chip(c.name) : ''}${c.tradeName && c.tradeName !== c.name ? `<small class="obs">${esc(c.tradeName)}</small>` : ''}${c.receita && c.receita.cnaeMain ? `<small class="cnae" title="${esc(c.receita.cnaeMain.desc)}">CNAE ${esc(c.receita.cnaeMain.code)} · ${esc(c.receita.cnaeMain.desc)}</small>` : ''}</td>
+          <td class="nowrap">${P.cityOf(c) ? `<span class="city-chip" title="Município da empresa">${icon('building')}${esc(P.cityOf(c))}</span>` : '<span class="muted" title="Informe o município ao editar a empresa ou use Atualizar pela Receita">Não informado</span>'}</td>
           <td class="mono nowrap">${c.cnpj ? esc(c.cnpj) : '<span class="muted">—</span>'}</td>
           <td>${V.regime(c.regime)}${c.history && c.history.length ? ` <small class="muted" title="Regime alterado">(antes: ${esc(P.REGIMES[c.history[0].from].short)})</small>` : ''}${(() => { const s = c.receita && c.receita.suggestion; return s && s.regime && P.REGIMES[c.regime] && s.regime !== c.regime ? `<small class="cnae t-warn" title="${esc(s.source)}">${icon('alert')}Receita indica ${esc(P.REGIMES[s.regime].label)}</small>`
             : c.receita && !P.REGIMES[c.regime] && !P.receita.hasRegimeSource(c.receita) ? `<small class="cnae" title="Será buscado de novo em Atualizar pela Receita">${icon('clock')}Regime pendente na Receita</small>` : ''; })()}</td>
@@ -104,6 +107,8 @@
       <label class="field span2"><span>Razão social</span><input type="text" id="co-name" value="${esc(c.name || '')}" placeholder="Ex.: Padaria Pão Dourado Ltda"></label>
       <div class="field"><span>CNPJ <small>(consulta a Receita ao completar)</small></span><div class="input-btn"><input type="text" id="co-cnpj" value="${esc(c.cnpj || '')}" placeholder="00.000.000/0000-00" inputmode="numeric" maxlength="18" data-mask="cnpj" data-lookup aria-label="CNPJ"><button type="button" class="btn sm" data-act="lookupCnpj" title="Consultar dados públicos na Receita">${icon('search')}<span>Receita</span></button></div></div>
       <label class="field span2"><span>Nome fantasia</span><input type="text" id="co-trade" value="${esc(c.tradeName && c.tradeName !== c.name ? c.tradeName : '')}"></label>
+      <label class="field span2"><span>Município</span><input type="text" id="co-city" value="${esc(c.city || (c.receita && c.receita.city ? P.cityOf({ receita: { city: c.receita.city } }) : ''))}" placeholder="Ex.: Rio de Janeiro" maxlength="60"></label>
+      <label class="field"><span>UF</span><input type="text" id="co-uf" value="${esc(c.uf || (c.receita && c.receita.uf) || '')}" placeholder="RJ" maxlength="2" style="text-transform:uppercase"></label>
       <label class="field"><span>Cliente desde</span><input type="date" id="co-since" value="${c.since || D.iso(P.today())}"></label>
       <label class="field span2"><span>Regime tributário</span><select id="co-reg">${P.REGIMES[c.regime] ? '' : '<option value="" selected>Selecione o regime</option>'}${Object.entries(P.REGIMES).map(([k, r]) => `<option value="${k}" ${c.regime === k ? 'selected' : ''}>${r.label}</option>`).join('')}</select></label>
       ${c.id ? `<label class="field"><span>Motivo da troca de regime</span><input type="text" id="co-regnote" placeholder="Só se o regime mudar"></label>` : '<span></span>'}
