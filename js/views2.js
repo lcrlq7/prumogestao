@@ -16,8 +16,8 @@
     const actId = pre.activityId || (acts[0] || {}).id;
     const a = P.act(actId) || { weight: 0, unit: '' };
     const qty = pre.qty || 1;
-    // Sugestões: clientes já lançados no departamento + empresas que o cadastro indica como atendidas por ele
-    const clients = [...new Set(P.store.db.entries.filter(e => e.deptId === deptId).map(e => e.client).concat((P.store.db.companies || []).filter(c => c.active && (c.depts || []).includes(deptId)).map(c => c.name)))].filter(Boolean).sort();
+    // Sugestões: todas as empresas ativas do cadastro (qualquer pessoa registra para qualquer empresa) + clientes já lançados no departamento
+    const clients = [...new Set(P.store.db.entries.filter(e => e.deptId === deptId).map(e => e.client).concat((P.store.db.companies || []).filter(c => c.active !== false).map(c => c.name)))].filter(Boolean).sort((x, y) => x.localeCompare(y));
     return `
     <form class="form entry-form" id="${o.id || 'entry-form'}" data-entry-form novalidate>
       ${pre.taskId ? `<input type="hidden" name="taskId" value="${esc(pre.taskId)}">` : ''}
