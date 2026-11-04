@@ -254,6 +254,7 @@
   const todayCard = u => {
     const today = D.iso(P.today());
     const list = db().events.filter(e => e.participants && !e.canceled && e.date === today && (e.createdBy === u.id || e.participants.includes(u.id)))
+      .concat(P.evSug ? P.evSug.agendaFor(u).filter(e => e.date === today && e.participants.includes(u.id)) : [])
       .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
     const strip = P.room ? P.room.strip() : '';
     if (!list.length) return strip ? V.card(`${icon('calendar')} Sua agenda de hoje`, strip, { cls: 'ag-today-card', sub: 'Nenhum compromisso seu hoje · ' + D.fmt(today), actions: V.btn('Ver calendário', { go: 'calendario', icon: 'right', cls: 'ghost sm' }) }) : '';
