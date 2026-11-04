@@ -31,9 +31,10 @@
   const find = id => list().find(x => x.id === id);
 
   /* ---------- Contadores ---------- */
+  const myInfo = u => list().filter(e => e.status === 'info' && e.createdBy === u.id);
   const myPending = u => list().filter(e => e.status === 'aprovado' && e.date >= today() && ((e.resp || {})[u.id] || {}).st === 'aguardando');
   const toDecide = u => canDecide(u) ? list().filter(e => e.status === 'pendente').length + list().filter(e => e.status === 'aprovado' && Object.values(e.resp || {}).some(r => r.st === 'troca')).length : 0;
-  P.evSug = { badge: u => !u ? 0 : toDecide(u) + myPending(u).length };
+  P.evSug = { badge: u => !u ? 0 : toDecide(u) + myPending(u).length + myInfo(u).length };
   P.PAGES.eventos = ['admin', 'office', 'manager', 'employee'];
 
   /* ---------- Agenda e calendário: evento aprovado entra como compromisso ---------- */
@@ -49,7 +50,7 @@
   /* ---------- Cartão (ingresso) ---------- */
   const ticket = (u, e) => {
     const resp = e.resp || {}, mine = resp[u.id], conf = confirmed(e).length;
-    const stTag = e.status === 'pendente' ? '<span class="badge st-baixa">Aguardando a direção</span>' : e.status === 'recusado' ? '<span class="badge st-sobrecarga">Recusado</span>' : e.date < today() ? '<span class="badge">Realizado</span>' : '<span class="badge st-saudavel">Aprovado</span>';
+    const stTag = e.status === 'info' ? '<span class="badge st-baixa">Aguardando informações</span>' : e.status === 'pendente' ? '<span class="badge st-baixa">Aguardando a direção</span>' : e.status === 'recusado' ? '<span class="badge st-sobrecarga">Recusado</span>' : e.date < today() ? '<span class="badge">Realizado</span>' : '<span class="badge st-saudavel">Aprovado</span>';
     const left = `<div class="evx-l"><span class="evx-k">${e.areas && e.areas.length ? esc(e.areas.join(' · ')) : 'Evento do setor'} ${stTag}</span>
       <b class="evx-t">${esc(e.title)}</b>
       <span class="evx-m">${icon('calendar')}${esc(D.WEEKDAYS_L[D.parse(e.date).getDay()])}, ${D.fmt(e.date)}${e.start ? ' · ' + e.start + (e.end ? ' às ' + e.end : '') : ''}</span>
@@ -58,9 +59,11 @@
       ${e.why ? `<span class="evx-q">“${esc(e.why)}”<small>Indicado por ${esc(name(e.createdBy))} · ${D.fmt(e.at.slice(0, 10))}</small></span>` : `<span class="evx-q"><small>Indicado por ${esc(name(e.createdBy))} · ${D.fmt(e.at.slice(0, 10))}</small></span>`}
       ${e.status === 'recusado' && e.reason ? `<span class="evx-q"><small>Motivo da recusa: ${esc(e.reason)}</small></span>` : ''}</div>`;
     let acts = '';
-    if (e.status === 'pendente' && canDecide(u)) acts = V.btn('Aprovar e convidar', { act: 'evsApprove', icon: 'check', cls: 'evx-b', attrs: `data-id="${e.id}"` }) + `<span class="evx-s">${V.btn('Comentar', { act: 'evsComment', cls: 'sm ghost', attrs: `data-id="${e.id}"` })}${V.btn('Recusar', { act: 'evsReject', cls: 'sm ghost', attrs: `data-id="${e.id}"` })}</span>`;
+    if (e.status === 'pendente' && canDecide(u)) acts = V.btn('Aprovar e convidar', { act: 'evsApprove', icon: 'check', cls: 'evx-b', attrs: `data-id="${e.id}"` }) + `<span class="evx-s">${V.btn('Pedir informações', { act: 'evsAsk', cls: 'sm ghost', attrs: `data-id="${e.id}"` })}${V.btn('Recusar', { act: 'evsReject', cls: 'sm ghost', attrs: `data-id="${e.id}"` })}</span>`;
     else if (e.status === 'aprovado' && mine && e.date >= today()) acts = V.btn(mine.st === 'aguardando' ? 'Responder convite' : 'Alterar resposta', { act: 'evsRespond', icon: 'check', cls: 'evx-b', attrs: `data-id="${e.id}"` }) + `<span class="evx-s"><small>Sua resposta: ${RESP[mine.st][0]}</small></span>`;
     else if (e.status === 'aprovado' && canDecide(u) && e.date >= today()) acts = V.btn('Convidar mais pessoas', { act: 'evsApprove', icon: 'plus', cls: 'evx-b', attrs: `data-id="${e.id}"` });
+    else if (e.status === 'info' && e.createdBy === u.id) acts = V.btn('Completar informações', { act: 'evsFill', icon: 'edit', cls: 'evx-b', attrs: `data-id="${e.id}"` }) + V.btn('Cancelar indicação', { act: 'evsCancel', cls: 'evx-b2', attrs: `data-id="${e.id}"` });
+    else if (e.status === 'info' && canDecide(u)) acts = `<small class="evx-wait">Aguardando ${esc(first(e.createdBy))} completar as informações</small>` + V.btn('Recusar', { act: 'evsReject', cls: 'evx-b2', attrs: `data-id="${e.id}"` });
     else if (e.status === 'pendente' && e.createdBy === u.id) acts = V.btn('Cancelar indicação', { act: 'evsCancel', cls: 'evx-b2', attrs: `data-id="${e.id}"` });
     const right = `<div class="evx-r"><div><span class="evx-k">${e.price ? 'A partir de' : 'Valor'}</span><b class="evx-p">${e.price ? brl(e.price) : 'Gratuito ou a confirmar'}</b>${e.price ? '<small>por pessoa</small>' : ''}
       ${e.link ? `<a class="evx-a" href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">${icon('right')}Ingressos e detalhes</a>` : ''}
@@ -79,8 +82,9 @@
       people = `<div class="evx-ppl"><div class="evx-ph"><b>Convidados</b><small>${confirmed(e).length} confirmado(s) · ${(e.invited || []).filter(id => (resp[id] || {}).st === 'aguardando').length} aguardando · ${(e.invited || []).filter(id => (resp[id] || {}).st === 'nao').length} recusou</small>
         ${canBuy ? V.btn(`Abrir solicitação de compra (${confirmed(e).length} × ${brl(e.price)})`, { act: 'evsBuy', cls: 'sm', icon: 'cart', attrs: `data-id="${e.id}"` }) : e.purchaseId ? '<small>Solicitação de compra aberta</small>' : ''}</div><ul>${rows}</ul></div>`;
     }
-    const com = (e.comments || []).length ? `<div class="evx-com">${e.comments.map(c => `<p><b>${esc(first(c.by))}:</b> ${esc(c.text)} <small>${D.fmt(c.at.slice(0, 10))}</small></p>`).join('')}${(canDecide(u) || e.createdBy === u.id) && e.status === 'pendente' ? V.btn('Responder', { act: 'evsComment', cls: 'sm ghost', attrs: `data-id="${e.id}"` }) : ''}</div>` : '';
-    return `<article class="evx ${e.status}"><div class="evx-tk">${left}${right}</div>${com}${people}</article>`;
+    const com = (e.comments || []).length ? `<div class="evx-com">${e.comments.map(c => `<p><b>${esc(first(c.by))}:</b> ${esc(c.text)} <small>${D.fmt(c.at.slice(0, 10))}</small></p>`).join('')}${(canDecide(u) || e.createdBy === u.id) && ['pendente', 'info'].includes(e.status) ? V.btn('Responder', { act: 'evsComment', cls: 'sm ghost', attrs: `data-id="${e.id}"` }) : ''}</div>` : '';
+    const askBox = e.status === 'info' && e.infoReq ? `<div class="evx-ask">${icon('message')}<span><b>${esc(first(e.infoReq.by))} pediu mais informações · ${D.fmt(e.infoReq.at.slice(0, 10))}</b>${esc(e.infoReq.text)}</span></div>` : '';
+    return `<article class="evx ${e.status}">${askBox}<div class="evx-tk">${left}${right}</div>${com}${people}</article>`;
   };
 
   /* ---------- Página ---------- */
@@ -88,45 +92,62 @@
     const st = S().evs = S().evs || {}, dec = canDecide(u);
     const all = list().slice().sort((a, b) => a.date.localeCompare(b.date));
     const fut = e => e.date >= today();
-    const tabs = (dec ? [['pendente', 'Aguardando decisão', all.filter(e => e.status === 'pendente').length]] : [])
+    const tabs = (dec ? [['pendente', 'Aguardando decisão', all.filter(e => e.status === 'pendente').length], ['info', 'Aguardando informações', all.filter(e => e.status === 'info').length]] : [])
       .concat([['convites', 'Meus convites', all.filter(e => e.status === 'aprovado' && (e.invited || []).includes(u.id) && fut(e)).length],
         ['aprovados', 'Próximos eventos', all.filter(e => e.status === 'aprovado' && fut(e) && (dec || e.publish === 'todos' || (e.invited || []).includes(u.id))).length],
-        ['minhas', 'Minhas indicações', all.filter(e => e.createdBy === u.id).length]])
+        ['minhas', 'Minhas indicações', all.filter(e => e.createdBy === u.id && e.status === 'info').length || all.filter(e => e.createdBy === u.id).length]])
       .concat(dec ? [['historico', 'Recusados e realizados', all.filter(e => e.status === 'recusado' || (e.status === 'aprovado' && !fut(e))).length]] : []);
-    const tab = tabs.some(t => t[0] === st.tab) ? st.tab : (dec && tabs[0][2] ? 'pendente' : myPending(u).length ? 'convites' : dec ? 'pendente' : 'aprovados');
+    const tab = tabs.some(t => t[0] === st.tab) ? st.tab : (dec && tabs[0][2] ? 'pendente' : myInfo(u).length ? 'minhas' : myPending(u).length ? 'convites' : dec ? 'pendente' : 'aprovados');
     const shown = {
       pendente: all.filter(e => e.status === 'pendente'),
+      info: all.filter(e => e.status === 'info'),
       convites: all.filter(e => e.status === 'aprovado' && (e.invited || []).includes(u.id) && fut(e)),
       aprovados: all.filter(e => e.status === 'aprovado' && fut(e) && (dec || e.publish === 'todos' || (e.invited || []).includes(u.id))),
       minhas: all.filter(e => e.createdBy === u.id).reverse(),
       historico: all.filter(e => e.status === 'recusado' || (e.status === 'aprovado' && !fut(e))).reverse()
     }[tab] || [];
     const warn = missing() ? `<div class="banner warn">${icon('alert')}<div><b>As indicações de eventos ainda não estão ativas.</b> Falta criar a tabela <code>event_suggestions</code> no banco (comando enviado no chat).</div></div>` : '';
-    const empty = { pendente: 'Nenhuma indicação aguardando decisão.', convites: 'Você não tem convites para eventos.', aprovados: 'Nenhum evento aprovado por enquanto.', minhas: 'Você ainda não indicou nenhum evento. Achou algo bom? Use "Indicar evento".', historico: 'Nada por aqui.' }[tab];
+    const empty = { pendente: 'Nenhuma indicação aguardando decisão.', info: 'Nenhuma indicação aguardando informações.', convites: 'Você não tem convites para eventos.', aprovados: 'Nenhum evento aprovado por enquanto.', minhas: 'Você ainda não indicou nenhum evento. Achou algo bom? Use "Indicar evento".', historico: 'Nada por aqui.' }[tab];
     return `${V.pageHead('Eventos do setor', 'Congressos, feiras e cursos de contabilidade, BPO, RH e afins. Qualquer pessoa indica; a direção aprova e escolhe quem vai.', V.btn('Indicar evento', { act: 'evsNew', icon: 'plus', cls: 'evx-go' }))}
       ${warn}<div class="toolbar">${V.tabs(tabs, tab, 'evs.tab')}</div>
       ${shown.length ? `<div class="evx-list">${shown.map(e => ticket(u, e)).join('')}</div>` : V.card('', V.empty(empty, 'bulb'))}`;
   };
 
   /* ---------- Indicar ---------- */
-  A.evsNew = () => {
+  // mesmo formulário para indicar (x vazio) e para completar as informações pedidas pela direção (x = indicação)
+  const evForm = x => {
     if (missing()) return P.toast('As indicações ainda não estão ativas: falta criar a tabela no banco.', 'err');
-    const u = U();
+    const u = U(), v = k => esc(x ? x[k] || '' : ''), ask = x && x.infoReq;
     P.ui.modal({
-      title: 'Indicar evento para a direção', wide: true, submit: 'Enviar para a direção',
-      body: `<form class="form" novalidate><p class="fine">Achou um evento bom para o escritório? Preencha os dados. A direção avalia e escolhe quem vai.</p><div class="fgrid">
-        <label class="field span2"><span>Nome do evento</span><input type="text" id="es-title" maxlength="90" placeholder="Ex.: ContaCon 2027"></label>
-        <label class="field"><span>Tipo</span><select id="es-kind">${Object.entries(KINDS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
-        <label class="field"><span>Data</span><input type="date" id="es-date" min="${today()}"></label>
-        <label class="field"><span>Início <small>(opcional)</small></span><input type="time" id="es-start"></label>
-        <label class="field"><span>Término <small>(opcional)</small></span><input type="time" id="es-end"></label>
-        <label class="field span2"><span>Local e cidade</span><input type="text" id="es-place" maxlength="140" placeholder="Ex.: Expo Center Norte · São Paulo/SP (ou On-line)"></label>
-        <label class="field"><span>Valor por pessoa <small>(R$, opcional)</small></span><input type="number" id="es-price" min="0" step="0.01" placeholder="390,00"></label>
-        <label class="field span3"><span>Link do evento ou dos ingressos <small>(Sympla, site oficial…)</small></span><input type="url" id="es-link" maxlength="400" placeholder="https://www.sympla.com.br/..."></label>
+      title: x ? 'Completar informações · ' + x.title : 'Indicar evento para a direção', wide: true, submit: x ? 'Reenviar para a direção' : 'Enviar para a direção',
+      body: `<form class="form" novalidate>${ask ? `<div class="evx-ask">${icon('message')}<span><b>${esc(first(ask.by))} pediu mais informações</b>${esc(ask.text)}</span></div>` : '<p class="fine">Achou um evento bom para o escritório? Preencha os dados. A direção avalia e escolhe quem vai.</p>'}<div class="fgrid">
+        <label class="field span2"><span>Nome do evento</span><input type="text" id="es-title" maxlength="90" placeholder="Ex.: ContaCon 2027" value="${v('title')}"></label>
+        <label class="field"><span>Tipo</span><select id="es-kind">${Object.entries(KINDS).map(([k, l]) => `<option value="${k}" ${x && x.kind === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="field"><span>Data</span><input type="date" id="es-date" min="${today()}" value="${v('date')}"></label>
+        <label class="field"><span>Início <small>(opcional)</small></span><input type="time" id="es-start" value="${v('start')}"></label>
+        <label class="field"><span>Término <small>(opcional)</small></span><input type="time" id="es-end" value="${v('end')}"></label>
+        <label class="field span2"><span>Local e cidade</span><input type="text" id="es-place" maxlength="140" placeholder="Ex.: Expo Center Norte · São Paulo/SP (ou On-line)" value="${v('place')}"></label>
+        <label class="field"><span>Valor por pessoa <small>(R$, opcional)</small></span><input type="number" id="es-price" min="0" step="0.01" placeholder="390,00" value="${x && x.price ? x.price : ''}"></label>
+        <label class="field span3"><span>Link do evento ou dos ingressos <small>(Sympla, site oficial…)</small></span><input type="url" id="es-link" maxlength="400" placeholder="https://www.sympla.com.br/..." value="${v('link')}"></label>
       </div>
-      <div class="field"><span>Para quais áreas?</span><div class="evx-chips">${AREAS.map(a => `<label class="evx-chip"><input type="checkbox" value="${a}"><span>${a}</span></label>`).join('')}</div></div>
-      <label class="field"><span>Por que vale a pena?</span><textarea id="es-why" rows="2" maxlength="500" placeholder="Ex.: Tem trilha sobre a reforma tributária, seria ótimo para o fiscal."></textarea></label></form>`,
+      <div class="field"><span>Para quais áreas?</span><div class="evx-chips">${AREAS.map(a => `<label class="evx-chip"><input type="checkbox" value="${a}" ${x && (x.areas || []).includes(a) ? 'checked' : ''}><span>${a}</span></label>`).join('')}</div></div>
+      <label class="field"><span>Por que vale a pena?</span><textarea id="es-why" rows="2" maxlength="500" placeholder="Ex.: Tem trilha sobre a reforma tributária, seria ótimo para o fiscal.">${v('why')}</textarea></label>
+      ${x ? `<label class="field"><span>Resposta para a direção <small>(opcional)</small></span><textarea id="es-ans" rows="2" maxlength="400" placeholder="Ex.: Incluí o link do Sympla e o valor do 1º lote."></textarea></label>` : ''}</form>`,
       onSubmit: m => {
+        if (x) {
+          const title = $('#es-title', m).value.trim(), date = $('#es-date', m).value, start = $('#es-start', m).value, end = $('#es-end', m).value, rawLink = $('#es-link', m).value.trim();
+          if (title.length < 3) fail('Informe o nome do evento.');
+          if (!date) fail('Informe a data do evento.');
+          if (start && end && end <= start) fail('O término deve ser depois do início.');
+          const link = safeUrl(rawLink); if (rawLink && !link) fail('O link não parece válido.');
+          const ans = $('#es-ans', m).value.trim();
+          Object.assign(x, { title, kind: $('#es-kind', m).value, date, start, end, place: $('#es-place', m).value.trim(), price: Math.max(0, +$('#es-price', m).value || 0), link, areas: [...m.querySelectorAll('.evx-chip input:checked')].map(i => i.value), why: $('#es-why', m).value.trim(), status: 'pendente' });
+          (x.comments = x.comments || []).push({ by: u.id, at: D.stamp(), text: 'Informações completadas' + (ans ? ': ' + ans : '.') });
+          const asker = x.infoReq ? x.infoReq.by : null; delete x.infoReq;
+          notify(asker ? [asker] : global(), { icon: 'check', title: 'Indicação completada: ' + title, text: `${u.name} completou as informações${ans ? ': ' + ans : '.'} A indicação voltou para decisão.` });
+          P.audit(u, 'Indicação de evento completada', x.id, title);
+          save(); P.toast('Informações enviadas. A indicação voltou para a direção.'); P.render(); return;
+        }
         const title = $('#es-title', m).value.trim(), date = $('#es-date', m).value, start = $('#es-start', m).value, end = $('#es-end', m).value, rawLink = $('#es-link', m).value.trim();
         if (title.length < 3) fail('Informe o nome do evento.');
         if (!date) fail('Informe a data do evento.');
@@ -142,7 +163,26 @@
       }
     });
   };
-  A.evsCancel = el => { const e = find(el.dataset.id), u = U(); if (!e || e.createdBy !== u.id || e.status !== 'pendente') return; if (!confirm('Cancelar esta indicação?')) return; db().eventSuggestions = list().filter(x => x !== e); P.audit(u, 'Indicação de evento cancelada', e.id, e.title); save(); P.render(); };
+  A.evsNew = () => evForm(null);
+  A.evsFill = el => { const e = find(el.dataset.id), u = U(); if (e && e.createdBy === u.id && e.status === 'info') evForm(e); };
+  // direção: devolve a indicação para quem indicou completar os dados
+  A.evsAsk = el => {
+    const u = U(), e = find(el.dataset.id); if (!e || !canDecide(u)) return;
+    P.ui.modal({ title: 'Pedir mais informações', submit: 'Devolver para ' + first(e.createdBy), body: `<form class="form"><p class="fine">${esc(e.title)} · indicado por ${esc(name(e.createdBy))}. A indicação volta para ${esc(first(e.createdBy))} completar e reenviar.</p>
+      <div class="evx-chips evx-qk">${['Link de inscrição', 'Valor do ingresso', 'Horário', 'Programação / palestras', 'Local exato'].map(t => `<label class="evx-chip"><input type="checkbox" value="${t}"><span>${t}</span></label>`).join('')}</div>
+      <label class="field"><span>O que falta?</span><textarea id="evx-ask" rows="3" maxlength="400" placeholder="Ex.: Mande o link do Sympla e a programação das palestras de reforma tributária."></textarea></label></form>`,
+      onSubmit: m => {
+        const picks = [...m.querySelectorAll('.evx-qk input:checked')].map(i => i.value), extra = $('#evx-ask', m).value.trim();
+        const text = (picks.length ? 'Faltam: ' + picks.join(', ').toLowerCase() + '.' : '') + (extra ? (picks.length ? ' ' : '') + extra : '');
+        if (text.length < 3) fail('Marque ou escreva o que falta.');
+        e.status = 'info'; e.infoReq = { by: u.id, at: D.stamp(), text };
+        (e.comments = e.comments || []).push({ by: u.id, at: D.stamp(), text: 'Pediu mais informações: ' + text });
+        notify([e.createdBy], { icon: 'message', title: 'A direção pediu mais informações', text: `${e.title}: ${text} Abra a indicação e clique em "Completar informações".` });
+        P.audit(u, 'Pedido de informações em indicação de evento', e.id, e.title + ' · ' + text);
+        save(); P.toast('Indicação devolvida para ' + first(e.createdBy) + '.'); P.render();
+      } });
+  };
+  A.evsCancel = el => { const e = find(el.dataset.id), u = U(); if (!e || e.createdBy !== u.id || !['pendente', 'info'].includes(e.status)) return; if (!confirm('Cancelar esta indicação?')) return; db().eventSuggestions = list().filter(x => x !== e); P.audit(u, 'Indicação de evento cancelada', e.id, e.title); save(); P.render(); };
 
   /* ---------- Direção: aprovar e escolher quem vai ---------- */
   A.evsApprove = el => {
@@ -267,8 +307,8 @@
   /* ---------- Painel inicial: convite pendente ---------- */
   const origDash = V.dashboard;
   V.dashboard = u => {
-    const html = origDash(u), p = myPending(u); if (!p.length) return html;
-    const card = `<div class="evx-inv">${icon('calendar')}<span><b>${p.length === 1 ? 'Você foi convidado para um evento' : 'Você tem ' + p.length + ' convites para eventos'}</b><small>${p.map(e => esc(e.title) + ' · ' + D.fmt(e.date)).join(' · ')}</small></span>${p.length === 1 ? V.btn('Responder', { act: 'evsRespond', cls: 'evx-go sm', attrs: `data-id="${p[0].id}"` }) : V.btn('Ver convites', { go: 'eventos', cls: 'evx-go sm' })}</div>`;
+    const html = origDash(u), p = myPending(u), fi = myInfo(u); if (!p.length && !fi.length) return html;
+    const card = (fi.length ? `<div class="evx-inv">${icon('message')}<span><b>A direção pediu mais informações sobre ${fi.length === 1 ? 'sua indicação' : fi.length + ' indicações suas'}</b><small>${fi.map(e => esc(e.title)).join(' · ')}</small></span>${fi.length === 1 ? V.btn('Completar', { act: 'evsFill', cls: 'evx-go sm', attrs: `data-id="${fi[0].id}"` }) : V.btn('Ver indicações', { go: 'eventos', cls: 'evx-go sm' })}</div>` : '') + (!p.length ? '' : `<div class="evx-inv">${icon('calendar')}<span><b>${p.length === 1 ? 'Você foi convidado para um evento' : 'Você tem ' + p.length + ' convites para eventos'}</b><small>${p.map(e => esc(e.title) + ' · ' + D.fmt(e.date)).join(' · ')}</small></span>${p.length === 1 ? V.btn('Responder', { act: 'evsRespond', cls: 'evx-go sm', attrs: `data-id="${p[0].id}"` }) : V.btn('Ver convites', { go: 'eventos', cls: 'evx-go sm' })}</div>`);
     const box = document.createElement('div'); box.innerHTML = html;
     const head = box.querySelector('.wsum') || box.querySelector('.page-head');
     if (head) head.insertAdjacentHTML('afterend', card); else box.insertAdjacentHTML('afterbegin', card);
