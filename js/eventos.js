@@ -65,7 +65,7 @@
     else if (e.status === 'info' && e.createdBy === u.id) acts = V.btn('Completar informações', { act: 'evsFill', icon: 'edit', cls: 'evx-b', attrs: `data-id="${e.id}"` }) + V.btn('Cancelar indicação', { act: 'evsCancel', cls: 'evx-b2', attrs: `data-id="${e.id}"` });
     else if (e.status === 'info' && canDecide(u)) acts = `<small class="evx-wait">Aguardando ${esc(first(e.createdBy))} completar as informações</small>` + V.btn('Recusar', { act: 'evsReject', cls: 'evx-b2', attrs: `data-id="${e.id}"` });
     else if (e.status === 'pendente' && e.createdBy === u.id) acts = V.btn('Cancelar indicação', { act: 'evsCancel', cls: 'evx-b2', attrs: `data-id="${e.id}"` });
-    const right = `<div class="evx-r"><div><span class="evx-k">${e.price ? 'A partir de' : 'Valor'}</span><b class="evx-p">${e.price ? brl(e.price) : 'Gratuito ou a confirmar'}</b>${e.price ? '<small>por pessoa</small>' : ''}
+    const right = `<div class="evx-r"><div><span class="evx-k">${e.price ? 'A partir de' : 'Valor'}</span><b class="evx-p${e.price ? '' : ' tbd'}">${e.price ? brl(e.price) : 'A confirmar'}</b>${e.price ? '<small>por pessoa</small>' : ''}
       ${e.link ? `<a class="evx-a" href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">${icon('right')}Ingressos e detalhes</a>` : ''}
       ${e.status === 'aprovado' && e.deadline ? `<small class="evx-dl">Responder até ${D.fmt(e.deadline)}</small>` : ''}</div><div class="evx-acts">${acts}</div></div>`;
     // direção: situação de cada convidado
