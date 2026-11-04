@@ -4,7 +4,7 @@
 (function (P) {
   const D = P.date, esc = P.esc, V = P.V, A = P.actions, icon = V.icon;
   const db = () => P.store.db, U = () => P.state.user;
-  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const norm = P.norm;
   P.PAGES.datasdp = ['admin', 'office', 'manager', 'employee'];
 
   const KINDS = {

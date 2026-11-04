@@ -74,7 +74,6 @@
     const t = who.length === 1 ? who[0] + ' está digitando' : who.length === 2 ? who[0] + ' e ' + who[1] + ' estão digitando' : 'Várias pessoas estão digitando';
     el.innerHTML = '<i></i><i></i><i></i><span>' + esc(t) + '…</span>'; el.hidden = false;
   }
-  P.chatTyping = { _test: onTyping };
 
   /* ---------- Atualização leve da conversa (chegada de mensagens, sem redesenhar a tela toda) ---------- */
   // Antes cada mensagem nova refazia a página inteira: a rolagem voltava ao topo, a animação reiniciava e, com várias pessoas escrevendo,

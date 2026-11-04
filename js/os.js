@@ -139,7 +139,7 @@
   function companyPicker(list, id = 'os-co', onPick) {
     const box = $('#' + id + '-box'), inp = $('#' + id), ul = $('#' + id + '-list'), x = $('#' + id + '-x');
     if (!box) return;
-    const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const norm = P.norm;
     let shown = [], hi = -1;
     const draw = q => {
       const t = norm(q), d = String(q || '').replace(/\D/g, '');

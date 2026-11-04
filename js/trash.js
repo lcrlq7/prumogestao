@@ -10,7 +10,7 @@
   P.PAGES.lixeira = ['admin', 'office', 'manager'];
   const KINDS = { task: 'Tarefa', recurrence: 'Recorrência', activity: 'Atividade', recognition: 'Reconhecimento' };
   const TARGET = { task: 'tasks', recurrence: 'taskRecurrences', activity: 'activities', recognition: 'recognitions' };
-  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const norm = P.norm;
   const labelOf = (kind, it) => {
     if (kind === 'task') return (it.title || 'Tarefa') + (it.due ? ' · prazo ' + D.fmt(it.due) : '') + ((P.user(it.userId) || {}).name ? ' · ' + P.user(it.userId).name : '');
     if (kind === 'recurrence') return (it.title || 'Recorrência') + (it.regime ? ' · regime ' + ((P.REGIMES[it.regime] || {}).label || it.regime) : '') + (it.freq === 'trimestral' ? ' · trimestral' : it.freq === 'unica' ? ' · uma vez' : ' · mensal');

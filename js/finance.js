@@ -59,7 +59,6 @@
     return vacOf(uid).some(v => v.status === 'aprovada' && iso >= v.start && iso <= v.end &&
       !(iso === v.start && s.vacStartPaid) && !(iso === v.end && s.vacEndPaid));
   };
-  const pendingVacIn = (uid, a, b) => vacOf(uid).filter(v => ['gestor', 'gerente', 'diretoria'].includes(v.status) && v.start <= b && v.end >= a);
   /*
    * Memória do cálculo de uma passagem: para cada dia do período, se é dia de trabalho previsto e por que entra/sai.
    * valor diário = valor semanal ÷ dias de trabalho da semana (ex.: 146,50 ÷ 5 = 29,30)
