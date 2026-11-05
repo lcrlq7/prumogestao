@@ -97,10 +97,12 @@
     const q = {}; (qs || '').split('&').filter(Boolean).forEach(kv => { const [k, v] = kv.split('='); q[k] = decodeURIComponent(v || ''); });
     return { page: page || 'dashboard', id: id || null, q };
   }
+  // ao entrar no calendário vindo de outra página, ele volta para o mês e o dia de hoje
+  const calReset = r => { if (r.page === 'calendario' && S.route && S.route.page !== 'calendario') { const t = new Date(); S.cal.month = D.monthStart(t); S.cal.sel = D.iso(t); } };
   P.go = function (path) {
     const r = parse(path);
     if (r.q.dept && S.user && P.isGlobal(S.user)) S.dept = r.q.dept;
-    S.route = r; S.navOpen = false;
+    calReset(r); S.route = r; S.navOpen = false;
     const h = '#/' + r.page + (r.id ? '/' + r.id : '');
     // cada página vira um passo no histórico: as setas voltar/avançar do navegador funcionam dentro do site
     try { if (location.hash !== h) history.pushState(null, '', h); } catch (e) { }
@@ -111,7 +113,7 @@
     const r = parse(location.hash);
     if (r.page === S.route.page && (r.id || null) === (S.route.id || null)) return;
     if ($('#modal-root') && !$('#modal-root').hidden) closeModal();
-    S.route = r; S.navOpen = false; render(true);
+    calReset(r); S.route = r; S.navOpen = false; render(true);
   };
   window.addEventListener('popstate', fromUrl);
   window.addEventListener('hashchange', fromUrl);
