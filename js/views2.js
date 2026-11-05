@@ -209,7 +209,9 @@
     }
     const scope = V.scopeDept(u);
     const base = api.entries(u, { deptId: scope || undefined });
-    const reviewQueue = u.role === 'manager' ? base.filter(e => e.userId !== u.id) : base;
+    // só entra na fila o que a pessoa aprova: lançamentos do departamento que ela gere
+    const reviewQueue = base.filter(e => e.userId !== u.id && api.canReviewEntries(u, e.deptId));
+    const led = P.ledDept(u), noQueue = P.isGlobal(u) && !reviewQueue.length && !base.some(e => e.userId !== u.id && api.canReviewEntries(u, e.deptId));
     const ownPending = u.role === 'manager' ? base.filter(e => e.userId === u.id && (e.status === 'pendente' || e.status === 'correcao')).reverse() : [];
     const pend = reviewQueue.filter(e => e.status === 'pendente').reverse();
     const corr = reviewQueue.filter(e => e.status === 'correcao').reverse();
@@ -234,7 +236,8 @@
       </div>
       <div class="toolbar">${V.tabs([['pendente', 'Pendentes', pend.length], ['correcao', 'Correção solicitada', corr.length], ['revisados', 'Revisados recentemente']], tab, 'lancTab')}
         ${tab === 'pendente' && pend.length ? `<div class="bulk">${V.btn('Aprovar selecionados', { act: 'bulkApprove', icon: 'check', cls: 'sm' })}${V.btn('Recusar selecionados', { act: 'bulkReject', icon: 'x', cls: 'sm ghost danger' })}</div>` : ''}</div>
-      ${V.card('', V.entryTable(list, { actions, select: tab === 'pendente', emptyMsg: tab === 'pendente' ? 'Nenhum lançamento aguardando aprovação.' : 'Nada por aqui.' }), { cls: 'flush' })}`;
+      ${noQueue ? `<div class="banner info">${icon('info')}<div>A aprovação dos lançamentos é feita pelo gestor de cada departamento. ${led ? 'Você aprova os lançamentos de <b>' + esc(led.name) + '</b>.' : 'Como você não é gestor de nenhum departamento, não há lançamentos para você aprovar.'}</div></div>` : ''}
+      ${V.card('', V.entryTable(list, { actions, select: tab === 'pendente', emptyMsg: tab === 'pendente' ? (P.isGlobal(u) && led ? 'Nenhum lançamento de ' + esc(led.name) + ' aguardando aprovação.' : 'Nenhum lançamento aguardando aprovação.') : 'Nada por aqui.' }), { cls: 'flush' })}`;
   };
 
   /* ---------- Metas ---------- */
