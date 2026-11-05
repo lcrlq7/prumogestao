@@ -359,6 +359,13 @@ window.P = window.P || {};
         db.settings.companyName = '2S Consultoria e Serviços';
         migrated = true;
       }
+      // lançamento de gestor, gerência e diretoria não passa por aprovação: os que ficaram pendentes por regra antiga são aprovados
+      const noReview = new Set(db.users.filter(u => u.role !== 'employee').map(u => u.id));
+      (db.entries || []).forEach(e => {
+        if (e.status === 'pendente' && noReview.has(e.userId)) {
+          e.status = 'aprovado'; (e.history = e.history || []).push({ at: P.date.stamp(), by: e.userId, action: 'Aprovado', note: 'Lançamento de cargo sem aprovação' }); migrated = true;
+        }
+      });
       db.users.filter(u => u.role === 'manager').forEach(manager => {
         if (!(manager.capacity > 0)) { manager.capacity = db.settings.defaultCapacity || 32; migrated = true; }
         if (!(manager.weeklyGoal > 0)) { manager.weeklyGoal = Math.round(manager.capacity * 0.94); migrated = true; }
