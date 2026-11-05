@@ -201,7 +201,8 @@
         hist(o, parts.join(' · ') || 'Comentário', ns === 'nao_concluido' ? 'Motivo: ' + rs + (cm ? ' · ' + cm : '') : cm);
         P.audit(u, 'OS atualizada', o.id, o.code + ' · ' + (parts.join(' · ') || cm));
         if (o.by !== u.id) notify([o.by], { title: 'OS atualizada: ' + o.code, text: o.company + ' · ' + STATUS[o.status][0] });
-        done('OS atualizada.');
+        const pt = (P.respPoint && P.respPoint(u, 'os', o, o.by)) || '';
+        done('OS atualizada.' + pt);
       }
     });
   };
