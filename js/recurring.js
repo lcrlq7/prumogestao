@@ -195,13 +195,13 @@
       <p class="fine span3"><b>Tarefa automática por regime tributário</b> (opcional). Marque os regimes: todas as empresas ativas de cada regime recebem esta tarefa. Empresa nova, ou que mudar de regime, entra e sai sozinha.</p>
       <div class="span3 reg-checks">${Object.entries(P.REGIMES).map(([k, v]) => `<label class="check-inline"><input type="checkbox" class="ac-reg" value="${k}" ${on.has(k) ? 'checked' : ''}> ${esc(v.label)}</label>`).join('')}</div>
       <label class="field"><span>É recorrente?</span><select id="ac-freq"><option value="diaria" ${isDaily(first) ? 'selected' : ''}>Sim, todo dia útil (segunda a sexta)</option><option value="semanal" ${isWeekly(first) ? 'selected' : ''}>Sim, toda semana</option><option value="mensal" ${isQ(first) || isUnica(first) || isDaily(first) || isWeekly(first) ? '' : 'selected'}>Sim, todo mês</option><option value="trimestral" ${isQ(first) ? 'selected' : ''}>Sim, trimestral (jan, abr, jul e out)</option><option value="unica" ${isUnica(first) ? 'selected' : ''}>Não, só uma vez</option></select></label>
-      <label class="field ac-rec ac-mon" ${isUnica(first) || isDaily(first) || isWeekly(first) ? 'style="display:none"' : ''}><span>Dia do prazo</span><input type="number" id="ac-day" min="1" max="31" value="${first.day || 20}"></label>
-      <label class="field ac-wk" ${isWeekly(first) ? '' : 'style="display:none"'}><span>Dia da semana</span><select id="ac-wd">${WDAYS.map((n, i) => `<option value="${i}" ${Number(first.wday == null ? 1 : first.wday) === i ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Começa em</span><input type="month" id="ac-start" value="${(first.start || ym(P.today())).slice(0, 7)}"></label>
-      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Repetir quantas vezes? <small class="muted">(em branco = sem fim)</small></span><input type="number" id="ac-n" min="1" max="999" placeholder="Sem limite" value="${first.reps || ''}"></label>
-      <label class="field ac-rec" ${isUnica(first) ? 'style="display:none"' : ''}><span>Ou terminar em <small class="muted">(opcional)</small></span><input type="date" id="ac-end" value="${endIso(first)}"></label>
-      <label class="field ac-once" ${isUnica(first) ? '' : 'style="display:none"'}><span>Prazo (data)</span><input type="date" id="ac-date" value="${first.date || D.iso(D.add(P.today(), 7))}"></label>
-      <label class="field check span3 ac-rec ac-mon" ${isUnica(first) || isDaily(first) || isWeekly(first) ? 'style="display:none"' : ''}><input type="checkbox" id="ac-bd" ${first.businessDay === false ? '' : 'checked'}><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
+      <label class="field ac-rec ac-mon" ${isUnica(first) || isDaily(first) || isWeekly(first) ? 'data-st="display:none"' : ''}><span>Dia do prazo</span><input type="number" id="ac-day" min="1" max="31" value="${first.day || 20}"></label>
+      <label class="field ac-wk" ${isWeekly(first) ? '' : 'data-st="display:none"'}><span>Dia da semana</span><select id="ac-wd">${WDAYS.map((n, i) => `<option value="${i}" ${Number(first.wday == null ? 1 : first.wday) === i ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="field ac-rec" ${isUnica(first) ? 'data-st="display:none"' : ''}><span>Começa em</span><input type="month" id="ac-start" value="${(first.start || ym(P.today())).slice(0, 7)}"></label>
+      <label class="field ac-rec" ${isUnica(first) ? 'data-st="display:none"' : ''}><span>Repetir quantas vezes? <small class="muted">(em branco = sem fim)</small></span><input type="number" id="ac-n" min="1" max="999" placeholder="Sem limite" value="${first.reps || ''}"></label>
+      <label class="field ac-rec" ${isUnica(first) ? 'data-st="display:none"' : ''}><span>Ou terminar em <small class="muted">(opcional)</small></span><input type="date" id="ac-end" value="${endIso(first)}"></label>
+      <label class="field ac-once" ${isUnica(first) ? '' : 'data-st="display:none"'}><span>Prazo (data)</span><input type="date" id="ac-date" value="${first.date || D.iso(D.add(P.today(), 7))}"></label>
+      <label class="field check span3 ac-rec ac-mon" ${isUnica(first) || isDaily(first) || isWeekly(first) ? 'data-st="display:none"' : ''}><input type="checkbox" id="ac-bd" ${first.businessDay === false ? '' : 'checked'}><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>
       <details class="span3 ac-cos"><summary>Escolher as empresas uma a uma <span class="muted" id="ac-co-n"></span></summary>
         <p class="fine">Marque ou desmarque para tirar ou colocar empresas nesta tarefa. Começa já marcada pelos regimes escolhidos acima. Pode marcar empresas mesmo sem escolher regime: elas recebem a tarefa.</p>
         <input type="search" id="ac-co-q" placeholder="Buscar empresa" autocomplete="off" aria-label="Buscar empresa">
@@ -326,13 +326,13 @@
     const sel = $('#nt-act'); if (sel) { sel.addEventListener('change', putDue); putDue(); }
     due.closest('.field').insertAdjacentHTML('afterend', `
       <label class="field check span3"><input type="checkbox" id="nt-rep"><span><b>Repetir</b> (um único cadastro gera a tarefa sozinho, sem precisar atribuir de novo)</span></label>
-      <label class="field span3 nt-rep-f" style="display:none"><span>Com que frequência?</span><select id="nt-rep-freq"><option value="mensal">Todo mês</option><option value="semanal">Toda semana</option><option value="diaria">Todo dia útil (segunda a sexta)</option></select></label>
-      <label class="field nt-rep-f nt-rep-w" style="display:none"><span>Dia da semana</span><select id="nt-rep-wd">${WDAYS.map((n, i) => `<option value="${i}" ${i === D.parse(due.value).getDay() ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-      <label class="field nt-rep-f nt-rep-m" style="display:none"><span>Dia do prazo (todo mês)</span><input type="number" id="nt-rep-day" min="1" max="31" value="${D.parse(due.value).getDate()}"></label>
-      <label class="field nt-rep-f" style="display:none"><span>Começa em</span><input type="date" id="nt-rep-start" value="${D.iso(P.today())}"></label>
-      <label class="field nt-rep-f" style="display:none"><span>Repetir quantas vezes? <small class="muted">(em branco = sem fim)</small></span><input type="number" id="nt-rep-n" min="1" max="999" placeholder="Sem limite"></label>
-      <label class="field nt-rep-f" style="display:none"><span>Ou terminar em <small class="muted">(opcional)</small></span><input type="date" id="nt-rep-end"></label>
-      <label class="field check span3 nt-rep-f nt-rep-m" style="display:none"><input type="checkbox" id="nt-rep-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>`);
+      <label class="field span3 nt-rep-f" data-st="display:none"><span>Com que frequência?</span><select id="nt-rep-freq"><option value="mensal">Todo mês</option><option value="semanal">Toda semana</option><option value="diaria">Todo dia útil (segunda a sexta)</option></select></label>
+      <label class="field nt-rep-f nt-rep-w" data-st="display:none"><span>Dia da semana</span><select id="nt-rep-wd">${WDAYS.map((n, i) => `<option value="${i}" ${i === D.parse(due.value).getDay() ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="field nt-rep-f nt-rep-m" data-st="display:none"><span>Dia do prazo (todo mês)</span><input type="number" id="nt-rep-day" min="1" max="31" value="${D.parse(due.value).getDate()}"></label>
+      <label class="field nt-rep-f" data-st="display:none"><span>Começa em</span><input type="date" id="nt-rep-start" value="${D.iso(P.today())}"></label>
+      <label class="field nt-rep-f" data-st="display:none"><span>Repetir quantas vezes? <small class="muted">(em branco = sem fim)</small></span><input type="number" id="nt-rep-n" min="1" max="999" placeholder="Sem limite"></label>
+      <label class="field nt-rep-f" data-st="display:none"><span>Ou terminar em <small class="muted">(opcional)</small></span><input type="date" id="nt-rep-end"></label>
+      <label class="field check span3 nt-rep-f nt-rep-m" data-st="display:none"><input type="checkbox" id="nt-rep-bd" checked><span>Se cair no fim de semana, antecipa para o dia útil anterior</span></label>`);
     // "todo dia útil": some o dia do mês (não se aplica)
     // opções avançadas: "Repetir" e "Sem prazo" saem da frente e ficam recolhidas
     const adv = document.createElement('details'); adv.className = 'adv'; adv.innerHTML = '<summary>Opções avançadas (repetir, sem prazo)</summary><div class="fgrid"></div>';
@@ -467,10 +467,10 @@
         <label class="field span3"><span>Departamento</span><select id="ar-dept">${depts.map(d => `<option value="${d.id}" ${d.id === d0.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
         <label class="field span2"><span>Atividade</span><select id="ar-act">${actOpts(d0.id)}</select></label>
         <label class="field"><span>Peso (pontos)</span><input type="number" id="ar-w" min="0.05" step="0.05"></label>
-        <label class="field span2 ar-new" style="display:none"><span>Nome da nova atividade</span><input id="ar-name" placeholder="Ex.: Apuração do Simples Nacional"></label>
-        <label class="field ar-new" style="display:none"><span>Unidade</span><input id="ar-unit" placeholder="Ex.: empresa/mês"></label>
+        <label class="field span2 ar-new" data-st="display:none"><span>Nome da nova atividade</span><input id="ar-name" placeholder="Ex.: Apuração do Simples Nacional"></label>
+        <label class="field ar-new" data-st="display:none"><span>Unidade</span><input id="ar-unit" placeholder="Ex.: empresa/mês"></label>
         <label class="field span3"><span>Aplicar a</span><select id="ar-mode"><option value="pick">Empresas que eu escolher</option>${Object.entries(P.REGIMES).map(([k, v]) => `<option value="regime:${k}">Todas as empresas do regime: ${esc(v.label)}</option>`).join('')}</select></label>
-        <div class="span3 ar-regime" id="ar-regime" style="display:none">
+        <div class="span3 ar-regime" id="ar-regime" data-st="display:none">
           <label class="check-inline"><input type="checkbox" id="ar-cart" checked> Só empresas atendidas por este departamento (carteira ou cadastro da empresa)</label>
           <p class="fine" id="ar-regime-n"></p>
           <p class="fine">${V.icon('info')} A lista é automática: empresa nova nesse regime, ou que mudar para ele, já recebe esta tarefa. Se sair do regime, a tarefa pendente dela some.</p>
@@ -480,7 +480,7 @@
         <div class="span3 ar-chips ar-pick" id="ar-chips"><p class="fine">Nenhuma empresa escolhida.</p></div>
         <label class="field span3"><span>Repetição</span><select id="ar-freq"><option value="diaria">Todo dia útil (segunda a sexta)</option><option value="semanal">Toda semana</option><option value="mensal" selected>Todo mês</option><option value="trimestral">Trimestral: o prazo cai em jan, abr, jul e out (mês seguinte ao fim de cada trimestre)</option></select></label>
         <label class="field ar-mon"><span>Dia do prazo</span><input type="number" id="ar-day" min="1" max="31" value="20"></label>
-        <label class="field ar-wk" style="display:none"><span>Dia da semana</span><select id="ar-wd">${WDAYS.map((n, i) => `<option value="${i}" ${i === 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label class="field ar-wk" data-st="display:none"><span>Dia da semana</span><select id="ar-wd">${WDAYS.map((n, i) => `<option value="${i}" ${i === 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <label class="field"><span>Começa em</span><input type="date" id="ar-start" value="${D.iso(P.today())}"></label>
         <label class="field"><span>Repetir quantas vezes? <small class="muted">(em branco = sem fim)</small></span><input type="number" id="ar-n" min="1" max="999" placeholder="Sem limite"></label>
         <label class="field"><span>Ou terminar em <small class="muted">(opcional)</small></span><input type="date" id="ar-end"></label>

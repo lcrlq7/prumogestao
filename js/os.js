@@ -79,7 +79,7 @@
       <div class="toolbar">${V.tabs([].concat(tabs.diretoria.length || s.tab === 'diretoria' ? [['diretoria', 'Aguardando diretoria · inadimplência', tabs.diretoria.length]] : []).concat([['abertas', 'Em aberto', tabs.abertas.length], ['atrasadas', 'Atrasadas', tabs.atrasadas.length], ['aguardando', 'Aguardando cliente', tabs.aguardando.length], ['concluidas', 'Concluídas', tabs.concluidas.length], ['nao', 'Não concluídas', tabs.nao.length], ['todas', 'Todas', tabs.todas.length]]), s.tab, 'osv.tab')}</div>
       ${V.card('', shown.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Nº</th><th>Empresa</th><th>Demanda</th><th>Departamento</th><th>Tipo</th><th>Prazo</th><th>Situação</th><th>Aberta por</th><th class="actions-col"></th></tr></thead><tbody>
         ${shown.map(o => `<tr class="${o.status === 'nao_concluido' ? 'inactive' : ''}">
-          <td class="mono nowrap">${esc(o.code)}</td><td><b>${esc(o.company)}</b>${o.status === 'aprovacao' ? `<small class="obs" style="color:var(--bad,#c0392b)">${icon('alert')} Empresa inadimplente: aguardando a diretoria</small>` : ''}</td>
+          <td class="mono nowrap">${esc(o.code)}</td><td><b>${esc(o.company)}</b>${o.status === 'aprovacao' ? `<small class="obs" data-st="color:var(--bad,#c0392b)">${icon('alert')} Empresa inadimplente: aguardando a diretoria</small>` : ''}</td>
           <td>${esc(o.demand.length > 90 ? o.demand.slice(0, 90) + '…' : o.demand)}</td>
           <td>${esc((P.dept(o.deptId) || {}).name || '—')}</td><td>${esc(o.type)}</td>
           <td class="nowrap ${late(o) ? 'neg' : ''}">${D.fmt(o.due)}</td><td>${badge(o)}</td>
@@ -128,7 +128,7 @@
         st().tab = needs ? 'diretoria' : 'abertas'; done(needs ? 'OS ' + code + ' aberta e enviada para a diretoria aprovar (empresa inadimplente).' : 'OS ' + code + ' aberta.');
       }
     });
-    companyPicker(compList, 'os-co', name => { const w = $('#os-co-warn'); if (w) w.innerHTML = P.delinq && P.delinq.needsApproval(name) ? `<div class="banner warn sm" style="margin-top:8px">${icon('alert')}<div><b>Empresa ${P.delinq.describe(name)}.</b> Esta OS vai primeiro para a <b>diretoria aprovar a continuidade</b>; depois segue para o departamento.</div></div>` : ''; });
+    companyPicker(compList, 'os-co', name => { const w = $('#os-co-warn'); if (w) w.innerHTML = P.delinq && P.delinq.needsApproval(name) ? `<div class="banner warn sm" data-st="margin-top:8px">${icon('alert')}<div><b>Empresa ${P.delinq.describe(name)}.</b> Esta OS vai primeiro para a <b>diretoria aprovar a continuidade</b>; depois segue para o departamento.</div></div>` : ''; });
   };
   /*
    * Seletor de empresa com busca: mostra a lista inteira ao clicar, filtra por nome, código ou CNPJ,

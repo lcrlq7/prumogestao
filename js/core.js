@@ -3,6 +3,14 @@
 window.P = window.P || {};
 (function (P) {
 
+  /* ---------- Estilos dos modelos de HTML ---------- */
+  // A política de segurança (CSP) não aceita style="..." escrito no HTML; os modelos usam data-st="..." e aqui o estilo é aplicado
+  // pelo JavaScript (permitido), antes de a tela aparecer.
+  const applySt = el => { if (el.nodeType === 1 && el.hasAttribute('data-st')) el.style.cssText = el.getAttribute('data-st'); };
+  const scanSt = root => { applySt(root); if (root.querySelectorAll) root.querySelectorAll('[data-st]').forEach(applySt); };
+  new MutationObserver(list => list.forEach(m => m.type === 'attributes' ? applySt(m.target) : m.addedNodes.forEach(n => n.nodeType === 1 && scanSt(n))))
+    .observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-st'] });
+
   /* ---------- Datas ---------- */
   /*
    * Feriados calculados para qualquer ano: nacionais, estaduais (RJ) e municipais (Volta Redonda).

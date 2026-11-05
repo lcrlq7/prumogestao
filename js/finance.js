@@ -254,8 +254,8 @@
       ${sel('status', [['pendentes', 'Pendentes'], ['realizados', 'Realizados'], ['atrasados', 'Atrasados'], ['previsto', 'Previstos'], ['ajustado', 'Ajustados'], ['parcial', 'Parcialmente pagos'], ['cancelado', 'Cancelados']], 'Status')}
       ${sel('period', Object.entries(PERIODS), 'Periodicidade')}
       ${sel('rec', [['ativos', 'Recorrências ativas'], ['inativos', 'Pausadas/encerradas']], 'Recorrência')}
-      <label class="field check" style="align-self:end"><input type="checkbox" ${f.vac === '1' ? 'checked' : ''} data-act="finToggleVac"><span>Só quem tem férias no período</span></label>
-      <div class="field" style="align-self:end">${V.btn('Limpar filtros', { act: 'finClear', cls: 'ghost sm', icon: 'x' })}</div>
+      <label class="field check" data-st="align-self:end"><input type="checkbox" ${f.vac === '1' ? 'checked' : ''} data-act="finToggleVac"><span>Só quem tem férias no período</span></label>
+      <div class="field" data-st="align-self:end">${V.btn('Limpar filtros', { act: 'finClear', cls: 'ghost sm', icon: 'x' })}</div>
     </div></div></section>`;
   }
 
@@ -602,7 +602,7 @@
   A.finRecHist = el => {
     const r = recs().find(x => x.id === el.dataset.id); if (!r) return;
     const es = entries().filter(e => e.recId === r.id).sort((a, b) => a.a < b.a ? 1 : -1);
-    P.ui.modal({ title: esc(r.desc), wide: true, cancel: 'Fechar', body: `<h4 class="sub-h">Lançamentos (${es.length})</h4><div class="table-wrap" style="max-height:300px;overflow:auto"><table class="tbl compact"><thead><tr><th>Referência</th><th class="num">Final</th><th class="num">Pago</th><th>Status</th></tr></thead><tbody>${es.map(e => `<tr><td>${D.fmt(e.a)} a ${D.fmt(e.b)}</td><td class="num">${brl(e.final)}</td><td class="num">${brl(e.paid)}</td><td>${stBadge(statusOf(e))}</td></tr>`).join('')}</tbody></table></div>
+    P.ui.modal({ title: esc(r.desc), wide: true, cancel: 'Fechar', body: `<h4 class="sub-h">Lançamentos (${es.length})</h4><div class="table-wrap" data-st="max-height:300px;overflow:auto"><table class="tbl compact"><thead><tr><th>Referência</th><th class="num">Final</th><th class="num">Pago</th><th>Status</th></tr></thead><tbody>${es.map(e => `<tr><td>${D.fmt(e.a)} a ${D.fmt(e.b)}</td><td class="num">${brl(e.final)}</td><td class="num">${brl(e.paid)}</td><td>${stBadge(statusOf(e))}</td></tr>`).join('')}</tbody></table></div>
       <h4 class="sub-h">Histórico da recorrência</h4><ul class="day-list">${(r.history || []).slice().reverse().map(h => `<li><span>${esc(h.action)}<small>${esc(h.at)}</small></span><b>${h.value != null ? brl(h.value) : ''}</b></li>`).join('')}</ul>` });
   };
   A.finClose = () => {

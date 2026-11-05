@@ -155,7 +155,7 @@
             const cs = P.colors.get(u), pick = (k, label, def) => `<label class="color-pick"><input type="color" data-color-pick="${k}" value="${cs[k] || def}" aria-label="${label}"><span>${label}</span></label>`;
             return `<div class="color-box"><b>Minhas cores</b><small class="muted">Só você vê estas cores, neste navegador.</small>
               <div class="color-picks">${pick('accent', 'Destaque (botões e links)', '#17587d')}${pick('side', 'Menu lateral', '#0f2231')}${pick('bg', 'Fundo das páginas', '#f2f5f8')}</div>
-              <div class="color-presets">${P.colors.presets.map((p, i) => `<button type="button" class="swatch" data-act="colorPreset" data-i="${i}" title="${p[0]}" aria-label="Paleta ${p[0]}"><i style="background:${p[1] || '#17587d'}"></i><i style="background:${p[2] || '#0f2231'}"></i><span>${p[0]}</span></button>`).join('')}</div>
+              <div class="color-presets">${P.colors.presets.map((p, i) => `<button type="button" class="swatch" data-act="colorPreset" data-i="${i}" title="${p[0]}" aria-label="Paleta ${p[0]}"><i data-st="background:${p[1] || '#17587d'}"></i><i data-st="background:${p[2] || '#0f2231'}"></i><span>${p[0]}</span></button>`).join('')}</div>
               ${V.btn('Restaurar cores padrão', { act: 'colorReset', icon: 'refresh', cls: 'sm ghost' })}</div>`;
           })()}
           <div class="pref-rows">

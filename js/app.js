@@ -241,8 +241,8 @@
   function loginView(err) {
     const mode = S.authMode || 'login';
     const company = esc(P.store.db.settings.companyName);
-    const r = (d, html) => `<div class="rise" style="--d:${d}">${html}</div>`;
-    const logo = `<div class="auth-logo rise" style="--d:0">${icon('plumb')}<div><b>Prumo</b><small class="muted" style="display:block;font-size:12px">${company}</small></div></div>`;
+    const r = (d, html) => `<div class="rise" data-st="--d:${d}">${html}</div>`;
+    const logo = `<div class="auth-logo rise" data-st="--d:0">${icon('plumb')}<div><b>Prumo</b><small class="muted" data-st="display:block;font-size:12px">${company}</small></div></div>`;
     let card;
     if (mode === 'newpass') {
       // Convite (primeiro acesso) ou link de recuperação: a pessoa define a própria senha
@@ -262,7 +262,7 @@
            ${r(3, `<button type="button" class="btn primary block lg" data-act="authMode" data-mode="login">${icon('left')}<span>Ir para o login</span></button>`)}`
         : `${logo}${r(1, `<h2>Primeiro acesso</h2><p class="lede">Use o código de convite que você recebeu da diretoria ou do seu gestor.</p>`)}
            <form class="auth-form" id="code-form" novalidate>
-             ${r(2, `<label class="field"><span>Código de convite</span><span class="in-ic">${icon('key')}<input name="code" id="code-code" autocomplete="off" placeholder="XXXX-XXXX-XXXX" style="text-transform:uppercase;letter-spacing:.08em" value="${esc(S.codeDraft || '')}" required></span></label>`)}
+             ${r(2, `<label class="field"><span>Código de convite</span><span class="in-ic">${icon('key')}<input name="code" id="code-code" autocomplete="off" placeholder="XXXX-XXXX-XXXX" data-st="text-transform:uppercase;letter-spacing:.08em" value="${esc(S.codeDraft || '')}" required></span></label>`)}
              ${r(2, `<label class="field"><span>Nome completo</span><span class="in-ic">${icon('user')}<input name="name" autocomplete="name" required></span></label>`)}
              ${r(3, `<label class="field"><span>E-mail</span><span class="in-ic">${icon('mail')}<input type="email" name="email" autocomplete="username" placeholder="nome@empresa.com.br" required></span></label>`)}
              ${r(3, `<label class="field"><span>Senha</span><span class="in-ic pass">${icon('lock')}<input type="password" name="password" autocomplete="new-password" placeholder="Mínimo de 8 caracteres, letras e números" required></span></label>`)}
@@ -313,7 +313,7 @@
           <div class="fl f2" data-d="32"><small>Alerta de multa</small><b class="crit">2 vencendo</b></div>
           <div class="fl f3" data-d="10"><small>Carga da equipe</small><b class="gold">82%</b></div>
         </div>
-        <p class="auth-foot rise" style="--d:5">© ${P.today().getFullYear()} ${company}</p>
+        <p class="auth-foot rise" data-st="--d:5">© ${P.today().getFullYear()} ${company}</p>
       </section>
       <section class="auth-panel"><div class="auth-card">${card}</div></section>
     </div>`;
@@ -1071,8 +1071,8 @@
         const plan = api.planPortfolioImport(U(), $('#cart-user').value, rows);
         A._cart = { plan, name: file.name };
         const tag = { nova: ['es-aprovado', 'Incluir'], transferir: ['es-pendente', 'Transferir'], igual: ['st-sem', 'Sem alteração'], erro: ['es-recusado', 'Erro'] };
-        box.innerHTML = `<div class="strip" style="margin:12px 0"><div><span>Incluir</span><b>${plan.novas}</b></div><div><span>Transferir</span><b>${plan.transferir}</b></div><div><span>Já na carteira</span><b>${plan.iguais}</b></div><div><span>Com erro</span><b>${plan.erros}</b></div></div>
-          <div class="table-wrap" style="max-height:320px;overflow:auto"><table class="tbl compact"><thead><tr><th>Linha</th><th>Código</th><th>Empresa</th><th>Resultado</th><th>Detalhe</th></tr></thead><tbody>
+        box.innerHTML = `<div class="strip" data-st="margin:12px 0"><div><span>Incluir</span><b>${plan.novas}</b></div><div><span>Transferir</span><b>${plan.transferir}</b></div><div><span>Já na carteira</span><b>${plan.iguais}</b></div><div><span>Com erro</span><b>${plan.erros}</b></div></div>
+          <div class="table-wrap" data-st="max-height:320px;overflow:auto"><table class="tbl compact"><thead><tr><th>Linha</th><th>Código</th><th>Empresa</th><th>Resultado</th><th>Detalhe</th></tr></thead><tbody>
           ${plan.lines.map(l => `<tr><td class="num">${l.row}</td><td class="mono">${esc(l.companyCode || l.code || '—')}</td><td>${esc(l.company || l.name || '—')}</td><td><span class="badge ${tag[l.status][0]}">${tag[l.status][1]}</span></td><td>${esc(l.detail)}</td></tr>`).join('')}
           </tbody></table></div>`;
       } catch (e) {
@@ -1211,33 +1211,33 @@
       };
       modal({
         title: 'Ajustar foto de perfil', submit: 'Salvar foto', wide: true,
-        body: `<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;justify-content:center">
-            <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
-              <div id="ph-box" style="position:relative;width:min(${V0}px,72vw);aspect-ratio:1;touch-action:none;cursor:grab;border-radius:12px;overflow:hidden;background:repeating-conic-gradient(#ddd 0 25%,#fff 0 50%) 0 0/16px 16px">
-                <canvas id="ph-cv" width="${V0 * 2}" height="${V0 * 2}" style="width:100%;height:100%;display:block"></canvas>
-                <div style="position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.4);outline:2px solid rgba(255,255,255,.9)"></div>
+        body: `<div data-st="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;justify-content:center">
+            <div data-st="display:flex;flex-direction:column;align-items:center;gap:10px">
+              <div id="ph-box" data-st="position:relative;width:min(${V0}px,72vw);aspect-ratio:1;touch-action:none;cursor:grab;border-radius:12px;overflow:hidden;background:repeating-conic-gradient(#ddd 0 25%,#fff 0 50%) 0 0/16px 16px">
+                <canvas id="ph-cv" width="${V0 * 2}" height="${V0 * 2}" data-st="width:100%;height:100%;display:block"></canvas>
+                <div data-st="position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.4);outline:2px solid rgba(255,255,255,.9)"></div>
               </div>
-              <small class="muted" style="text-align:center;max-width:${V0}px">Arraste para posicionar · role a rodinha ou use o controle para aproximar/afastar</small>
+              <small class="muted" data-st="text-align:center;max-width:${V0}px">Arraste para posicionar · role a rodinha ou use o controle para aproximar/afastar</small>
             </div>
-            <div style="display:flex;flex-direction:column;gap:14px;min-width:220px;flex:1;max-width:320px">
+            <div data-st="display:flex;flex-direction:column;gap:14px;min-width:220px;flex:1;max-width:320px">
               <label class="field"><span>Zoom <b id="ph-zv"></b></span>
-                <div style="display:flex;align-items:center;gap:8px"><button type="button" class="btn sm ghost" id="ph-zm" aria-label="Afastar">−</button>
-                <input type="range" id="ph-zoom" min="1" max="8" step="0.01" style="flex:1" aria-label="Zoom">
+                <div data-st="display:flex;align-items:center;gap:8px"><button type="button" class="btn sm ghost" id="ph-zm" aria-label="Afastar">−</button>
+                <input type="range" id="ph-zoom" min="1" max="8" step="0.01" data-st="flex:1" aria-label="Zoom">
                 <button type="button" class="btn sm ghost" id="ph-zp" aria-label="Aproximar">+</button></div></label>
               <div class="field"><span>Posição</span>
-                <div style="display:grid;grid-template-columns:repeat(3,40px);gap:4px;justify-content:start">
+                <div data-st="display:grid;grid-template-columns:repeat(3,40px);gap:4px;justify-content:start">
                   <span></span><button type="button" class="btn sm ghost" data-mv="0,-1" aria-label="Para cima">↑</button><span></span>
                   <button type="button" class="btn sm ghost" data-mv="-1,0" aria-label="Para a esquerda">←</button><button type="button" class="btn sm ghost" id="ph-center" title="Centralizar">•</button><button type="button" class="btn sm ghost" data-mv="1,0" aria-label="Para a direita">→</button>
                   <span></span><button type="button" class="btn sm ghost" data-mv="0,1" aria-label="Para baixo">↓</button><span></span>
                 </div></div>
-              <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <div data-st="display:flex;flex-wrap:wrap;gap:8px">
                 <button type="button" class="btn sm ghost" id="ph-fit">Foto inteira</button>
                 <button type="button" class="btn sm ghost" id="ph-fill">Preencher</button>
                 <button type="button" class="btn sm ghost" id="ph-rot">${icon('refresh')}<span>Girar 90°</span></button>
               </div>
-              <div style="display:flex;align-items:center;gap:12px"><span class="muted">Prévia:</span>
-                <canvas id="ph-prev" width="128" height="128" style="width:64px;height:64px;border-radius:50%"></canvas>
-                <canvas id="ph-prev2" width="64" height="64" style="width:32px;height:32px;border-radius:50%"></canvas></div>
+              <div data-st="display:flex;align-items:center;gap:12px"><span class="muted">Prévia:</span>
+                <canvas id="ph-prev" width="128" height="128" data-st="width:64px;height:64px;border-radius:50%"></canvas>
+                <canvas id="ph-prev2" width="64" height="64" data-st="width:32px;height:32px;border-radius:50%"></canvas></div>
             </div>
           </div>`,
         onSubmit: () => {
@@ -1336,7 +1336,7 @@
           </div>
           <button type="button" class="btn primary" data-act="icGen">${icon('key')}<span>Gerar código</span></button>
           <div id="ic-new"></div>
-          <h3 style="margin:18px 0 8px">Códigos gerados</h3>
+          <h3 data-st="margin:18px 0 8px">Códigos gerados</h3>
           <div id="ic-list"><p class="muted">Carregando…</p></div>`
       });
       A._icLoad();
@@ -1358,8 +1358,8 @@
       el.disabled = true;
       try {
         const code = await P.backend.createInviteCode($('#ic-role').value, $('#ic-dept').value, $('#ic-days').value);
-        $('#ic-new').innerHTML = `<div class="auth-msg ok" style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${icon('check')}<span>Código gerado — copie agora, ele não será mostrado de novo:</span>
-          <code style="font-size:18px;letter-spacing:.1em;font-weight:700" id="ic-code">${esc(code)}</code>
+        $('#ic-new').innerHTML = `<div class="auth-msg ok" data-st="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${icon('check')}<span>Código gerado — copie agora, ele não será mostrado de novo:</span>
+          <code data-st="font-size:18px;letter-spacing:.1em;font-weight:700" id="ic-code">${esc(code)}</code>
           <button type="button" class="btn sm" data-act="icCopy">${icon('copy')}<span>Copiar</span></button></div>`;
         A._icLoad();
       } catch (e) { modalErr(e.message); }
@@ -1563,7 +1563,7 @@
       A._receita = null; A._lookingUp = null; A._autoToken = null;
       modal({
         title: el.dataset.id ? 'Editar empresa' : 'Nova empresa', wide: true,
-        body: V.companyForm(c) + (el.dataset.id && U().role === 'admin' ? `<div class="banner info sm" style="margin-top:12px">${icon('wallet')}<div><b>PLR:</b> ${(P.store.db.companyFees || []).some(f => f.id === c.id && f.inRateio) ? 'esta empresa <b>entra no rateio</b>.' : 'esta empresa não está no rateio.'} <button type="button" class="link" data-act="plrCompany" data-id="${esc(c.id)}">Honorário e rateio</button></div></div>` : ''),
+        body: V.companyForm(c) + (el.dataset.id && U().role === 'admin' ? `<div class="banner info sm" data-st="margin-top:12px">${icon('wallet')}<div><b>PLR:</b> ${(P.store.db.companyFees || []).some(f => f.id === c.id && f.inRateio) ? 'esta empresa <b>entra no rateio</b>.' : 'esta empresa não está no rateio.'} <button type="button" class="link" data-act="plrCompany" data-id="${esc(c.id)}">Honorário e rateio</button></div></div>` : ''),
         onSubmit: m => {
           const r = api.saveCompany(U(), {
             id: el.dataset.id, code: $('#co-code', m).value, name: $('#co-name', m).value, tradeName: $('#co-trade', m).value, cnpj: $('#co-cnpj', m).value,

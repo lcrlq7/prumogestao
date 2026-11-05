@@ -202,7 +202,7 @@
         <div class="ag-ph"><b>Quem vai participar?</b><span id="evx-n">0 selecionado(s)</span></div>
         <div class="ag-groups">${order.map(k => `<button type="button" class="chip-btn" data-act="evsGroup" data-k="${esc(k)}">${icon('plus')}${esc(k)}</button>`).join('')}<button type="button" class="chip-btn ghost" data-act="evsGroup" data-k="">${icon('x')}Limpar</button></div>
         <div class="ag-people" id="evx-people">${order.map(k => `<div class="ag-dg" data-k="${esc(k)}"><small>${esc(k)}${fits(k) ? ' · área do evento' : ''}</small>${groups[k].map(p => `<label class="ag-p"><input type="checkbox" value="${p.id}" ${p.id === e.createdBy && isFirst ? 'checked' : ''}>${V.avatar(p)}<span><b>${esc(p.name)}</b><small>${esc(P.ROLES[p.role])}${p.id === e.createdBy ? ' · indicou' : ''}</small></span></label>`).join('')}</div>`).join('')}</div>
-        <div class="fgrid" style="margin-top:12px">
+        <div class="fgrid" data-st="margin-top:12px">
           <label class="field"><span>Responder até</span><input type="date" id="evx-dl" min="${today()}" max="${e.date}" value="${dl}"></label>
           ${isFirst ? `<label class="field span2 check-inline evx-pub"><input type="checkbox" id="evx-pub" checked> Mostrar o evento no calendário de todo o escritório</label>` : ''}
         </div>

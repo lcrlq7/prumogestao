@@ -38,8 +38,8 @@
       <label class="btn ghost sm">${icon('plus')}<span>Escolher foto do grupo</span><input type="file" accept="image/jpeg,image/png,image/webp" id="grp-file" hidden></label>
       <button type="button" class="link" id="grp-nophoto" ${ph ? '' : 'hidden'}>Remover foto</button></div>
       <div class="fgrid"><label class="field span3"><span>Nome do grupo</span><input id="grp-name" maxlength="60" placeholder="Ex.: Equipe do almoço" value="${esc(g ? g.name : '')}"></label></div>
-      <p class="fine" style="margin:10px 0 6px">Quem participa <span class="muted" id="grp-n"></span></p>
-      <label class="in-ic chat-q" style="margin:0 0 8px">${icon('search')}<input type="search" id="grp-q" placeholder="Buscar pessoa" autocomplete="off"></label>
+      <p class="fine" data-st="margin:10px 0 6px">Quem participa <span class="muted" id="grp-n"></span></p>
+      <label class="in-ic chat-q" data-st="margin:0 0 8px">${icon('search')}<input type="search" id="grp-q" placeholder="Buscar pessoa" autocomplete="off"></label>
       <div class="grp-list">${pickerRows(u, sel)}</div>`;
   };
   // foto do grupo: recorta o centro em quadrado e reduz para 160 px (fica com poucos KB no banco)
@@ -86,7 +86,7 @@
     const u = U(), g = groups().find(x => x.id === st().conv); if (!u || !g || g.owner !== u.id) return;
     P.ui.modal({
       title: 'Gerenciar grupo', submit: 'Salvar',
-      body: form(u, g) + `<p style="margin-top:14px"><button type="button" class="btn ghost danger" data-act="chatGroupDelete">${icon('trash')}<span>Apagar o grupo</span></button></p>`,
+      body: form(u, g) + `<p data-st="margin-top:14px"><button type="button" class="btn ghost danger" data-act="chatGroupDelete">${icon('trash')}<span>Apagar o grupo</span></button></p>`,
       onSubmit: () => {
         const name = document.getElementById('grp-name').value.trim(), ids = chosen();
         if (name.length < 2) throw new Error('Dê um nome ao grupo.');

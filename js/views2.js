@@ -410,7 +410,7 @@
           <li class="clickable" data-go="funcionario/${r.user.id}" tabindex="0" role="link">
             <span class="rk-pos">${i + 1}</span>
             ${V.avatar(r.user)}
-            <div class="rk-main"><b>${esc(r.user.name)}</b><div class="rk-bar"><b style="width:${r.points / max * 100}%"></b></div></div>
+            <div class="rk-main"><b>${esc(r.user.name)}</b><div class="rk-bar"><b data-st="width:${r.points / max * 100}%"></b></div></div>
             <span class="rk-pts">${F.n(r.points)}<small>pontos</small></span>
             <span class="rk-util">${F.pct0(r.util)}<small>utilização</small></span>
             ${V.badge(r.status)}

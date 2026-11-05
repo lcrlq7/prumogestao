@@ -16,7 +16,7 @@
   V.comunicacao = function (u) {
     let html = orig.apply(this, arguments);
     const tgl = (extra) => `<button type="button" class="ibtn chat-side-toggle ${extra || ''}" data-act="chatSideToggle" aria-label="${isMin() ? 'Expandir a lista de conversas' : 'Recolher a lista de conversas'}" title="${isMin() ? 'Expandir a lista de conversas' : 'Recolher a lista de conversas'}">${icon('menu')}</button>`;
-    html = html.replace(/<div class="chat ([^"]*)">/, (m, c) => `<div class="chat ${c} ${isMin() ? 'side-min' : ''}" style="--cw:${sideW}px">`);
+    html = html.replace(/<div class="chat ([^"]*)">/, (m, c) => `<div class="chat ${c} ${isMin() ? 'side-min' : ''}" data-st="--cw:${sideW}px">`);
     html = html.replace('<div class="chat-side-h">', '<div class="chat-side-h">' + tgl('in-side'));
     html = html.replace('<header class="chat-h">', '<header class="chat-h">' + tgl('in-head'));
     // alça para arrastar e mudar a largura da lista

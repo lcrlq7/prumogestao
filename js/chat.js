@@ -215,7 +215,7 @@
   ];
   const STK = Object.fromEntries(STICKERS.map(s => [s[0], s]));
   const stickerOf = t => { const m = /^::fig:([a-z0-9-]+)::$/.exec(String(t || '')); return m && STK[m[1]] ? STK[m[1]] : null; };
-  const stickerHtml = s => `<div class="stk" style="--stk:${s[3]}" role="img" aria-label="Figurinha: ${esc(s[2])}"><span class="stk-e">${s[1]}</span><span class="stk-t">${esc(s[2])}</span></div>`;
+  const stickerHtml = s => `<div class="stk" data-st="--stk:${s[3]}" role="img" aria-label="Figurinha: ${esc(s[2])}"><span class="stk-e">${s[1]}</span><span class="stk-t">${esc(s[2])}</span></div>`;
   const previewText = t => stickerOf(t) ? 'Figurinha ' + stickerOf(t)[1] : t;
   const recent = {
     get: () => { try { return JSON.parse(localStorage.getItem('prumo.emojiRecent') || '[]'); } catch (e) { return []; } },
@@ -286,7 +286,7 @@
           <li><b>Conversas privadas:</b> qualquer pessoa pode conversar com qualquer colega. Só os dois participantes leem.</li>
           <li><b>Canais:</b> grupos por departamento e por nível (gestores, gerência, diretoria)</li>
           <li><b>Geral:</b> comunicados da diretoria para todo o escritório</li></ul>
-          <button type="button" class="btn primary" data-act="chatNewDm" style="margin-top:10px">${icon('plus')}<span>Nova conversa privada</span></button></div></section>`;
+          <button type="button" class="btn primary" data-act="chatNewDm" data-st="margin-top:10px">${icon('plus')}<span>Nova conversa privada</span></button></div></section>`;
     } else {
       const allMsgs = msgs().filter(m => m.conv === cur.id && !gone(m)).sort((a, b) => a.ts - b.ts);
       const lim = c.limit || 150, hiddenN = Math.max(0, allMsgs.length - lim), list = hiddenN ? allMsgs.slice(-lim) : allMsgs;
@@ -363,8 +363,8 @@
     const row = x => `<button type="button" class="cv new" data-act="chatPickDm" data-id="${esc(x.id)}" data-q="${esc((x.name + ' ' + sub(x)).toLowerCase())}">${V.avatar(x)}<span class="cv-t"><b>${esc(x.name)}</b><small>${esc(sub(x))}</small></span><span class="cv-start">${icon('message')}</span></button>`;
     P.ui.modal({
       title: 'Nova conversa privada', cancel: 'Fechar',
-      body: `<label class="in-ic chat-q" style="margin-bottom:10px">${icon('search')}<input type="search" id="dm-q" placeholder="Buscar por nome, cargo ou departamento" autocomplete="off"></label>
-        <div id="dm-list" class="cv-list" style="max-height:min(420px,55vh);overflow:auto">${people.map(row).join('')}</div>
+      body: `<label class="in-ic chat-q" data-st="margin-bottom:10px">${icon('search')}<input type="search" id="dm-q" placeholder="Buscar por nome, cargo ou departamento" autocomplete="off"></label>
+        <div id="dm-list" class="cv-list" data-st="max-height:min(420px,55vh);overflow:auto">${people.map(row).join('')}</div>
         <p class="cv-none" id="dm-none" hidden>Ninguém encontrado.</p>`
     });
     const inp = $('#dm-q');
@@ -473,7 +473,7 @@
     P.ui.modal({
       title: 'Apagar mensagem', cancel: 'Cancelar',
       body: `<p class="prose">Escolha como apagar esta mensagem.</p>
-        <div style="display:flex;flex-direction:column;gap:8px">
+        <div data-st="display:flex;flex-direction:column;gap:8px">
           ${m.from === u.id ? `<button type="button" class="btn danger" data-act="chatDelAll" data-id="${esc(m.id)}">${icon('trash')}<span>Apagar para todos</span></button>` : ''}
           <button type="button" class="btn ghost" data-act="chatDelMe" data-id="${esc(m.id)}">${icon('trash')}<span>Apagar só para mim</span></button></div>`
     });

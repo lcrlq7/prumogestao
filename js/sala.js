@@ -49,7 +49,7 @@
       return `<a class="rm-strip busy" data-go="sala" href="#/sala" title="Abrir a sala de reuniões">
         <span class="rm-ic">${icon('building')}</span>
         <span class="rm-tx"><b><i class="rm-lv"></i>Sala ocupada</b> · ${esc(cur.title)}<small>${esc(names(cur))}</small></span>
-        <span class="rm-bar"><i style="width:${pct}%"></i></span><span class="rm-tm">até ${hhmm(f)}</span>${icon('right')}</a>`;
+        <span class="rm-bar"><i data-st="width:${pct}%"></i></span><span class="rm-tm">até ${hhmm(f)}</span>${icon('right')}</a>`;
     }
     return `<a class="rm-strip free" data-go="sala" href="#/sala" title="Abrir a sala de reuniões">
       <span class="rm-ic">${icon('building')}</span>
@@ -67,16 +67,16 @@
     if (cur) {
       const s = mins(cur.start), f = endOf(cur), pct = Math.min(100, Math.max(0, Math.round((n - s) / (f - s) * 100)));
       plate = `<div class="rm-plate busy"><span class="rm-st"><i class="rm-lv"></i>Ocupada agora</span><b class="rm-big">${esc(cur.title)}</b>
-        <span class="rm-sub">${esc(names(cur))} · termina às ${hhmm(f)} (em ${dur(f - n)})</span><span class="rm-pbar"><i style="width:${pct}%"></i></span></div>`;
+        <span class="rm-sub">${esc(names(cur))} · termina às ${hhmm(f)} (em ${dur(f - n)})</span><span class="rm-pbar"><i data-st="width:${pct}%"></i></span></div>`;
     } else {
       plate = `<div class="rm-plate free"><span class="rm-st"><i class="rm-lv"></i>Livre agora</span><b class="rm-big">Sala disponível</b>
-        <span class="rm-sub">${next ? 'Livre até ' + next.start + ' · próxima: ' + esc(next.title) : 'Nenhuma outra reserva hoje'}</span><span class="rm-pbar"><i style="width:0"></i></span></div>`;
+        <span class="rm-sub">${next ? 'Livre até ' + next.start + ' · próxima: ' + esc(next.title) : 'Nenhuma outra reserva hoje'}</span><span class="rm-pbar"><i data-st="width:0"></i></span></div>`;
     }
     const pos = m => ((Math.min(CLOSE, Math.max(OPEN, m)) - OPEN) / (CLOSE - OPEN) * 100).toFixed(2);
     const ribbon = `<div class="rm-rib">${list.map(e => { const s = mins(e.start), f = endOf(e), k = isToday && f <= n ? 'past' : isToday && s <= n ? 'now' : day < today() ? 'past' : 'next';
-        return `<span class="rm-rb ${k}" style="left:${pos(s)}%;width:${(pos(f) - pos(s)).toFixed(2)}%" title="${esc(e.start + '–' + hhmm(f) + ' · ' + e.title)}"></span>`; }).join('')}
-      ${gaps(day).map(([a, b]) => `<button type="button" class="rm-gap" data-act="agendaNew" data-room="1" data-date="${day}" data-start="${hhmm(a)}" style="left:${pos(a)}%;width:${(pos(b) - pos(a)).toFixed(2)}%" title="Reservar a partir das ${hhmm(a)}" aria-label="Reservar a partir das ${hhmm(a)}"></button>`).join('')}
-      ${isToday && n >= OPEN && n <= CLOSE ? `<span class="rm-now" style="left:${pos(n)}%"></span>` : ''}</div>
+        return `<span class="rm-rb ${k}" data-st="left:${pos(s)}%;width:${(pos(f) - pos(s)).toFixed(2)}%" title="${esc(e.start + '–' + hhmm(f) + ' · ' + e.title)}"></span>`; }).join('')}
+      ${gaps(day).map(([a, b]) => `<button type="button" class="rm-gap" data-act="agendaNew" data-room="1" data-date="${day}" data-start="${hhmm(a)}" data-st="left:${pos(a)}%;width:${(pos(b) - pos(a)).toFixed(2)}%" title="Reservar a partir das ${hhmm(a)}" aria-label="Reservar a partir das ${hhmm(a)}"></button>`).join('')}
+      ${isToday && n >= OPEN && n <= CLOSE ? `<span class="rm-now" data-st="left:${pos(n)}%"></span>` : ''}</div>
       <div class="rm-hh">${[8, 10, 12, 14, 16, 18].map(h => `<span>${h}h</span>`).join('')}</div>`;
     const tag = e => {
       const s = mins(e.start), f = endOf(e);

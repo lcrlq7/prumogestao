@@ -178,7 +178,7 @@
     const shown = (tab === 'recebidas' ? got : mine).slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
     const novas = got.filter(x => !x.owner && !done(x)).length;
     const head = V.pageHead('Sugestões de melhoria', 'Mande ideias para melhorar o sistema e o dia a dia. Pode anexar prints. Chegam para os gestores do BPO Financeiro e do Contábil.', V.btn('Nova sugestão', { act: 'sugNew', icon: 'plus', cls: 'primary' }));
-    const tabs = rec ? `<div class="chips" style="margin-bottom:12px">${[['recebidas', 'Recebidas' + (novas ? ' (' + novas + ' sem responsável)' : '')], ['minhas', 'Enviadas por mim']].map(([k, l]) => `<button type="button" class="chip ${tab === k ? 'on' : ''}" data-act="sugTab" data-k="${k}">${l}</button>`).join('')}</div>` : '';
+    const tabs = rec ? `<div class="chips" data-st="margin-bottom:12px">${[['recebidas', 'Recebidas' + (novas ? ' (' + novas + ' sem responsável)' : '')], ['minhas', 'Enviadas por mim']].map(([k, l]) => `<button type="button" class="chip ${tab === k ? 'on' : ''}" data-act="sugTab" data-k="${k}">${l}</button>`).join('')}</div>` : '';
     const warn = !available() ? `<div class="banner warn">${icon('alert')}<div>As sugestões ainda não foram ativadas no banco. Peça para rodar o SQL de ativação.</div></div>` : '';
     return `${head}${warn}${tabs}${shown.length ? `<div class="sg-list">${shown.map(x => card(x, u)).join('')}</div>` : V.empty(tab === 'recebidas' ? 'Nenhuma sugestão recebida ainda.' : 'Você ainda não enviou sugestões. Clique em "Nova sugestão".', 'bulb')}`;
   };

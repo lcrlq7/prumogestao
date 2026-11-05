@@ -144,9 +144,9 @@
     const cap = o.max || 125;
     const w = Math.max(0, Math.min(100, (pct || 0) / cap * 100));
     const cls = o.status ? 'st-' + o.status : (o.cls || 'acc');
-    const marks = o.marks === false ? '' : `<i class="mark" style="left:${st.lowThreshold / cap * 100}%"></i><i class="mark strong" style="left:${st.highThreshold / cap * 100}%"></i>`;
-    const pace = o.pace != null ? `<i class="pace" style="left:${Math.min(100, o.pace / cap * 100)}%" title="Ritmo esperado"></i>` : '';
-    return `<div class="progress" role="progressbar" aria-valuenow="${Math.round(pct || 0)}" aria-valuemin="0" aria-valuemax="${cap}"><b class="${cls}" style="width:${w}%"></b>${marks}${pace}</div>`;
+    const marks = o.marks === false ? '' : `<i class="mark" data-st="left:${st.lowThreshold / cap * 100}%"></i><i class="mark strong" data-st="left:${st.highThreshold / cap * 100}%"></i>`;
+    const pace = o.pace != null ? `<i class="pace" data-st="left:${Math.min(100, o.pace / cap * 100)}%" title="Ritmo esperado"></i>` : '';
+    return `<div class="progress" role="progressbar" aria-valuenow="${Math.round(pct || 0)}" aria-valuemin="0" aria-valuemax="${cap}"><b class="${cls}" data-st="width:${w}%"></b>${marks}${pace}</div>`;
   };
   V.card = (title, body, o = {}) => `
     <section class="card ${o.cls || ''}">
@@ -470,7 +470,7 @@
     const emp = api.employee(u, id);
     // diretoria, gerência e departamento de apoio não têm produção individual (pontos/capacidade)
     if (P.isGlobal(emp) || P.isSupport(emp)) return `${V.pageHead(esc(emp.name), esc(P.ROLES[emp.role]) + (P.dept(emp.deptId) ? ' · ' + esc(P.dept(emp.deptId).name) : ''))}
-      ${V.card('', V.empty(P.isSupport(emp) ? 'Departamento de apoio: fora dos indicadores de produção.' : 'Diretoria e gerência não têm painel de produção individual. Veja os números da equipe no Dashboard.', 'info') + `<div style="text-align:center;padding-bottom:16px">${V.btn('Ir para o Dashboard', { go: 'dashboard', icon: 'grid', cls: 'sm' })}</div>`)}`;
+      ${V.card('', V.empty(P.isSupport(emp) ? 'Departamento de apoio: fora dos indicadores de produção.' : 'Diretoria e gerência não têm painel de produção individual. Veja os números da equipe no Dashboard.', 'info') + `<div data-st="text-align:center;padding-bottom:16px">${V.btn('Ir para o Dashboard', { go: 'dashboard', icon: 'grid', cls: 'sm' })}</div>`)}`;
     return V.dashEmployee(u, emp, u.id === emp.id);
   };
 

@@ -68,7 +68,7 @@
     const v = (db().vacations || []).find(x => x.id === el.dataset.id); if (!v || el.dataset.op !== 'aprovar') return;
     const body = $('#modal-root .modal-b, #modal-root .modal-body') || $('#modal-root form') || $('#modal-root .modal'); if (!body) return;
     const list = peers(v.deptId, v.userId);
-    const html = `<div class="cover-box" style="margin:10px 0"><div class="cover-h">${V.icon('users')}<b>Substituto durante as férias</b></div>
+    const html = `<div class="cover-box" data-st="margin:10px 0"><div class="cover-h">${V.icon('users')}<b>Substituto durante as férias</b></div>
       <label class="field"><span>${v.coverBy ? 'Indicado por ' + esc(first(nameOf(v.userId))) + '. Troque se não concordar:' : 'Nenhum substituto indicado. Se quiser, escolha um:'}</span>
       <select id="rv-cover"><option value="">Ninguém (as tarefas continuam com ${esc(first(nameOf(v.userId)))})</option>${list.map(x => `<option value="${x.id}" ${x.id === v.coverBy ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
       <p class="fine">${inPeriod(v.userId, v.start, v.end).length} tarefa(s) com prazo no período hoje.</p></div>`;
@@ -150,7 +150,7 @@
         <label class="field"><span>Para</span><select id="tt-to"></select></label>
         <label class="field"><span>Tipo</span><select id="tt-kind"><option value="temp">Temporária (volta numa data)</option><option value="def">Definitiva</option></select></label>
         <label class="field tt-temp"><span>Volta em</span><input type="date" id="tt-until" min="${D.iso(D.add(P.today(), 1))}" value="${D.iso(D.add(P.today(), 7))}"></label>
-        <label class="field check span3 tt-def" style="display:none"><input type="checkbox" id="tt-cart"><span>Passar também as empresas dessas tarefas na carteira (as próximas tarefas recorrentes já vão para a nova pessoa)</span></label>
+        <label class="field check span3 tt-def" data-st="display:none"><input type="checkbox" id="tt-cart"><span>Passar também as empresas dessas tarefas na carteira (as próximas tarefas recorrentes já vão para a nova pessoa)</span></label>
         <label class="field span3"><span>Motivo</span><input id="tt-why" placeholder="Ex.: atestado médico de 3 dias"></label>
         <div class="tt-wrap"><div class="tt-head"><label class="tt-all"><input type="checkbox" id="tt-all"><b>Marcar todas as pendentes</b></label><input type="search" id="tt-q" class="tt-q" placeholder="Filtrar por tarefa ou empresa"><small class="muted" id="tt-count"></small></div><div class="tt-list" id="tt-list"></div></div>
       </div><p class="fine">${V.icon('info')} Quem concluir a tarefa pontua normalmente. Na temporária, o que estiver pendente na data de volta retorna para a pessoa de origem.</p>`,
@@ -185,7 +185,7 @@
         return `<label class="tt-row" data-q="${esc((t.title + ' ' + (t.client || '')).toLowerCase())}"><input type="checkbox" value="${t.id}" ${pre && pre.id === t.id ? 'checked' : ''}>
           <span class="tt-main"><b class="tt-name">${esc(name)}</b>${t.client ? `<span class="tt-co">${esc(t.client)}</span>` : ''}</span>
           <span class="tt-meta"><span class="${t.due < td ? 'tt-late' : ''}">${D.fmt(t.due)}</span>${t.coverOf ? `<span class="tt-flag">já transferida</span>` : ''}</span></label>`;
-      }).join('') : '<p class="fine" style="padding:10px 12px">Nenhuma tarefa pendente.</p>';
+      }).join('') : '<p class="fine" data-st="padding:10px 12px">Nenhuma tarefa pendente.</p>';
       $('#tt-q').value = ''; count();
     };
     const count = () => { const n = document.querySelectorAll('#tt-list input:checked').length, tot = document.querySelectorAll('#tt-list input').length; $('#tt-count').textContent = n + ' de ' + tot + ' marcada(s)'; };

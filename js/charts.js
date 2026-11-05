@@ -21,7 +21,7 @@
     slot(spec) {
       const id = 'chart-' + this.specs.length;
       this.specs.push(Object.assign({ id }, spec));
-      return `<div class="chart" id="${id}" style="height:${spec.height || 220}px" role="img" aria-label="${esc(spec.aria || '')}"></div>`;
+      return `<div class="chart" id="${id}" data-st="height:${spec.height || 220}px" role="img" aria-label="${esc(spec.aria || '')}"></div>`;
     },
     hydrate() {
       for (const s of this.specs) {
@@ -122,13 +122,13 @@
       const max = Math.max(opts.max || 130, ...rows.map(r => (r.util || 0) + 5));
       const pos = v => Math.min(100, v / max * 100);
       return `<div class="load">
-        <div class="load-scale" aria-hidden="true"><span style="left:${pos(st.lowThreshold)}%">${st.lowThreshold}%</span><span style="left:${pos(st.highThreshold)}%">${st.highThreshold}%</span></div>
+        <div class="load-scale" aria-hidden="true"><span data-st="left:${pos(st.lowThreshold)}%">${st.lowThreshold}%</span><span data-st="left:${pos(st.highThreshold)}%">${st.highThreshold}%</span></div>
         ${rows.map(r => `
         <div class="load-row${r.go ? ' clickable' : ''}" ${r.go ? `data-go="${esc(r.go)}" tabindex="0" role="link"` : ''} data-tip="${esc(r.name + ' · ' + F.pct(r.util) + ' da capacidade · ' + F.n(r.points) + ' de ' + F.n(r.capacity) + ' pts')}">
           <span class="load-name">${esc(r.name)}</span>
           <span class="load-track">
-            <i class="mark" style="left:${pos(st.lowThreshold)}%"></i><i class="mark strong" style="left:${pos(st.highThreshold)}%"></i>
-            <b class="fill st-${r.status}" style="width:${pos(r.util || 0)}%"></b>
+            <i class="mark" data-st="left:${pos(st.lowThreshold)}%"></i><i class="mark strong" data-st="left:${pos(st.highThreshold)}%"></i>
+            <b class="fill st-${r.status}" data-st="width:${pos(r.util || 0)}%"></b>
           </span>
           <span class="load-val">${F.pct0(r.util)}</span>
         </div>`).join('')}
@@ -141,7 +141,7 @@
       return `<div class="hbars">${rows.map(r => `
         <div class="hb-row" data-tip="${esc(r.tip || r.label)}">
           <div class="hb-top"><span class="hb-label">${esc(r.label)}</span><span class="hb-val">${r.valueLabel}</span></div>
-          <div class="hb-track"><b class="${r.cls || 's1'}" style="width:${Math.max(1.5, r.value / max * 100)}%"></b></div>
+          <div class="hb-track"><b class="${r.cls || 's1'}" data-st="width:${Math.max(1.5, r.value / max * 100)}%"></b></div>
         </div>`).join('')}</div>`;
     },
 
