@@ -209,7 +209,12 @@
     }
     const scope = V.scopeDept(u);
     const base = api.entries(u, { deptId: scope || undefined });
-    const reviewQueue = u.role === 'manager' ? base.filter(e => e.userId !== u.id) : base;
+    // fila de aprovação: só os departamentos que a pessoa gere (diretoria e gerência não aprovam)
+    const reviewQueue = base.filter(e => e.userId !== u.id && P.canApproveDept(u, e.deptId));
+    if (!P.store.db.departments.some(d => P.canApproveDept(u, d.id))) {
+      return `${V.pageHead('Lançamentos', 'A aprovação é feita pelo gestor de cada departamento.', V.btn('Lançamento em lote', { act: 'batchEntry', icon: 'inbox', cls: 'ghost' }) + V.btn('Registrar para colaborador', { act: 'newEntry', icon: 'plus', cls: 'primary' }))}
+        <div class="banner">${icon('info')}<div>Os lançamentos são aprovados pelo gestor de cada departamento. Por aqui você pode registrar atividades para um colaborador.</div></div>`;
+    }
     const ownPending = u.role === 'manager' ? base.filter(e => e.userId === u.id && (e.status === 'pendente' || e.status === 'correcao')).reverse() : [];
     const pend = reviewQueue.filter(e => e.status === 'pendente').reverse();
     const corr = reviewQueue.filter(e => e.status === 'correcao').reverse();

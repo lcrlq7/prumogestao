@@ -122,7 +122,7 @@
   function navItems(u) {
     const emp = u.role === 'employee';
     const pendCount = emp ? (P.idx.byUser.get(u.id) || []).filter(e => e.status === 'correcao').length
-      : P.store.db.entries.filter(e => ((e.status === 'pendente' && e.userId !== u.id) || (u.role === 'manager' && e.status === 'correcao' && e.userId === u.id)) && (P.isGlobal(u) || e.deptId === u.deptId)).length;
+      : P.store.db.entries.filter(e => (e.status === 'pendente' && e.userId !== u.id && P.canApproveDept(u, e.deptId)) || (u.role === 'manager' && e.status === 'correcao' && e.userId === u.id)).length;
     const vacs = P.store.db.vacations || [];
     const vacCount = vacs.filter(v => api.canReviewVacation(u, v) || api.canReviewVacationChange(u, v)).length;
     const main = [

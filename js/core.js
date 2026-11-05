@@ -661,6 +661,8 @@ window.P = window.P || {};
   // Departamento de apoio (ex.: Apoio ao Escritório): fora dos indicadores de produção
   P.isSupport = u => !!u && !!u.deptId && !!(P.store.db.departments.find(d => d.id === u.deptId) || {}).support;
   P.ledDept = u => (!!u && P.store.db.departments.find(d => d.managerId === u.id && d.active !== false)) || null;
+  // Aprovar lançamentos: só o gestor do departamento. Diretoria e gerência não aprovam; diretor que também é gestor de um departamento aprova só o dele.
+  P.canApproveDept = (u, deptId) => !!u && !!deptId && ((u.role === 'manager' && u.deptId === deptId) || (P.store.db.departments.find(d => d.id === deptId) || {}).managerId === u.id);
   /* Quem o usuário pode gerenciar (dados cadastrais): só níveis abaixo; o gestor, só funcionários do seu departamento */
   P.canManageUser = (u, x) => !!u && !!x && u.id !== x.id && P.LEVEL[u.role] > P.LEVEL[x.role] && (P.isGlobal(u) || (u.role === 'manager' && x.role === 'employee' && x.deptId === u.deptId));
   /* Promover ou rebaixar: gerente e diretoria, para quem está abaixo; a diretoria também para outros diretores */
@@ -815,7 +817,7 @@ window.P = window.P || {};
       const e = P.idx.byId.get(id);
       const owner = e && P.user(e.userId);
       // Revisa quem está acima do autor na hierarquia (o gestor, só no próprio departamento)
-      assert(e && owner && api.canManageDept(u, e.deptId) && P.LEVEL[u.role] > P.LEVEL[owner.role], 'Somente um nível acima do autor (gestor do departamento, gerente ou diretoria) pode revisar este lançamento.');
+      assert(e && owner && P.canApproveDept(u, e.deptId) && e.userId !== u.id, 'Somente o gestor do departamento revisa este lançamento.');
       let note = opts.note || '';
       if (action === 'aprovar') { e.status = 'aprovado'; }
       else if (action === 'recusar') { e.status = 'recusado'; }
@@ -2056,7 +2058,8 @@ window.P = window.P || {};
         title: 'Correção solicitada', text: `${corr.length} lançamento${corr.length > 1 ? 's precisam' : ' precisa'} de ajuste antes da aprovação.` });
     } else {
       for (const d of api.departments(u)) {
-        const n = db().entries.filter(e => e.deptId === d.id && e.status === 'pendente').length;
+        if (!P.canApproveDept(u, d.id)) continue; // aviso de pendência só para quem aprova
+        const n = db().entries.filter(e => e.deptId === d.id && e.status === 'pendente' && e.userId !== u.id).length;
         if (n) out.push({ id: 'pend-' + d.id + '-' + n, color: 'orange', date: D.iso(t), link: 'lancamentos',
           title: 'Lançamentos pendentes de aprovação', text: `${n} lançamento${n > 1 ? 's' : ''} do ${d.name} aguardando aprovação.` });
       }

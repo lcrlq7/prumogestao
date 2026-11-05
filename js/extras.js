@@ -628,7 +628,7 @@
     const stars = prev.rows.filter(r => r.status === 'saudavel').sort((a, b) => b.points - a.points).slice(0, 2).map(r => r.user);
     const ids = new Set(emps.map(e => e.id));
     const vacs = api.vacations(u).filter(v => v.status === 'aprovada' && ids.has(v.userId) && !(v.end < D.iso(ws) || v.start > D.iso(we)));
-    const pendEntries = api.entries(u, { status: 'pendente' }).filter(e => e.userId !== u.id).length;
+    const pendEntries = api.entries(u, { status: 'pendente' }).filter(e => e.userId !== u.id && P.canApproveDept(u, e.deptId)).length;
     const vacWaiting = (db().vacations || []).filter(v => api.canReviewVacation(u, v) || api.canReviewVacationChange(u, v)).length;
     const late = api.tasks(u).filter(x => x.status === 'pendente' && x.due && x.due < today && ids.has(x.userId)).length;
     const obr = P.obligationsFor(u, t.getFullYear(), t.getMonth(), P.isGlobal(u) ? (S().dept || undefined) : undefined).filter(o => o.date >= D.iso(ws) && o.date <= D.iso(D.add(ws, 6)));
