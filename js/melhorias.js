@@ -154,7 +154,7 @@
         s.status = status; s.reply = reply; s.replyBy = u.id; s.replyAt = D.stamp(); if (!s.owner) { s.owner = u.id; s.ownerAt = D.stamp(); }
         (s.history = s.history || []).push({ at: D.stamp(), by: u.id, status, reply });
         if (s.from !== u.id) P.notify([s.from], { type: 'melhoria', icon: 'bulb', title: 'Sua sugestão: ' + STATUS[status][0].toLowerCase(), text: s.title + (reply ? ' · ' + reply.slice(0, 120) : ''), link: 'melhorias' });
-        const pt = (reply && P.respPoint && P.respPoint(u, 'melhoria', s, s.from)) || '';
+        const pt = (P.respPoint && P.respPoint(u, 'melhoria', s, s.from)) || '';
         P.store.save(); P.toast('Sugestão atualizada.' + pt); P.render();
       }
     });
