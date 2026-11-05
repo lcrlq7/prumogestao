@@ -65,8 +65,12 @@
     else if (e.status === 'info' && e.createdBy === u.id) acts = V.btn('Completar informações', { act: 'evsFill', icon: 'edit', cls: 'evx-b', attrs: `data-id="${e.id}"` }) + V.btn('Cancelar indicação', { act: 'evsCancel', cls: 'evx-b2', attrs: `data-id="${e.id}"` });
     else if (e.status === 'info' && canDecide(u)) acts = `<small class="evx-wait">Aguardando ${esc(first(e.createdBy))} completar as informações</small>` + V.btn('Recusar', { act: 'evsReject', cls: 'evx-b2', attrs: `data-id="${e.id}"` });
     else if (e.status === 'pendente' && e.createdBy === u.id) acts = V.btn('Cancelar indicação', { act: 'evsCancel', cls: 'evx-b2', attrs: `data-id="${e.id}"` });
-    const right = `<div class="evx-r"><div><span class="evx-k">${e.price ? 'A partir de' : 'Valor'}</span><b class="evx-p${e.price ? '' : ' tbd'}">${e.price ? brl(e.price) : 'A confirmar'}</b>${e.price ? '<small>por pessoa</small>' : ''}
-      ${e.link ? `<a class="evx-a" href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">${icon('right')}Ingressos e detalhes</a>` : ''}
+    // valor do ingresso: só a direção vê (e quem indicou, enquanto a indicação não foi aprovada); os convidados veem a data
+    const seePrice = canDecide(u) || (e.createdBy === u.id && e.status !== 'aprovado');
+    const top = seePrice ? `<span class="evx-k">${e.price ? 'A partir de' : 'Valor'}</span><b class="evx-p${e.price ? '' : ' tbd'}">${e.price ? brl(e.price) : 'A confirmar'}</b>${e.price ? '<small>por pessoa</small>' : ''}`
+      : `<span class="evx-k">${e.status === 'aprovado' ? 'Convite da direção' : 'Data'}</span><b class="evx-p tbd">${D.fmt(e.date)}</b><small>${esc(D.WEEKDAYS_L[D.parse(e.date).getDay()])}${e.start ? ' · ' + e.start : ''}</small>`;
+    const right = `<div class="evx-r"><div>${top}
+      ${e.link ? `<a class="evx-a" href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">${icon('right')}${seePrice ? 'Ingressos e detalhes' : 'Site do evento'}</a>` : ''}
       ${e.status === 'aprovado' && e.deadline ? `<small class="evx-dl">Responder até ${D.fmt(e.deadline)}</small>` : ''}</div><div class="evx-acts">${acts}</div></div>`;
     // direção: situação de cada convidado
     let people = '';
