@@ -1693,6 +1693,8 @@ window.P = window.P || {};
         if (x.role === 'employee' && !dismissed) x.active = data.active !== false;
         // permissão de abrir OS: só diretoria, gerência ou o gestor do departamento (mesma regra do cadastro)
         if (x.role === 'employee' && data.canOS !== undefined && !!data.canOS !== !!x.canOS) { x.canOS = !!data.canOS; audit(u, x.canOS ? 'Abertura de OS habilitada' : 'Abertura de OS desabilitada', x.id, x.name); }
+        // para quais departamentos a pessoa abre OS: só a diretoria escolhe (próprio departamento ou qualquer um)
+        if (x.role === 'employee' && u.role === 'admin' && data.osScope && (data.osScope === 'all') !== (x.osScope === 'all')) { x.osScope = data.osScope === 'all' ? 'all' : 'own'; audit(u, x.osScope === 'all' ? 'OS liberada para qualquer departamento' : 'OS só para o próprio departamento', x.id, x.name); }
         // permissão de cadastrar, editar e apagar empresas (definida pela diretoria, gerência ou gestor do departamento)
         if (x.role === 'employee' && data.canCompanies !== undefined && !!data.canCompanies !== !!x.canCompanies) { x.canCompanies = !!data.canCompanies; audit(u, x.canCompanies ? 'Gestão de empresas habilitada' : 'Gestão de empresas desabilitada', x.id, x.name); }
         if (isNew) {

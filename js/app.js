@@ -883,13 +883,14 @@
           <label class="field"><span>Capacidade (pts/semana)</span><input type="number" id="us-cap" value="${x.capacity || P.store.db.settings.defaultCapacity}" min="1" step="0.5"></label>
           ${isEmp ? `<label class="field check"><input type="checkbox" id="us-active" ${x.active !== false ? 'checked' : ''}><span>Ativo</span></label>` : ''}
           ${isEmp ? `<label class="field check span3"><input type="checkbox" id="us-emp" ${x.canCompanies ? 'checked' : ''}><span><b>Pode gerenciar empresas</b> <small class="muted">(cadastrar, editar, importar, inativar e apagar empresas)</small></span></label>` : ''}
-          ${isEmp ? `<label class="field check span3"><input type="checkbox" id="us-os" ${x.canOS ? 'checked' : ''}><span><b>Pode abrir OS</b> <small class="muted">(no menu aparece “Solicitar OS” e a pessoa pode abrir e concluir ordens de serviço)</small></span></label>` : ''}` : ''}
+          ${isEmp ? `<label class="field check span3"><input type="checkbox" id="us-os" ${x.canOS ? 'checked' : ''}><span><b>Pode abrir OS</b> <small class="muted">(no menu aparece “Solicitar OS” e a pessoa pode abrir e concluir ordens de serviço)</small></span></label>
+          <label class="field span3"><span>Abre OS para</span><select id="us-osscope" ${U().role === 'admin' ? '' : 'disabled title="Somente a diretoria altera"'}><option value="own" ${x.osScope !== 'all' ? 'selected' : ''}>Somente o próprio departamento</option><option value="all" ${x.osScope === 'all' ? 'selected' : ''}>Qualquer departamento</option></select><small class="muted">${U().role === 'admin' ? 'Vale quando “Pode abrir OS” está marcado.' : 'Somente a diretoria escolhe.'}</small></label>` : ''}` : ''}
         </div>${!el.dataset.id ? '<p class="fine">A senha inicial de demonstração é <code>demo123</code>. Na versão com banco de dados, o convite é enviado por e-mail.</p>' : ''}`,
         onSubmit: m => {
           const data = { id: el.dataset.id, role: x.role, name: $('#us-name', m).value.trim(), title: $('#us-title', m).value.trim(), email: $('#us-email', m).value.trim(), deptId: global ? null : $('#us-dept', m).value, hiredAt: $('#us-hired', m) ? $('#us-hired', m).value : undefined };
           if (!data.name) throw new Error('Informe o nome.');
           if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) throw new Error('Informe um e-mail válido.');
-          if (isWorker) { if (isEmp && !data.deptId) throw new Error('Selecione o departamento.'); data.hours = $('#us-hours', m).value; data.capacity = $('#us-cap', m).value; if (isEmp) { data.active = $('#us-active', m).checked; data.canOS = $('#us-os', m).checked; data.canCompanies = $('#us-emp', m).checked; } }
+          if (isWorker) { if (isEmp && !data.deptId) throw new Error('Selecione o departamento.'); data.hours = $('#us-hours', m).value; data.capacity = $('#us-cap', m).value; if (isEmp) { data.active = $('#us-active', m).checked; data.canOS = $('#us-os', m).checked; if (U().role === 'admin') data.osScope = $('#us-osscope', m).value; data.canCompanies = $('#us-emp', m).checked; } }
           const r = api.saveUser(U(), data); toast(label[0].toUpperCase() + label.slice(1) + ' salvo: ' + r.name + '.'); render();
         }
       });
