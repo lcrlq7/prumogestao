@@ -101,7 +101,7 @@
     const cur = d => db().clientAssignments.find(a => a.deptId === d.id && a.client === c.name);
     const opts = d => { const a = cur(d); return '<option value="">Sem responsável</option>' + api.workers(u, d.id).sort(byName).map(w => `<option value="${esc(w.id)}" ${a && a.userId === w.id ? 'selected' : ''}>${esc(w.name)}</option>`).join(''); };
     P.ui.modal({
-      title: 'Responsáveis · ' + c.name, submit: 'Salvar',
+      title: 'Responsáveis · ' + esc(c.name), submit: 'Salvar',
       body: `<p class="prose">${c.code ? 'Código ' + esc(c.code) + '. ' : ''}Escolha quem cuida desta empresa${P.isGlobal(u) ? ' em cada departamento' : ' no seu departamento'}. As tarefas automáticas pendentes passam para o novo responsável.</p>
         <div class="fgrid">${depts.map(d => `<label class="field span3"><span>${esc(d.name)}</span><select class="own-sel" data-dept="${esc(d.id)}">${opts(d)}</select></label>`).join('')}</div>`,
       onSubmit: m => {

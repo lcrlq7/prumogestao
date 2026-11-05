@@ -77,7 +77,7 @@
   A.sugImg = el => {
     const s = list().find(x => x.id === el.closest('[data-sid]').dataset.sid), src = s && s.imgs[Number(el.dataset.src)];
     if (!okImg(src)) return;
-    P.ui.modal({ title: s.title, cancel: 'Fechar', wide: true, body: `<img class="sg-full" src="${src}" alt="">` });
+    P.ui.modal({ title: esc(s.title), cancel: 'Fechar', wide: true, body: `<img class="sg-full" src="${src}" alt="">` });
   };
   A.sugTab = el => { st().tab = el.dataset.k; P.render(); };
   // quem recebe muda a situação e pode responder; quem enviou é avisado

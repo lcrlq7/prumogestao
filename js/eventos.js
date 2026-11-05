@@ -119,7 +119,7 @@
     if (missing()) return P.toast('As indicações ainda não estão ativas: falta criar a tabela no banco.', 'err');
     const u = U(), v = k => esc(x ? x[k] || '' : ''), ask = x && x.infoReq;
     P.ui.modal({
-      title: x ? 'Completar informações · ' + x.title : 'Indicar evento para a direção', wide: true, submit: x ? 'Reenviar para a direção' : 'Enviar para a direção',
+      title: x ? 'Completar informações · ' + esc(x.title) : 'Indicar evento para a direção', wide: true, submit: x ? 'Reenviar para a direção' : 'Enviar para a direção',
       body: `<form class="form" novalidate>${ask ? `<div class="evx-ask">${icon('message')}<span><b>${esc(first(ask.by))} pediu mais informações</b>${esc(ask.text)}</span></div>` : '<p class="fine">Achou um evento bom para o escritório? Preencha os dados. A direção avalia e escolhe quem vai.</p>'}<div class="fgrid">
         <label class="field span2"><span>Nome do evento</span><input type="text" id="es-title" maxlength="90" placeholder="Ex.: ContaCon 2027" value="${v('title')}"></label>
         <label class="field"><span>Tipo</span><select id="es-kind">${Object.entries(KINDS).map(([k, l]) => `<option value="${k}" ${x && x.kind === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -193,7 +193,7 @@
     const order = Object.keys(groups).sort((a, b) => (fits(b) - fits(a)) || a.localeCompare(b));
     const isFirst = e.status === 'pendente', dl0 = D.iso(D.add(D.parse(e.date), -14)), dl = e.deadline || (dl0 < today() ? today() : dl0);
     P.ui.modal({
-      title: isFirst ? `Aprovar · ${e.title}` : `Convidar mais pessoas · ${e.title}`, wide: true, submit: isFirst ? 'Aprovar e convidar' : 'Convidar',
+      title: isFirst ? `Aprovar · ${esc(e.title)}` : `Convidar mais pessoas · ${esc(e.title)}`, wide: true, submit: isFirst ? 'Aprovar e convidar' : 'Convidar',
       body: `<form class="form" novalidate><p class="fine">${when(e)}${e.place ? ' · ' + esc(e.place) : ''}${e.price ? ' · ' + brl(e.price) + ' por pessoa' : ''}</p>
         <div class="ag-ph"><b>Quem vai participar?</b><span id="evx-n">0 selecionado(s)</span></div>
         <div class="ag-groups">${order.map(k => `<button type="button" class="chip-btn" data-act="evsGroup" data-k="${esc(k)}">${icon('plus')}${esc(k)}</button>`).join('')}<button type="button" class="chip-btn ghost" data-act="evsGroup" data-k="">${icon('x')}Limpar</button></div>
