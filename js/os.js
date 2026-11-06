@@ -45,8 +45,56 @@
   const notify = (ids, n) => { if (P.notify) P.notify([...new Set(ids)].filter(id => id && id !== U().id), Object.assign({ type: 'os', icon: 'clipboard', link: 'os' }, n)); };
   const deptPeople = deptId => db().users.filter(x => x.active !== false && x.deptId === deptId && (x.role === 'manager' || x.canOS)).map(x => x.id)
     .concat(((P.dept(deptId) || {}).managerId) || []);
+  /*
+   * OS nova chegando ao departamento: avisa TODOS do departamento responsável e o gestor dele (não só quem abre OS).
+   * O aviso é fixo: fica numa faixa no topo de todas as telas, no sino e no pop-up até a pessoa abrir a OS
+   * ou marcar "Ciente". No computador, a notificação do Windows também fica até ser clicada.
+   */
+  const deptAll = deptId => db().users.filter(x => x.active !== false && x.deptId === deptId).map(x => x.id).concat(((P.dept(deptId) || {}).managerId) || []);
+  const announce = (o, extra, released) => {
+    const dn = (P.dept(o.deptId) || {}).name || 'o seu departamento';
+    notify(deptAll(o.deptId).concat(extra || []), { sticky: true, osId: o.id, icon: 'file',
+      title: (released ? 'OS liberada para ' : 'Nova OS para ') + dn + ': ' + o.code,
+      text: o.company + ' · ' + o.type + ' · prazo ' + D.fmt(o.due) + ' · aberta por ' + ((P.user(o.by) || {}).name || '—') });
+  };
+  const findOS = id => list().find(o => o.id === id);
+  // avisos fixos de OS ainda não vistos pela pessoa (OS em aberto)
+  const pendingAcks = u => {
+    const mine = !u ? [] : (db().notifications || []).filter(n => n.userId === u.id && n.sticky && n.osId);
+    const stale = mine.filter(n => { const o = findOS(n.osId); return !o || !open(o); });
+    if (stale.length) setTimeout(() => ackIds(u, stale.map(n => n.id)), 0); // OS concluída ou apagada: o aviso sai sozinho
+    const seen = new Set();
+    return mine.filter(n => { const o = findOS(n.osId); if (!o || !open(o) || seen.has(n.osId)) return false; seen.add(n.osId); return true; });
+  };
+  const ackIds = (u, ids) => {
+    const set = new Set(ids), before = (db().notifications || []).length;
+    db().notifications = (db().notifications || []).filter(n => !(n.userId === u.id && set.has(n.id)));
+    if (db().notifications.length !== before) { P.store.save(); return true; }
+    return false;
+  };
+  const ack = (u, osId) => !!u && ackIds(u, (db().notifications || []).filter(n => n.userId === u.id && n.sticky && (!osId || n.osId === osId)).map(n => n.id));
+  // faixa no topo de todas as telas
+  const topBar = u => {
+    const list = pendingAcks(u); if (!list.length) return '';
+    const n = list.length;
+    return `<div class="os-alert" role="alert">
+      <span class="os-alert-ic">${icon('file')}</span>
+      <div class="os-alert-b"><b>${n > 1 ? n + ' OS novas aguardando você ver' : 'Nova OS aguardando você ver'}</b>
+        <ul>${list.slice(0, 3).map(x => { const o = findOS(x.osId); return `<li><span><b>${esc(o.code)}</b> · ${esc(o.company)} · ${esc(o.type)} · prazo ${D.fmt(o.due)}${(P.dept(o.deptId) && P.dept(o.deptId).id !== u.deptId) ? ' · ' + esc(P.dept(o.deptId).name) : ''}</span><span class="os-alert-a">${V.btn('Abrir OS', { act: 'osOpenAck', cls: 'sm primary', attrs: `data-id="${o.id}"` })}${V.btn('Ciente', { act: 'osAck', cls: 'sm ghost', attrs: `data-id="${o.id}"` })}</span></li>`; }).join('')}</ul>
+        ${n > 3 ? `<p class="fine">E mais ${n - 3}. ${V.btn('Ver todas', { go: 'os', cls: 'sm ghost' })}</p>` : ''}
+      </div>
+      ${n > 1 ? V.btn('Ciente de todas', { act: 'osAckAll', cls: 'sm ghost' }) : ''}
+    </div>`;
+  };
+  if (P.ext) { const prevTop = P.ext.topBar; P.ext.topBar = u => (prevTop ? prevTop(u) : '') + (P.isSupport(u) ? '' : topBar(u)); }
 
-  P.os = { canOpen, label: u => canOpen(u) ? 'Solicitar OS' : 'Consultar OS', badge: u => !u ? 0 : visible(u).filter(o => canAct(u, o) && late(o)).length };
+  P.os = {
+    canOpen, label: u => canOpen(u) ? 'Solicitar OS' : 'Consultar OS',
+    // número no menu: OS novas ainda não vistas + atrasadas
+    badge: u => !u ? 0 : new Set(pendingAcks(u).map(n => n.osId).concat(visible(u).filter(o => canAct(u, o) && late(o)).map(o => o.id))).size,
+    pending: pendingAcks, ack,
+    openDetail: id => { if (findOS(id)) setTimeout(() => A.osDetail({ dataset: { id } }), 50); }
+  };
 
   /* ---------- Página ---------- */
   const st = () => (S().osv = S().osv || { tab: 'abertas', q: '', dept: '' });
@@ -125,7 +173,7 @@
         hist(o, needs ? 'OS aberta · aguardando a diretoria (empresa ' + P.delinq.describe(company) + ')' : 'OS aberta'); list().push(o);
         P.audit(u, 'OS aberta', o.id, code + ' · ' + company + ' · ' + type + (needs ? ' · aguardando diretoria' : ''));
         if (needs) notify(db().users.filter(x => x.role === 'admin' && x.active !== false).map(x => x.id), { title: 'OS aguarda sua aprovação', text: code + ' · ' + company + ' (empresa ' + P.delinq.describe(company) + ')' });
-        else notify(deptPeople(deptId), { title: 'Nova OS para o seu departamento', text: code + ' · ' + company + ' · prazo ' + D.fmt(due) });
+        else announce(o);
         st().tab = needs ? 'diretoria' : 'abertas'; done(needs ? 'OS ' + code + ' aberta e enviada para a diretoria aprovar (empresa inadimplente).' : 'OS ' + code + ' aberta.');
       }
     });
@@ -167,12 +215,15 @@
     x.addEventListener('click', () => { inp.value = ''; x.hidden = true; if (onPick) onPick(''); inp.focus(); });
     inp.addEventListener('blur', () => setTimeout(close, 120));
   }
+  A.osAck = el => { if (ack(U(), el.dataset.id)) P.toast('Ciente registrado.'); P.render(); };
+  A.osAckAll = () => { if (ack(U())) P.toast('Ciente de todas as OS novas.'); P.render(); };
+  A.osOpenAck = el => { const id = el.dataset.id; ack(U(), id); P.go('os'); P.os.openDetail(id); };
   A.osApprove = el => {
     const o = get(el.dataset.id), u = U(); if (!o || !canDecide(u, o)) return;
     P.ui.modal({ title: 'Aprovar continuidade · ' + esc(o.code), submit: 'Aprovar e enviar ao departamento',
       body: `<p class="prose"><b>${esc(o.company)}</b> · ${esc(o.type)}<br>${P.delinq ? 'Situação: empresa ' + esc(P.delinq.describe(o.company)) + '.' : ''}</p><label class="field"><span>Observação (opcional)</span><input id="oa-n" placeholder="Ex.: liberado, cliente fechou acordo"></label>`,
       onSubmit: m => { o.status = 'andamento'; hist(o, 'Continuidade aprovada pela diretoria', $('#oa-n', m).value.trim()); P.audit(u, 'OS aprovada (inadimplência)', o.id, o.code + ' · ' + o.company);
-        notify(deptPeople(o.deptId).concat(o.by), { title: 'OS liberada pela diretoria', text: o.code + ' · ' + o.company + ' · prazo ' + D.fmt(o.due) }); done('OS liberada para o departamento.'); } });
+        announce(o, [o.by], true); done('OS liberada para o departamento.'); } });
   };
   A.osReject = el => {
     const o = get(el.dataset.id), u = U(); if (!o || !canDecide(u, o)) return;
@@ -209,6 +260,7 @@
   };
   A.osDetail = el => {
     const o = get(el.dataset.id); if (!o) return;
+    if (ack(U(), o.id)) P.render();
     const who = id => esc((P.user(id) || {}).name || '—');
     P.ui.modal({ title: esc(o.code + ' · ' + o.company), wide: true, cancel: 'Fechar',
       body: `<p class="prose">${badge(o)}</p>

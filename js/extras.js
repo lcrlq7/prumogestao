@@ -32,7 +32,7 @@
   P.notify = (userIds, n) => {
     const at = D.stamp(), ts = Date.now();
     const ids = [...new Set((userIds || []).filter(Boolean))];
-    ids.forEach(uid => notifs().push({ id: n.id && ids.length === 1 ? n.id : P.uid('n'), userId: uid, at, ts, read: false, type: n.type || 'info', icon: n.icon || 'bell', title: n.title, text: n.text || '', link: n.link || '', sched: n.sched || null }));
+    ids.forEach(uid => notifs().push({ id: n.id && ids.length === 1 ? n.id : P.uid('n'), userId: uid, at, ts, read: false, type: n.type || 'info', icon: n.icon || 'bell', title: n.title, text: n.text || '', link: n.link || '', sched: n.sched || null, sticky: !!n.sticky || undefined, osId: n.osId || undefined }));
     if (notifs().length > 3000) notifs().splice(0, notifs().length - 3000);
   };
   fx.unreadNotifs = u => notifs().filter(n => n.userId === u.id && !n.read).length;
@@ -150,15 +150,24 @@
       // só quando o site não está na frente (evita aviso duplicado com o pop-up da tela)
       if (!force && document.visibilityState === 'visible' && document.hasFocus()) return;
       try {
-        const note = new Notification(n.title || 'Prumo', { body: n.text || '', tag: n.id || (n.title + '|' + (n.text || '')), icon: 'icon-512.png' });
+        const note = new Notification(n.title || 'Prumo', { body: n.text || '', tag: n.id || (n.title + '|' + (n.text || '')), icon: 'icon-512.png', requireInteraction: !!n.sticky });
         note.onclick = () => { window.focus(); if (n.id) openNotif(n.id); else if (n.onClick) n.onClick(); note.close(); };
       } catch (e) { /* alguns navegadores só permitem notificação via service worker */ }
     }
   };
+  // som curto para avisos importantes (OS nova); o navegador só toca depois de a pessoa ter clicado na página
+  fx.chime = () => {
+    try {
+      const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+      const ac = fx._ac = fx._ac || new C(), t = ac.currentTime;
+      [[880, 0], [1320, 0.16]].forEach(([f, d]) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.18, t + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.35); o.connect(g).connect(ac.destination); o.start(t + d); o.stop(t + d + 0.4); });
+    } catch (e) { /* sem som neste navegador */ }
+  };
   fx.popNotif = (n, opts = {}) => {
     P.desktop.show(Object.assign({}, n, { onClick: opts.onClick }));
     const el = document.createElement('button');
-    el.type = 'button'; el.className = 'npop';
+    el.type = 'button'; el.className = 'npop' + (n.sticky ? ' npop-sticky' : '');
+    if (n.sticky) { fx.chime(); opts = Object.assign({}, opts, { ms: 20000 }); } // a faixa no topo continua até a pessoa ver a OS
     el.innerHTML = `<span class="npop-ic">${icon(n.icon || 'bell')}</span><span class="npop-t"><b>${esc(n.title)}</b><small>${esc(n.text || '')}</small></span>`;
     el.addEventListener('click', () => { if (n.id) openNotif(n.id); else if (opts.onClick) opts.onClick(); el.remove(); });
     popBox().appendChild(el);
@@ -172,7 +181,7 @@
   const dropNotifs = ids => {
     if (!ids.size) return false;
     const before = notifs().length;
-    db().notifications = notifs().filter(n => !ids.has(n.id));
+    db().notifications = notifs().filter(n => !ids.has(n.id) || n.sticky);
     ids.clear();
     if (notifs().length === before) return false;
     P.store.save(); return true;
@@ -189,6 +198,7 @@
     dropNotifs(seen);
     if (n.sched) { const sc = (db().reportSchedules || []).find(x => x.id === n.sched); if (sc) Object.assign(S().rep, JSON.parse(JSON.stringify(sc.cfg))); }
     if (n.link) P.go(n.link); else P.render();
+    if (n.osId && P.os && P.os.openDetail) P.os.openDetail(n.osId);
   };
   const renderNotifPanel = () => {
     const u = S().user; if (!u) return;
