@@ -281,6 +281,12 @@
     });
   }
   function unsubscribe() { if (channel) { sb.removeChannel(channel); channel = null; } }
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (hiddenAt && Date.now() - hiddenAt > 5 * 60e3 && session && !timer && !saving) P.backend.reload().then(() => P.render && P.render()).catch(() => { });
+    hiddenAt = 0;
+  });
   async function applyRemote() {
     // com alteração local ainda sendo salva, espera (para não sobrescrever o que a pessoa acabou de fazer)
     if (timer || saving) { clearTimeout(rtTimer); rtTimer = setTimeout(applyRemote, 600); return; }

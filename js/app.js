@@ -409,7 +409,11 @@
     const f = m.querySelector('input:not([type=hidden]):not([readonly]):not([disabled]), select:not([disabled]), textarea');
     if (f) setTimeout(() => f.focus(), 30);
   }
-  function closeModal() { const m = $('#modal-root'); m.hidden = true; m.innerHTML = ''; modalHandler = null; }
+  function closeModal() {
+    const m = $('#modal-root'); m.hidden = true; m.innerHTML = ''; modalHandler = null;
+    // chegaram alterações de outras pessoas enquanto a janela estava aberta: atualiza a tela agora
+    if (P.fx && P.fx.staleBehindModal) { P.fx.staleBehindModal = false; setTimeout(() => { if (S.user && $('#modal-root').hidden) render(); }, 0); }
+  }
   function modalErr(msg) { const e = $('#m-err'); if (e) { e.textContent = msg; e.hidden = false; } }
 
   /* ---------- Helpers de formulário ---------- */

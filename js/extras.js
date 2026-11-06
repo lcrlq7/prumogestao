@@ -223,6 +223,7 @@
   const afterExternal = fresh => {
     // na Comunicação só as mensagens são atualizadas (redesenhar a tela toda a cada mensagem travava a rolagem)
     if (!$('#modal-root') || $('#modal-root').hidden) { if (S().route.page === 'comunicacao' && P.chatRefresh) P.chatRefresh(); else P.render(); }
+    else fx.staleBehindModal = true; // não mexe na janela aberta; atualiza a tela quando ela fechar
     fresh.slice(-3).forEach(n => fx.popNotif(n));
     if (fresh.length) fx.shakeBell();
     if ($('#notif-panel')) renderNotifPanel();
