@@ -218,6 +218,7 @@
             <button type="button" class="ibtn" data-act="logout" aria-label="Sair" title="Sair">${icon('logout')}</button>
           </div>
         </header>
+        ${P.ext && P.ext.topBar ? P.ext.topBar(u) : ''}
         <main class="view" id="view">${content}</main>
         ${S.present ? `<button type="button" class="present-exit" data-act="presentMode">${icon('x')}<span>Sair da apresentação</span></button>` : ''}
       </div>
