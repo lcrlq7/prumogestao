@@ -1767,3 +1767,18 @@ h4.tk-read,h4.tk-dlv,h4.tk-sent{margin:12px 0 0;font-size:12px;text-transform:up
 .sg-acts{display:flex;gap:6px;flex-wrap:wrap}.sg-own{display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 10px;border-radius:8px;background:var(--surface-2);color:var(--ink-2);align-self:flex-start}.sg-own.me{background:rgba(227,176,75,.16);color:var(--ink)}.sg-own small{color:var(--muted)}
 .sgv{display:flex;flex-direction:column;gap:10px}.sgv-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.sgv-sp{flex:1}.sgv-n{font-size:12px;color:var(--muted);min-width:44px;text-align:center}.sgv-z{min-width:72px;justify-content:center}.sgv-bar .btn{min-width:34px;justify-content:center;text-decoration:none}
 .sgv-stage{height:min(58vh,560px);overflow:auto;border-radius:10px;background:repeating-conic-gradient(rgba(127,127,127,.12) 0 25%,transparent 0 50%) 0 0/20px 20px;display:flex;cursor:grab}.sgv-stage.drag{cursor:grabbing}.sgv-stage img{display:block;margin:auto;max-width:none;user-select:none;-webkit-user-drag:none}.sgv-stage img.fit{max-width:100%;max-height:100%;object-fit:contain}.sgv-stage:has(img.fit){cursor:zoom-in}
+
+/* tela de manutenção (js/manut.js) */
+.mt{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;overflow:auto;padding:16px;background:radial-gradient(circle at 20% 15%,#1f6f9c 0,#0f2f46 55%,#0a1c2b 100%);color:#fff;font-family:var(--f-body,'IBM Plex Sans',system-ui,sans-serif)}
+.mt-card{width:100%;max-width:420px;text-align:center}
+.mt-ico{font-size:44px;animation:mtSpin 3s ease-in-out infinite}
+.mt h1{margin:6px 0 4px;font:800 24px/1.2 var(--f-display,'Plus Jakarta Sans',sans-serif)}
+.mt p{margin:2px 0;opacity:.9}.mt-back{font-weight:600;opacity:1!important}
+.mt-game{margin-top:16px;padding:12px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18)}
+.mt-hud{display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px}
+.mt-game canvas{width:100%;height:auto;display:block;border-radius:12px;background:linear-gradient(#16405d,#0d2a3f);cursor:none}
+.mt-btn{margin:12px 0 6px;padding:10px 20px;border:0;border-radius:999px;background:#fff;color:#0f2f46;font:800 15px var(--f-display,sans-serif);cursor:pointer}
+.mt-btn:hover{transform:scale(1.04)}
+.mt-game small{display:block;opacity:.75}
+@keyframes mtSpin{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
+@media (prefers-reduced-motion:reduce){.mt-ico{animation:none}}

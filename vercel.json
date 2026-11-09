@@ -19,6 +19,7 @@
     { "source": "/app.css", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
     { "source": "/", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
     { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-    { "source": "/version.json", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }
+    { "source": "/version.json", "headers": [{ "key": "Cache-Control", "value": "no-store" }] },
+    { "source": "/maintenance.json", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }
   ]
 }
