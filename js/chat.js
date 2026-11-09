@@ -139,6 +139,7 @@
       if (!c.canPost(u)) deny(c.id === 'geral' ? 'Somente a diretoria publica no canal Geral.' : 'Pelas regras de comunicação, esta conversa agora é só para leitura.');
       const t = String(text || '').trim();
       if (!t) deny('Escreva a mensagem.');
+      const fg = stickerOf(t); if (fg && !stickerAllowed(fg[0], u, c)) deny('Esta figurinha não pode ser enviada aqui.');
       if (t.length > 2000) deny('A mensagem pode ter no máximo 2.000 caracteres.');
       const m = { id: P.uid('m'), conv, from: u.id, text: t, at: D.stamp(), ts: Date.now() };
       const o = replyId && msgs().find(x => x.id === replyId && x.conv === conv && !x.deleted);
@@ -220,13 +221,17 @@
     ['mandou-bem', '👏', 'Mandou bem!', '#2f8f5b'], ['brilhante', '🌟', 'Brilhante!', '#d97706'], ['show', '🎸', 'Show de bola', '#7c3aed'], ['gratidao', '🙏', 'Gratidão', '#0f766e'],
     ['essencial', '💎', 'Você é essencial', '#1f6f9c'], ['nota10', '🔟', 'Equipe nota 10', '#2f8f5b'],
     // zoeira
-    ['cafe-zero', '🧟', 'Sem café não rola', '#7c4a2d'], ['sexta-cade', '🕵️', 'Cadê a sexta?', '#4338ca'], ['segunda', '😵‍💫', 'Segundou…', '#64748b'], ['planilha', '📊', 'Planilha não perdoa', '#2f8f5b'],
-    ['fechamento-eu', '🔥', 'Fechamento: tô bem (mentira)', '#dc2626'], ['prazo-ontem', '⏰', 'Prazo era ontem', '#dc2626'], ['reuniao-email', '📧', 'Isso era um e-mail', '#1f6f9c'], ['nao-vi', '🙉', 'Não vi nada', '#7c4a2d'],
-    ['culpa-sistema', '🤖', 'Foi o sistema!', '#0f766e'], ['funcionou', '🤞', 'Funcionou, não mexe', '#ca8a04'], ['pix', '💸', 'Cadê o PIX?', '#2f8f5b'], ['imposto', '🧾', 'Leão tá com fome', '#ea580c'],
-    ['ferias', '🏝️', 'Preciso de férias', '#db2777'], ['sono', '🥱', 'Dormi 5 minutinhos', '#4338ca'], ['trabalhando', '🕺', 'Trabalhando (muito)', '#7c3aed'], ['sumiu', '🫥', 'Sumi', '#64748b'],
-    ['brabo', '😤', 'Tô brabo(a)', '#dc2626'], ['milagre', '🙌', 'É milagre!', '#d97706'], ['deu-ruim', '💥', 'Deu ruim', '#dc2626'], ['tudo-certo', '🫠', 'Tá tudo sob controle', '#ca8a04'],
+    ['cafe-zero', '🧟', 'Sem café não rola', '#7c4a2d'], ['sexta-cade', '🕵️', 'Cadê a sexta?', '#4338ca'], ['segunda', '😵‍💫', 'Segundou…', '#64748b'], 
+    ['fechamento-eu', '🔥', 'Fechamento: tô bem (mentira)', '#dc2626'], ['prazo-ontem', '⏰', 'Prazo era ontem', '#dc2626'], ['nao-vi', '🙉', 'Não vi nada', '#7c4a2d'],
+    ['pix', '💸', 'Cadê o PIX?', '#2f8f5b'], ['imposto', '🧾', 'Leão tá com fome', '#ea580c'],
+    ['ferias', '🏝️', 'Preciso de férias', '#db2777'], ['trabalhando', '🕺', 'Trabalhando (muito)', '#7c3aed'], 
+    ['deu-ruim', '💥', 'Deu ruim', '#dc2626'], ['tudo-certo', '🫠', 'Tá tudo sob controle', '#ca8a04'],
     ['nem-vem', '✋', 'Nem vem!', '#ea580c'], ['bora', '🔥', 'Bora bora!', '#c2410c'], ['fofoca', '☕', 'Tem fofoca?', '#db2777'], ['chefe', '🫣', 'O chefe viu?', '#7c3aed']
   ];
+  // figurinhas restritas: 'chefe' só vale para gestores e funcionários, e nunca em conversa que tenha diretoria ou gerência (inclui o Thiago, que é diretor)
+  const RESTRICTED = { chefe: 1 };
+  const isBoss = x => x.role === 'admin' || x.role === 'office';
+  const stickerAllowed = (id, u, conv) => !RESTRICTED[id] || (!isBoss(u) && !conv.members().some(isBoss));
   const STK = Object.fromEntries(STICKERS.map(s => [s[0], s]));
   const stickerOf = t => { const m = /^::fig:([a-z0-9-]+)::$/.exec(String(t || '')); return m && STK[m[1]] ? STK[m[1]] : null; };
   const stickerHtml = s => `<div class="stk" data-st="--stk:${s[3]}" role="img" aria-label="Figurinha: ${esc(s[2])}"><span class="stk-e">${s[1]}</span><span class="stk-t">${esc(s[2])}</span></div>`;
@@ -241,12 +246,12 @@
     get: () => { try { return JSON.parse(localStorage.getItem(favKey()) || '[]').filter(id => STK[id]); } catch (e) { return []; } },
     toggle: id => { try { const l = favs.get(), i = l.indexOf(id); if (i >= 0) l.splice(i, 1); else l.unshift(id); localStorage.setItem(favKey(), JSON.stringify(l)); } catch (e) { } }
   };
-  const pickerHtml = kind => {
+  const pickerHtml = (kind, cur, u) => {
     if (kind === 'fig') return `<div class="chat-pick" role="dialog" aria-label="Figurinhas"><div class="cp-h"><b>Figurinhas</b>${V.ibtn('x', 'Fechar', { act: 'chatPanel', attrs: 'data-k=""' })}</div>
       <div class="cp-stk">${(() => {
-        const fav = favs.get(), one = s => `<div class="cp-w"><button type="button" class="cp-s" data-act="chatSticker" data-id="${s[0]}" title="${esc(s[2])}">${stickerHtml(s)}</button><button type="button" class="cp-fav${fav.includes(s[0]) ? ' on' : ''}" data-act="chatStickerFav" data-id="${s[0]}" title="${fav.includes(s[0]) ? 'Tirar das favoritas' : 'Favoritar'}" aria-label="${fav.includes(s[0]) ? 'Tirar das favoritas' : 'Favoritar'}" aria-pressed="${fav.includes(s[0])}">${fav.includes(s[0]) ? '★' : '☆'}</button></div>`;
+        const okS = id => !cur || !u || stickerAllowed(id, u, cur), fav = favs.get().filter(okS), one = s => `<div class="cp-w"><button type="button" class="cp-s" data-act="chatSticker" data-id="${s[0]}" title="${esc(s[2])}">${stickerHtml(s)}</button><button type="button" class="cp-fav${fav.includes(s[0]) ? ' on' : ''}" data-act="chatStickerFav" data-id="${s[0]}" title="${fav.includes(s[0]) ? 'Tirar das favoritas' : 'Favoritar'}" aria-label="${fav.includes(s[0]) ? 'Tirar das favoritas' : 'Favoritar'}" aria-pressed="${fav.includes(s[0])}">${fav.includes(s[0]) ? '★' : '☆'}</button></div>`;
         const fl = fav.map(id => STK[id]).filter(Boolean);
-        return (fl.length ? `<small class="cp-sec">★ Favoritas</small>${fl.map(one).join('')}<small class="cp-sec">Todas</small>` : '') + STICKERS.map(one).join('');
+        return (fl.length ? `<small class="cp-sec">★ Favoritas</small>${fl.map(one).join('')}<small class="cp-sec">Todas</small>` : '') + STICKERS.filter(s => okS(s[0])).map(one).join('');
       })()}</div></div>`;
     const rec = recent.get();
     const cats = (rec.length ? [['Recentes', 'clock', rec.join(' ')]] : []).concat(EMOJI);
@@ -349,7 +354,7 @@
           ${!cur.dm ? `<div class="chat-h-av" aria-label="${total} participantes">${members.slice(0, 4).map(x => V.avatar(x)).join('')}${total > 4 ? `<em>+${total - 4}</em>` : ''}</div>` : ''}
         </header>
         <div class="chat-msgs" id="chat-msgs">${hiddenN ? `<button type="button" class="link chat-more" data-act="chatMore">Ver mensagens anteriores (${hiddenN})</button>` : ''}${body}</div>
-        ${canPost ? `<div class="chat-in">${c.panel ? pickerHtml(c.panel) : ''}${replyBar(cur, u)}
+        ${canPost ? `<div class="chat-in">${c.panel ? pickerHtml(c.panel, cur, u) : ''}${replyBar(cur, u)}
           <div class="chat-pill"><div class="chat-tools">${V.ibtn('smile', 'Emojis', { act: 'chatPanel', cls: c.panel === 'emoji' ? 'on' : '', attrs: 'data-k="emoji"' })}${V.ibtn('sticker', 'Figurinhas', { act: 'chatPanel', cls: c.panel === 'fig' ? 'on' : '', attrs: 'data-k="fig"' })}</div><textarea id="chat-text" rows="1" placeholder="${geral ? 'Escreva um comunicado para todo o escritório…' : cur.dm ? 'Mensagem para ' + esc(P.firstName(cur.name)) + '…' : 'Escreva uma mensagem…'}" maxlength="2000">${esc((c.drafts || {})[cur.id] || '')}</textarea>
           <button type="button" class="chat-send" data-act="chatSend" aria-label="Enviar" title="Enviar (Enter)">${icon('right')}</button></div></div>
           <p class="chat-hint">Enter envia · Shift+Enter quebra a linha</p>`
