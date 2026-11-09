@@ -211,7 +211,21 @@
     ['reuniao', '📅', 'Reunião?', '#1f6f9c'], ['entendido', '👌', 'Entendido!', '#2f8f5b'], ['ja-volto', '⏳', 'Já volto', '#64748b'],
     ['urgente', '🚨', 'Urgente!', '#dc2626'], ['ajuda', '🆘', 'Me ajuda?', '#dc2626'], ['forca', '💪', 'Força, equipe!', '#7c3aed'],
     ['sexta', '🥳', 'Feliz sexta!', '#db2777'], ['top', '🏆', 'Você é top!', '#d97706'], ['haha', '😂', 'Hahaha', '#ca8a04'],
-    ['revisar', '🔍', 'Vou revisar', '#0f766e'], ['feito', '✅', 'Feito!', '#2f8f5b']
+    ['revisar', '🔍', 'Vou revisar', '#0f766e'], ['feito', '✅', 'Feito!', '#2f8f5b'],
+    // reações e humor
+    ['boa', '😄', 'Boa!', '#2f8f5b'], ['ligado', '🫡', 'Estou ligado(a)', '#1f6f9c'], ['correria', '🏃', 'Tô na correria', '#ea580c'], ['respira', '😮‍💨', 'Respira e vai', '#0f766e'],
+    ['so-que-nao', '🙄', 'Só que não', '#64748b'], ['de-olho', '👀', 'Tô de olho', '#7c3aed'], ['segura', '😬', 'Segura a emoção', '#ca8a04'], ['choque', '😱', 'Choque!', '#dc2626'],
+    ['chorando', '😭', 'Chorando', '#1f6f9c'], ['besteira', '🙈', 'Fiz besteira', '#ea580c'], ['foi-mal', '😅', 'Foi mal', '#ca8a04'], ['perdao', '🥺', 'Perdão', '#db2777'],
+    // elogios
+    ['mandou-bem', '👏', 'Mandou bem!', '#2f8f5b'], ['brilhante', '🌟', 'Brilhante!', '#d97706'], ['show', '🎸', 'Show de bola', '#7c3aed'], ['gratidao', '🙏', 'Gratidão', '#0f766e'],
+    ['essencial', '💎', 'Você é essencial', '#1f6f9c'], ['nota10', '🔟', 'Equipe nota 10', '#2f8f5b'],
+    // zoeira
+    ['cafe-zero', '🧟', 'Sem café não rola', '#7c4a2d'], ['sexta-cade', '🕵️', 'Cadê a sexta?', '#4338ca'], ['segunda', '😵‍💫', 'Segundou…', '#64748b'], ['planilha', '📊', 'Planilha não perdoa', '#2f8f5b'],
+    ['fechamento-eu', '🔥', 'Fechamento: tô bem (mentira)', '#dc2626'], ['prazo-ontem', '⏰', 'Prazo era ontem', '#dc2626'], ['reuniao-email', '📧', 'Isso era um e-mail', '#1f6f9c'], ['nao-vi', '🙉', 'Não vi nada', '#7c4a2d'],
+    ['culpa-sistema', '🤖', 'Foi o sistema!', '#0f766e'], ['funcionou', '🤞', 'Funcionou, não mexe', '#ca8a04'], ['pix', '💸', 'Cadê o PIX?', '#2f8f5b'], ['imposto', '🧾', 'Leão tá com fome', '#ea580c'],
+    ['ferias', '🏝️', 'Preciso de férias', '#db2777'], ['sono', '🥱', 'Dormi 5 minutinhos', '#4338ca'], ['trabalhando', '🕺', 'Trabalhando (muito)', '#7c3aed'], ['sumiu', '🫥', 'Sumi', '#64748b'],
+    ['brabo', '😤', 'Tô brabo(a)', '#dc2626'], ['milagre', '🙌', 'É milagre!', '#d97706'], ['deu-ruim', '💥', 'Deu ruim', '#dc2626'], ['tudo-certo', '🫠', 'Tá tudo sob controle', '#ca8a04'],
+    ['nem-vem', '✋', 'Nem vem!', '#ea580c'], ['bora', '🔥', 'Bora bora!', '#c2410c'], ['fofoca', '☕', 'Tem fofoca?', '#db2777'], ['chefe', '🫣', 'O chefe viu?', '#7c3aed']
   ];
   const STK = Object.fromEntries(STICKERS.map(s => [s[0], s]));
   const stickerOf = t => { const m = /^::fig:([a-z0-9-]+)::$/.exec(String(t || '')); return m && STK[m[1]] ? STK[m[1]] : null; };
@@ -221,9 +235,19 @@
     get: () => { try { return JSON.parse(localStorage.getItem('prumo.emojiRecent') || '[]'); } catch (e) { return []; } },
     add: e => { try { const l = [e].concat(recent.get().filter(x => x !== e)).slice(0, 24); localStorage.setItem('prumo.emojiRecent', JSON.stringify(l)); } catch (e2) { } }
   };
+  // figurinhas favoritas: guardadas neste navegador, separadas por usuário
+  const favKey = () => 'prumo.stkFav.' + ((S() && S().user && S().user.id) || '');
+  const favs = {
+    get: () => { try { return JSON.parse(localStorage.getItem(favKey()) || '[]').filter(id => STK[id]); } catch (e) { return []; } },
+    toggle: id => { try { const l = favs.get(), i = l.indexOf(id); if (i >= 0) l.splice(i, 1); else l.unshift(id); localStorage.setItem(favKey(), JSON.stringify(l)); } catch (e) { } }
+  };
   const pickerHtml = kind => {
     if (kind === 'fig') return `<div class="chat-pick" role="dialog" aria-label="Figurinhas"><div class="cp-h"><b>Figurinhas</b>${V.ibtn('x', 'Fechar', { act: 'chatPanel', attrs: 'data-k=""' })}</div>
-      <div class="cp-stk">${STICKERS.map(s => `<button type="button" class="cp-s" data-act="chatSticker" data-id="${s[0]}" title="${esc(s[2])}">${stickerHtml(s)}</button>`).join('')}</div></div>`;
+      <div class="cp-stk">${(() => {
+        const fav = favs.get(), one = s => `<div class="cp-w"><button type="button" class="cp-s" data-act="chatSticker" data-id="${s[0]}" title="${esc(s[2])}">${stickerHtml(s)}</button><button type="button" class="cp-fav${fav.includes(s[0]) ? ' on' : ''}" data-act="chatStickerFav" data-id="${s[0]}" title="${fav.includes(s[0]) ? 'Tirar das favoritas' : 'Favoritar'}" aria-label="${fav.includes(s[0]) ? 'Tirar das favoritas' : 'Favoritar'}" aria-pressed="${fav.includes(s[0])}">${fav.includes(s[0]) ? '★' : '☆'}</button></div>`;
+        const fl = fav.map(id => STK[id]).filter(Boolean);
+        return (fl.length ? `<small class="cp-sec">★ Favoritas</small>${fl.map(one).join('')}<small class="cp-sec">Todas</small>` : '') + STICKERS.map(one).join('');
+      })()}</div></div>`;
     const rec = recent.get();
     const cats = (rec.length ? [['Recentes', 'clock', rec.join(' ')]] : []).concat(EMOJI);
     return `<div class="chat-pick" role="dialog" aria-label="Emojis"><div class="cp-h"><input type="search" id="cp-q" placeholder="Buscar emoji (ex.: café, ok, festa)" autocomplete="off">${V.ibtn('x', 'Fechar', { act: 'chatPanel', attrs: 'data-k=""' })}</div>
@@ -419,6 +443,13 @@
     t.value = t.value.slice(0, s) + e + t.value.slice(f);
     const pos = s + e.length; t.focus(); t.setSelectionRange(pos, pos);
     st().drafts[st().conv] = t.value; recent.add(e);
+  };
+  A.chatStickerFav = el => {
+    favs.toggle(el.dataset.id);
+    const t = $('#chat-text'); if (t) st().drafts[st().conv] = t.value;
+    const body = $('.cp-stk'), top = body ? body.scrollTop : 0;
+    P.render();
+    requestAnimationFrame(() => { const b = $('.cp-stk'); if (b) b.scrollTop = top; });
   };
   A.chatSticker = el => {
     const c = st(); if (!c.conv) return;
