@@ -208,4 +208,40 @@
     const b = html.lastIndexOf('<button', i);
     return html.slice(0, b) + V.btn('Transferir tarefas', { act: 'transferTasks', icon: 'users', cls: 'ghost' }) + html.slice(b);
   };
+
+  /* ---------- Férias já aprovadas: o gestor troca ou retira o substituto ---------- */
+  // as tarefas que estavam com o substituto voltam para o titular; se houver um novo, a sincronização passa para ele
+  const origItem = V.vacItem;
+  V.vacItem = (u, v, o = {}) => {
+    if (v && v.status === 'aprovada' && v.end >= today() && v.userId !== u.id && manages(u, v.deptId)) {
+      const lbl = v.coverBy ? 'Substituto: ' + esc(first(nameOf(v.coverBy))) : 'Sem substituto';
+      o = Object.assign({}, o, { actions: (o.actions || '') + `<span class="badge st-sem">${V.icon('users')}${lbl}</span>` + V.btn(v.coverBy ? 'Trocar substituto' : 'Definir substituto', { act: 'vacCover', cls: 'sm ghost', icon: 'users', attrs: `data-id="${v.id}"` }) });
+    }
+    return origItem(u, v, o);
+  };
+  A.vacCover = el => {
+    const u = U(), v = (db().vacations || []).find(x => x.id === el.dataset.id);
+    if (!v || v.status !== 'aprovada' || !manages(u, v.deptId)) return;
+    const list = peers(v.deptId, v.userId), withSub = (db().tasks || []).filter(t => t.coverOf && t.coverOf.vacId === v.id && t.status === 'pendente');
+    P.ui.modal({
+      title: 'Substituto nas férias de ' + esc(first(nameOf(v.userId))), submit: 'Salvar',
+      body: `<p class="prose">Férias de ${D.fmt(v.start)} a ${D.fmt(v.end)}.${v.coverBy ? ' Hoje: <b>' + esc(nameOf(v.coverBy)) + '</b>, com ' + withSub.length + ' tarefa(s) pendente(s).' : ' Hoje ninguém está cobrindo.'}</p>
+        <label class="field"><span>Substituto(a)</span><select id="vc-to"><option value="">Ninguém por enquanto (as tarefas voltam para ${esc(first(nameOf(v.userId)))})</option>${list.map(x => `<option value="${x.id}" ${x.id === v.coverBy ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+        <p class="fine">${V.icon('info')} As tarefas pendentes que estão com o substituto atual voltam para o titular. Se você escolher outra pessoa, as tarefas com prazo nas férias passam para ela.</p>`,
+      onSubmit: () => {
+        const nv = $('#vc-to').value || null, prev = v.coverBy || null;
+        if (nv === prev) return;
+        if (nv && awayOn(nv, v.start, v.end)) throw new Error(first(nameOf(nv)) + ' também estará de férias nesse período. Escolha outra pessoa.');
+        withSub.forEach(t => move(t, v.userId, null, nv ? 'Substituto das férias alterado' : 'Substituto das férias retirado', u));
+        v.coverBy = nv; (v.history = v.history || []).push({ at: D.stamp(), by: u.id, action: nv ? 'Substituto alterado para ' + nameOf(nv) : 'Substituto retirado (definir depois)', note: '' });
+        P.audit(u, 'Substituto de férias alterado', v.id, nameOf(v.userId) + ': ' + (prev ? nameOf(prev) : 'ninguém') + ' → ' + (nv ? nameOf(nv) : 'ninguém') + ' · ' + withSub.length + ' tarefa(s) devolvida(s)');
+        if (P.notify) {
+          if (prev) P.notify([prev], { type: 'tarefa', icon: 'clipboard', title: 'Você não cobre mais as férias de ' + first(nameOf(v.userId)), text: withSub.length + ' tarefa(s) voltaram para o titular.', link: 'atividades' });
+          if (nv) P.notify([nv], { type: 'tarefa', icon: 'clipboard', title: 'Você vai cobrir as férias de ' + first(nameOf(v.userId)), text: D.fmt(v.start) + ' a ' + D.fmt(v.end) + '. As tarefas com prazo no período passam para você.', link: 'atividades' });
+        }
+        P.store.save(); const n = nv ? sync(true) : 0;
+        P.toast((nv ? 'Substituto: ' + first(nameOf(nv)) : 'Sem substituto por enquanto') + ' · ' + withSub.length + ' tarefa(s) devolvida(s)' + (n ? ', ' + n + ' passada(s) para o novo substituto' : '') + '.'); P.render();
+      }
+    });
+  };
 })(window.P);
