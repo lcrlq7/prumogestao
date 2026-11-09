@@ -38,9 +38,10 @@
   P.PAGES.eventos = ['admin', 'office', 'manager', 'employee'];
 
   /* ---------- Agenda e calendário: evento aprovado entra como compromisso ---------- */
-  // publicado para todos → aparece para o escritório; senão só para os convidados que não recusaram
+  // quem vê um evento: quem indicou, a direção e os convidados pela direção (no calendário, só os que não recusaram)
+  const sees = (u, e) => !!u && (P.isGlobal(u) || e.createdBy === u.id || (e.invited || []).includes(u.id));
   const asEvent = e => ({ id: 'sg_' + e.id, sg: e.id, ext: true, type: 'evento', title: e.title, date: e.date, start: e.start || '', end: e.end || '', place: e.place || '', notes: e.why || '', participants: going(e), createdBy: e.decidedBy || e.createdBy });
-  const agendaFor = u => list().filter(e => e.status === 'aprovado' && (e.publish === 'todos' || going(e).includes(u.id) || P.isGlobal(u))).map(asEvent);
+  const agendaFor = u => list().filter(e => e.status === 'aprovado' && (P.isGlobal(u) || e.createdBy === u.id || going(e).includes(u.id))).map(asEvent);
   P.evSug.agendaFor = agendaFor;
   const origFor = P.agenda.forUser;
   P.agenda.forUser = (u, scope) => origFor(u, scope).concat(agendaFor(u));
@@ -98,7 +99,7 @@
     const fut = e => e.date >= today();
     const tabs = (dec ? [['pendente', 'Aguardando decisão', all.filter(e => e.status === 'pendente').length], ['info', 'Aguardando informações', all.filter(e => e.status === 'info').length]] : [])
       .concat([['convites', 'Meus convites', all.filter(e => e.status === 'aprovado' && (e.invited || []).includes(u.id) && fut(e)).length],
-        ['aprovados', 'Próximos eventos', all.filter(e => e.status === 'aprovado' && fut(e) && (dec || e.publish === 'todos' || (e.invited || []).includes(u.id))).length],
+        ['aprovados', 'Próximos eventos', all.filter(e => e.status === 'aprovado' && fut(e) && sees(u, e)).length],
         ['minhas', 'Minhas indicações', all.filter(e => e.createdBy === u.id && e.status === 'info').length || all.filter(e => e.createdBy === u.id).length]])
       .concat(dec ? [['historico', 'Recusados e realizados', all.filter(e => e.status === 'recusado' || (e.status === 'aprovado' && !fut(e))).length]] : []);
     const tab = tabs.some(t => t[0] === st.tab) ? st.tab : (dec && tabs[0][2] ? 'pendente' : myInfo(u).length ? 'minhas' : myPending(u).length ? 'convites' : dec ? 'pendente' : 'aprovados');
@@ -106,7 +107,7 @@
       pendente: all.filter(e => e.status === 'pendente'),
       info: all.filter(e => e.status === 'info'),
       convites: all.filter(e => e.status === 'aprovado' && (e.invited || []).includes(u.id) && fut(e)),
-      aprovados: all.filter(e => e.status === 'aprovado' && fut(e) && (dec || e.publish === 'todos' || (e.invited || []).includes(u.id))),
+      aprovados: all.filter(e => e.status === 'aprovado' && fut(e) && sees(u, e)),
       minhas: all.filter(e => e.createdBy === u.id).reverse(),
       historico: all.filter(e => e.status === 'recusado' || (e.status === 'aprovado' && !fut(e))).reverse()
     }[tab] || [];
@@ -204,7 +205,6 @@
         <div class="ag-people" id="evx-people">${order.map(k => `<div class="ag-dg" data-k="${esc(k)}"><small>${esc(k)}${fits(k) ? ' · área do evento' : ''}</small>${groups[k].map(p => `<label class="ag-p"><input type="checkbox" value="${p.id}" ${p.id === e.createdBy && isFirst ? 'checked' : ''}>${V.avatar(p)}<span><b>${esc(p.name)}</b><small>${esc(P.ROLES[p.role])}${p.id === e.createdBy ? ' · indicou' : ''}</small></span></label>`).join('')}</div>`).join('')}</div>
         <div class="fgrid" data-st="margin-top:12px">
           <label class="field"><span>Responder até</span><input type="date" id="evx-dl" min="${today()}" max="${e.date}" value="${dl}"></label>
-          ${isFirst ? `<label class="field span2 check-inline evx-pub"><input type="checkbox" id="evx-pub" checked> Mostrar o evento no calendário de todo o escritório</label>` : ''}
         </div>
         <p class="fine" id="evx-cost"></p></form>`,
       onSubmit: m => {
@@ -213,7 +213,7 @@
         e.invited = [...new Set((e.invited || []).concat(ids))]; e.resp = e.resp || {};
         ids.forEach(id => { e.resp[id] = { st: 'aguardando', at: D.stamp() }; });
         e.deadline = $('#evx-dl', m).value || e.deadline || '';
-        if (isFirst) { e.status = 'aprovado'; e.decidedBy = u.id; e.decidedAt = D.stamp(); e.publish = $('#evx-pub', m).checked ? 'todos' : 'convidados'; notify([e.createdBy], { icon: 'check', title: 'Sua indicação foi aprovada', text: `A direção aprovou ${e.title} e convidou ${ids.length} pessoa${ids.length > 1 ? 's' : ''}.` }); }
+        if (isFirst) { e.status = 'aprovado'; e.decidedBy = u.id; e.decidedAt = D.stamp(); e.publish = 'convidados'; notify([e.createdBy], { icon: 'check', title: 'Sua indicação foi aprovada', text: `A direção aprovou ${e.title} e convidou ${ids.length} pessoa${ids.length > 1 ? 's' : ''}.` }); }
         notify(ids, { icon: 'calendar', title: 'Você foi convidado pela direção', text: `${e.title} · ${when(e)}${e.place ? ' · ' + e.place : ''}. Responda${e.deadline ? ' até ' + D.fmt(e.deadline) : ''}: confirmar, recusar ou indicar outra pessoa.` });
         P.audit(u, isFirst ? 'Evento aprovado' : 'Convidados adicionados', e.id, e.title + ' · ' + ids.map(name).join(', '));
         save(); P.toast(`${ids.length} convite${ids.length > 1 ? 's enviados' : ' enviado'}.`); P.fx && P.fx.success(); S().evs = { tab: 'aprovados' }; P.render();
