@@ -1782,3 +1782,9 @@ h4.tk-read,h4.tk-dlv,h4.tk-sent{margin:12px 0 0;font-size:12px;text-transform:up
 .mt-game small{display:block;opacity:.75}
 @keyframes mtSpin{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
 @media (prefers-reduced-motion:reduce){.mt-ico{animation:none}}
+.mt-n{width:100%;margin-top:10px;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font:inherit;text-align:center}
+.mt-n::placeholder{color:rgba(255,255,255,.6)}
+.mt-rank{margin-top:14px;padding:12px 14px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);text-align:left}
+.mt-rank ol{margin:8px 0 0;padding-left:22px;font-size:14px}
+.mt-rank li{padding:2px 0}.mt-rank li span{display:inline-block;max-width:70%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;white-space:nowrap}
+.mt-rank li b{float:right}

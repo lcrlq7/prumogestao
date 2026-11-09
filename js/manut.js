@@ -33,18 +33,35 @@
     h.innerHTML = '<div class="mt-ico">🛠️</div><h1>Estamos em manutenção</h1><p id="mt-msg"></p><p class="mt-back"></p>' +
       '<div class="mt-game"><div class="mt-hud"><span>Pontos <b id="mt-s">0</b></span><span id="mt-l">❤️❤️❤️</span><span>Recorde <b id="mt-b">0</b></span></div>' +
       '<canvas id="mt-c" width="360" height="420" aria-label="Joguinho: pegue os documentos e desvie dos bugs"></canvas>' +
+      '<input type="text" id="mt-n" class="mt-n" maxlength="20" placeholder="Seu nome para o ranking" autocomplete="off">' +
       '<button type="button" class="mt-btn" id="mt-go">Jogar enquanto espera</button>' +
-      '<small>Mouse, dedo ou setas ← → para mover. Pegue 📄🧾💰 e desvie dos 🐛.</small></div>';
+      '<small>Mouse, dedo ou setas ← → para mover. Pegue 📄🧾💰 e desvie dos 🐛.</small></div>' +
+      '<div class="mt-rank"><b>🏆 Ranking</b><ol id="mt-r"><li>carregando…</li></ol></div>';
     el.appendChild(h); document.body.appendChild(el);
     document.getElementById('mt-msg').textContent = (c && c.msg) || 'Estamos fazendo melhorias no Prumo.';
     h.querySelector('.mt-back').textContent = c && c.volta ? 'Previsão de volta: ' + c.volta : 'Assim que terminar, esta tela some sozinha.';
-    game();
+    game(); loadRank();
   }
 
+  // ranking compartilhado (funções fechadas no banco: modelos/ranking-manutencao.sql)
+  function rpc(fn, body) {
+    var c = window.PRUMO_CONFIG || {};
+    return fetch(c.supabaseUrl + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: c.supabaseAnonKey, Authorization: 'Bearer ' + c.supabaseAnonKey }, body: JSON.stringify(body || {}) })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.status === 204 ? null : r.json().catch(function () { return null; }); });
+  }
+  function loadRank() {
+    var ol = document.getElementById('mt-r'); if (!ol) return;
+    rpc('maint_rank_top').then(function (rows) {
+      ol.innerHTML = '';
+      if (!rows || !rows.length) { var e = document.createElement('li'); e.textContent = 'Ninguém pontuou ainda. Seja o primeiro!'; ol.appendChild(e); return; }
+      rows.forEach(function (r) { var li = document.createElement('li'); var n = document.createElement('span'); n.textContent = r.name; var b = document.createElement('b'); b.textContent = r.score; li.appendChild(n); li.appendChild(b); ol.appendChild(li); });
+    }).catch(function () { ol.innerHTML = '<li>Ranking indisponível no momento.</li>'; });
+  }
   function game() {
     var cv = document.getElementById('mt-c'), x = cv.getContext('2d'), W = cv.width, H = cv.height;
     var sEl = document.getElementById('mt-s'), lEl = document.getElementById('mt-l'), bEl = document.getElementById('mt-b'), btn = document.getElementById('mt-go');
     var best = parseInt(store('prumo.manutBest') || '0', 10) || 0; bEl.textContent = best;
+    var nEl = document.getElementById('mt-n'); nEl.value = store('prumo.manutName') || '';
     var p, items, score, lives, t, run = false, raf = 0, last = 0, keys = { l: false, r: false };
     function reset() { p = { x: W / 2, w: 64 }; items = []; score = 0; lives = 3; t = 0; sEl.textContent = 0; lEl.textContent = '❤️❤️❤️'; }
     function spawn() {
@@ -62,6 +79,8 @@
       run = false; cancelAnimationFrame(raf);
       if (score > best) { best = score; store('prumo.manutBest', String(best)); bEl.textContent = best; }
       btn.textContent = 'Jogar de novo'; btn.hidden = false; draw();
+      var nm = nEl.value.trim(); if (nm) store('prumo.manutName', nm);
+      if (nm && score > 0) rpc('maint_rank_submit', { p_name: nm, p_score: score }).then(loadRank).catch(function () { });
     }
     function tick(ts) {
       if (!run) return;
