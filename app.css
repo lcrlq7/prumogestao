@@ -938,6 +938,19 @@ kbd{font:600 10.5px/1 var(--f-mono);padding:3px 6px;border:1px solid var(--line-
 #notif-pop{position:fixed;right:16px;top:64px;z-index:95;display:flex;flex-direction:column;gap:8px;width:min(360px,calc(100vw - 32px))}
 .npop{display:flex;gap:10px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--surface);box-shadow:0 12px 34px rgba(8,16,24,.22);cursor:pointer;animation:npop .35s cubic-bezier(.2,.8,.2,1)}
 .npop.out{opacity:0;transform:translateX(20px);transition:opacity .35s,transform .35s}
+.npop.npop-sticky{border-left-color:var(--serious);border-left-width:5px;background:color-mix(in srgb,var(--serious) 7%,var(--surface))}
+.npop.npop-sticky .npop-ic{background:var(--serious-soft);color:var(--serious)}
+/* Faixa de OS nova no topo das telas */
+.os-alert{display:flex;gap:12px;align-items:flex-start;margin:12px 28px 0;padding:12px 16px;border:1px solid color-mix(in srgb,var(--serious) 45%,transparent);border-left:5px solid var(--serious);border-radius:12px;background:color-mix(in srgb,var(--serious) 8%,var(--surface));animation:npop .35s cubic-bezier(.2,.8,.2,1)}
+.os-alert-ic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--serious-soft);color:var(--serious);flex:none}
+.os-alert-ic .ic{width:17px;height:17px}
+.os-alert-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.os-alert-b>b{font-size:14.5px}
+.os-alert-b ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.os-alert-b li{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;font-size:13px}
+.os-alert-b li>span:first-child{min-width:0}
+.os-alert-a{display:flex;gap:6px;flex:none}
+@media (max-width:1020px){.os-alert{margin:12px 16px 0}}
 @keyframes npop{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
 .npop-ic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex:none}
 .npop-ic .ic{width:15px;height:15px}
