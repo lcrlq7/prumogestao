@@ -54,6 +54,8 @@
     // grupos personalizados do chat: se a tabela ainda não existe, o chat segue sem grupos (optional)
     { key: 'chatGroups', table: 'chat_groups', optional: true, flag: 'groupsMissing' },
     { key: 'suggestions', table: 'suggestions', optional: true, flag: 'suggMissing' },
+    // certificados digitais das empresas (a linha _cfg guarda quem pode editar)
+    { key: 'certificates', table: 'certificates', optional: true, flag: 'certMissing' },
     // indicações de eventos do setor: se a tabela ainda não existe, a página avisa (optional)
     { key: 'eventSuggestions', table: 'event_suggestions', optional: true, flag: 'evSugMissing' },
     { key: 'notifications', table: 'notifications' },

@@ -86,7 +86,7 @@
 
   /* ---------- Rotas ---------- */
   const PAGE_LABEL = {
-    dashboard: 'Dashboard', melhorias: 'Sugestões de melhoria', carteira: 'Carteira de empresas', lixeira: 'Lixeira', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
+    dashboard: 'Dashboard', melhorias: 'Sugestões de melhoria', certificados: 'Certificados digitais', carteira: 'Carteira de empresas', lixeira: 'Lixeira', equipe: 'Minha Equipe', funcionario: 'Colaborador', atividades: 'Atividades', lancamentos: 'Lançamentos', metas: 'Metas',
     insights: 'Insights', ranking: 'Ranking', calendario: 'Calendário', relatorios: 'Relatórios', historico: 'Histórico', alertas: 'Alertas',
     configuracoes: 'Configurações', departamentos: 'Departamentos', funcionarios: 'Funcionários', gestores: 'Gestores e diretoria', pesos: 'Pesos das Atividades', gerais: 'Configurações Gerais', ferias: 'Férias', mural: 'Mural de reconhecimentos', comunicacao: 'Comunicação', empresas: 'Empresas', financeiro: 'Financeiro', solicitacoes: 'Solicitações de compra', os: 'Ordens de serviço', inadimplencia: 'Inadimplência', plr: 'PLR', datasdp: 'Datas do DP', sala: 'Sala de reuniões', eventos: 'Eventos do setor'
   };
@@ -143,6 +143,7 @@
       ['mural', 'Mural', 'medal'],
       ['melhorias', 'Sugestões de melhoria', 'bulb', P.sugBadge ? P.sugBadge(u) : 0],
       ['empresas', 'Empresas', 'briefcase'],
+      ['certificados', 'Certificados digitais', 'shield'],
       ['carteira', u.role === 'employee' ? 'Minhas empresas' : 'Carteira de empresas', 'users'],
       ['inadimplencia', 'Inadimplência', 'alert'],
       ['plr', 'PLR', 'wallet'],
@@ -172,7 +173,7 @@
   const NAV_GROUPS = [
     ['trabalho', 'Trabalho', ['atividades', 'os', 'lancamentos', 'calendario', 'sala', 'eventos', 'datasdp']],
     ['pessoas', 'Pessoas', ['comunicacao', 'equipe', 'mural', 'ranking', 'metas', 'ferias', 'melhorias']],
-    ['clientes', 'Clientes', ['empresas', 'carteira', 'inadimplencia']],
+    ['clientes', 'Clientes', ['empresas', 'carteira', 'certificados', 'inadimplencia']],
     ['gestao', 'Gestão', ['insights', 'relatorios', 'historico']],
     ['adm', 'Financeiro e compras', ['plr', 'solicitacoes', 'financeiro']]
   ];
