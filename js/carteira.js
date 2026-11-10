@@ -4,7 +4,11 @@
 (function (P) {
   const D = P.date, esc = P.esc, V = P.V, A = P.actions, api = P.api, icon = V.icon;
   const db = () => P.store.db, U = () => P.state.user;
-  const st = () => (P.state.cart = P.state.cart || { userId: '', q: '', view: 'ela', limit: 100 });
+  // filtro por regime tributário (vale em "Minhas empresas" e na carteira do gestor)
+  const regKey = c => P.REGIMES[c.regime] ? c.regime : 'nao';
+  const regOk = (c, r) => !r || regKey(c) === r;
+  const regSelect = (cur, counts) => `<label class="picker"><select data-set="cart.regime" aria-label="Regime tributário"><option value="">Todos os regimes</option>${Object.entries(P.REGIMES).map(([k, r]) => [k, r.label]).concat([['nao', 'Não informado']]).map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${esc(l)}${counts ? ' (' + (counts[k] || 0) + ')' : ''}</option>`).join('')}</select></label>`;
+  const st = () => (P.state.cart = P.state.cart || { userId: '', q: '', regime: '', view: 'ela', limit: 100 });
   const norm = P.norm;
   const byName = P.byName;
   const scopeDept = u => V.scopeDept(u) || (u.role === 'manager' ? u.deptId : '');
@@ -21,7 +25,8 @@
     const counts = {}; assigns.forEach(a => { counts[a.userId] = (counts[a.userId] || 0) + 1; });
     const q = norm(s.q);
     let list = (db().companies || []).filter(c => c.active !== false).sort(byName)
-      .filter(c => !q || norm(c.name + ' ' + (c.code || '') + ' ' + (c.cnpj || '')).includes(q));
+      .filter(c => !q || norm(c.name + ' ' + (c.code || '') + ' ' + (c.cnpj || '')).includes(q))
+      .filter(c => regOk(c, s.regime));
     const mine = c => (byClient.get(c.name) || {}).userId === s.userId;
     if (s.view === 'ela') list = list.filter(mine);
     else if (s.view === 'livres') list = list.filter(c => !byClient.has(c.name));
@@ -36,13 +41,15 @@
     const comps = new Map((db().companies || []).map(c => [c.name, c]));
     const pend = new Map();
     db().tasks.forEach(t => { if (t.userId === u.id && t.status === 'pendente' && t.client) { const e = pend.get(t.client) || { n: 0, next: '', late: 0 }; e.n++; if (t.due) { if (!e.next || t.due < e.next) e.next = t.due; if (t.due < today) e.late++; } pend.set(t.client, e); } });
-    const list = mine.map(a => ({ a, c: comps.get(a.client) || { name: a.client, regime: '' } })).filter(x => !q || norm(x.c.name + ' ' + (x.c.code || '')).includes(q)).sort((x, y) => byName(x.c, y.c));
+    const found = mine.map(a => ({ a, c: comps.get(a.client) || { name: a.client, regime: '' } })).filter(x => !q || norm(x.c.name + ' ' + (x.c.code || '')).includes(q)).sort((x, y) => byName(x.c, y.c));
+    const regCounts = {}; found.forEach(x => { const k = regKey(x.c); regCounts[k] = (regCounts[k] || 0) + 1; });
+    const list = found.filter(x => regOk(x.c, s.regime));
     const shown = list.slice(0, s.limit), rest = list.length - shown.length;
     const rows = shown.map(({ c }) => { const p = pend.get(c.name);
       return `<tr><td><b>${esc(c.name)}</b>${c.code ? `<small class="obs">${esc(c.code)}</small>` : ''}</td><td>${esc((P.REGIMES[c.regime] || {}).label || '—')}</td>
         <td>${p ? p.n + (p.late ? ` <span class="badge st-sobrecarga">${p.late} em atraso</span>` : '') : '<span class="muted">nenhuma</span>'}</td><td class="nowrap">${p && p.next ? esc(D.fmt(p.next)) : '—'}</td></tr>`; }).join('');
     return `${V.pageHead('Minhas empresas', 'As empresas pelas quais você é responsável. Para mudar a carteira, fale com o seu gestor.')}
-      <div class="toolbar tfilter"><label class="picker grow">${icon('search')}<input type="search" id="cart-q" data-set="cart.q" data-live value="${esc(s.q)}" placeholder="Buscar empresa por nome ou código" aria-label="Buscar empresa" autocomplete="off"></label><span class="fine tf-count">${list.length} empresa(s)</span></div>
+      <div class="toolbar tfilter"><label class="picker grow">${icon('search')}<input type="search" id="cart-q" data-set="cart.q" data-live value="${esc(s.q)}" placeholder="Buscar empresa por nome ou código" aria-label="Buscar empresa" autocomplete="off"></label>${regSelect(s.regime, regCounts)}<span class="fine tf-count">${list.length} empresa(s)</span></div>
       ${V.card('Carteira de ' + esc(u.name), list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Regime</th><th>Tarefas pendentes</th><th>Próximo prazo</th></tr></thead><tbody>${rows}</tbody></table></div>${rest > 0 ? `<div class="pager">${V.btn('Mostrar mais (' + rest + ' restantes)', { act: 'cartMore', icon: 'plus', cls: 'sm ghost' })}</div>` : ''}` : V.empty(mine.length ? 'Nenhuma empresa neste filtro.' : 'Você ainda não tem empresas na carteira.', 'building'), { cls: 'flush' })}`;
   };
 
@@ -72,6 +79,7 @@
           <div class="toolbar tfilter">
             <label class="picker grow">${icon('search')}<input type="search" id="cart-q" data-set="cart.q" data-live value="${esc(s.q)}" placeholder="Buscar empresa por nome, código ou CNPJ" aria-label="Buscar empresa" autocomplete="off"></label>
             <label class="picker"><select data-set="cart.view" aria-label="Mostrar"><option value="ela" ${s.view === 'ela' ? 'selected' : ''}>Só as de ${esc(P.firstName ? P.firstName(me.name) : me.name)}</option><option value="todas" ${s.view === 'todas' ? 'selected' : ''}>Todas as empresas</option><option value="livres" ${s.view === 'livres' ? 'selected' : ''}>Sem responsável</option><option value="outros" ${s.view === 'outros' ? 'selected' : ''}>De outras pessoas</option></select></label>
+            ${regSelect(s.regime)}
             <span class="fine tf-count">${list.length} empresa(s)</span></div>
           <div class="cart-bulk">${V.btn('Marcar todas as filtradas', { act: 'cartAll', icon: 'check', cls: 'sm ghost' })}${V.btn('Desmarcar todas as filtradas', { act: 'cartNone', icon: 'x', cls: 'sm ghost' })}<span class="fine">Marcar uma empresa de outra pessoa transfere para ${esc(me.name)}. Cada clique já salva.</span></div>
           ${V.card('Empresas · responsável: ' + esc(me.name), list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"></th><th>Empresa</th><th>Regime</th><th>Responsável atual</th></tr></thead><tbody>${rows}</tbody></table></div>${rest > 0 ? `<div class="pager">${V.btn('Mostrar mais (' + rest + ' restantes)', { act: 'cartMore', icon: 'plus', cls: 'sm ghost' })}</div>` : ''}` : V.empty('Nenhuma empresa neste filtro.', 'building'), { cls: 'flush' })}
