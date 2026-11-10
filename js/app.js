@@ -34,7 +34,7 @@
     cal: { month: D.monthStart(today), userId: '', sel: D.iso(today) },
     rep: { type: 'departamento', deptId: '', userId: '', period: 'mes_ant', custom: { start: D.iso(D.add(today, -29)), end: D.iso(today) } },
     insFilter: 'all', hlPeriod: 'mes_ant', hlAll: false, recAll: false, rankPeriod: 'semana', pesoDept: 'd1', empFilter: { q: '', dept: '', status: '' }, alertFilter: 'all',
-    comp: { q: '', code: '', regime: '', dept: '', status: 'ativas', limit: '50' }, compPage: 1, vac: { month: D.monthStart(today), sel: null, tab: 'fila' },
+    comp: { q: '', code: '', regime: '', dept: '', owner: '', status: 'ativas', limit: '50' }, compPage: 1, vac: { month: D.monthStart(today), sel: null, tab: 'fila' },
     tf: { q: '', client: '', from: '', to: '', late: false }, taskPer: [20, 50, 100].includes(Number(ls.get('prumo.taskper'))) ? Number(ls.get('prumo.taskper')) : 20, taskPg: {},
     theme: ls.get('prumo.theme') || 'system', navOpen: false, navCollapsed: ls.get('prumo.nav') === 'min'
   };
@@ -624,6 +624,8 @@
         onSubmit: () => { api.removeRecognition(U(), el.dataset.id); toast('Reconhecimento removido.'); render(); } });
     },
     setComp(el) { S.comp[el.dataset.key] = el.dataset.val; render(); },
+    compCell(el) { S.comp.dept = el.dataset.dept; S.comp.regime = el.dataset.reg; S.comp.status = 'ativas'; render(); },
+    compClear() { Object.assign(S.comp, { q: '', code: '', regime: '', dept: '', city: '', owner: '', status: 'ativas' }); render(); },
     closeModal,
     modalSubmit() {
       if (!modalHandler) return closeModal();

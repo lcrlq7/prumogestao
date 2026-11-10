@@ -20,6 +20,8 @@
     (P.store.db.clientAssignments || []).forEach(a => { (owners[a.client] = owners[a.client] || []).push(a); });
     const deptsOf = c => [...new Set((c.depts || []).concat((owners[c.name] || []).map(a => a.deptId)))];
     const all = api.companies(u);
+    // os filtros viram uma função: a lista usa todos; os números por regime usam todos menos o regime
+    const pipeline = skipReg => {
     let list = all;
     if (f.q) { const q = f.q.toLowerCase(), qd = P.cnpj.digits(f.q); list = list.filter(c => c.name.toLowerCase().includes(q) || (c.code || '').toLowerCase() === q || (c.tradeName || '').toLowerCase().includes(q) || (qd.length >= 3 && P.cnpj.digits(c.cnpj).includes(qd))); }
     // Busca por código: o código exato aparece primeiro, depois os que começam com o que foi digitado
@@ -29,9 +31,13 @@
         .sort((a, b) => ((b.code || '').toLowerCase() === k) - ((a.code || '').toLowerCase() === k) || (a.code || '').localeCompare(b.code || '', 'pt-BR', { numeric: true }));
     }
     if (f.city) list = list.filter(c => f.city === 'nao' ? !P.cityOf(c) : P.cityOf(c) === f.city);
-    if (f.regime) list = list.filter(c => f.regime === 'nao' ? !P.REGIMES[c.regime] : c.regime === f.regime);
+    if (f.regime && !skipReg) list = list.filter(c => f.regime === 'nao' ? !P.REGIMES[c.regime] : c.regime === f.regime);
     if (f.dept) list = list.filter(c => deptsOf(c).includes(f.dept));
+    if (f.owner) list = list.filter(c => (owners[c.name] || []).some(a => a.userId === f.owner && (!f.dept || a.deptId === f.dept)));
     if (f.status) list = list.filter(c => f.status === 'ativas' ? c.active : f.status === 'incompletas' ? c.active && incomplete(c) : f.status === 'semcodigo' ? !c.code : !c.active);
+    return list;
+    };
+    const list = pipeline(false), base = pipeline(true);
     // Seleção para ações em lote (só administrador); a seleção sobrevive a trocas de filtro
     const canBulk = P.canCompanies(u);
     const sel = S.compSel = S.compSel || new Set();
@@ -39,7 +45,7 @@
     // Quantidade exibida por página (10, 50, 100 ou todas); volta à 1ª página quando os filtros mudam
     const LIMITS = [['10', 'Até 10'], ['50', 'Até 50'], ['100', 'Até 100'], ['all', 'Todas']];
     const limit = LIMITS.some(([k]) => k === f.limit) ? f.limit : '50';
-    const sig = [f.q, f.code, f.regime, f.city, f.dept, f.status, limit].join('|');
+    const sig = [f.q, f.code, f.regime, f.city, f.dept, f.owner, f.status, limit].join('|');
     if (S.compSig !== sig) { S.compSig = sig; S.compPage = 1; }
     const size = limit === 'all' ? Math.max(list.length, 1) : Number(limit);
     const pages = Math.max(1, Math.ceil(list.length / size));
@@ -49,11 +55,20 @@
     const allVisibleSel = shown.length > 0 && shown.every(c => sel.has(c.id));
 
     const active = all.filter(c => c.active);
-    const counts = {}; active.forEach(c => { const k = P.REGIMES[c.regime] ? c.regime : 'nao'; counts[k] = (counts[k] || 0) + 1; });
+    const counts = {}; base.forEach(c => { const k = P.REGIMES[c.regime] ? c.regime : 'nao'; counts[k] = (counts[k] || 0) + 1; });
     const nIncomplete = active.filter(incomplete).length;
     const depts = P.store.db.departments.filter(d => d.active !== false);
     const regFilters = Object.entries(P.REGIMES).map(([k, r]) => [k, r.label, REG_CLS[k]]).concat([['nao', 'Não informado', 'sw-empty']]);
     const job = S.receitaJob;
+    const filtered = !!(f.q || f.code || f.city || f.dept || f.owner || (f.status && f.status !== 'ativas'));
+    const ownerOpts = [...new Set((P.store.db.clientAssignments || []).filter(a => !f.dept || a.deptId === f.dept).map(a => a.userId))].map(id => P.user(id)).filter(Boolean).sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+    // quadro: quantas empresas ativas de cada departamento por regime tributário (clicar filtra a lista)
+    const matrix = (() => {
+      const rows = depts.map(d => [d, active.filter(c => deptsOf(c).includes(d.id))]).filter(([, cs]) => cs.length);
+      if (!rows.length) return '';
+      const cell = (d, k, n) => `<td class="num">${n ? `<button type="button" class="link" data-act="compCell" data-dept="${d.id}" data-reg="${k}">${n}</button>` : '<span class="muted">0</span>'}</td>`;
+      return V.card('Empresas por departamento e regime', `<div class="table-wrap"><table class="tbl"><thead><tr><th>Departamento</th>${regFilters.map(([k, l]) => `<th class="num">${l}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>${rows.map(([d, cs]) => `<tr><td><b>${esc(d.name)}</b></td>${regFilters.map(([k]) => cell(d, k, cs.filter(c => (P.REGIMES[c.regime] ? c.regime : 'nao') === k).length)).join('')}<td class="num">${cell(d, '', cs.length).replace('<td class="num">', '<td class="num"><b>').replace('</td>', '</b></td>')}</tr>`).join('')}</tbody></table></div>`, { cls: 'flush', sub: 'Só empresas ativas. Clique em um número para ver essas empresas na lista abaixo.' });
+    })();
     const withCnpj = active.filter(c => c.cnpj).length;
     return `${V.pageHead('Empresas', 'Clientes atendidos, com regime tributário, departamentos e responsáveis pela carteira.', (canEdit ? `<a class="btn ghost" href="modelos/Modelo_importacao_clientes.xlsx" download title="Planilha padrão para importar empresas">${icon('download')}<span>Modelo de planilha</span></a>` : '') + V.btn('Importar carteira', { act: 'importPortfolio', icon: 'briefcase', cls: canEdit ? 'ghost' : 'primary' }) + (canEdit ? ((P.store.db.importLogs || []).length ? V.btn('Importações', { act: 'importHistory', icon: 'history', cls: 'ghost' }) : '') + V.btn('Importar planilha', { act: 'importCompanies', icon: 'file' }) + V.btn('Atualizar pela Receita', { act: 'bulkReceita', icon: 'refresh', attrs: job && job.running ? 'disabled' : '' }) + V.btn('Nova empresa', { act: 'editCompany', icon: 'plus', cls: 'primary' }) : ''))}
       ${job ? `<div class="banner ${job.running ? 'info' : job.errors.length ? 'warn' : 'info'}">${icon(job.running ? 'clock' : 'check')}<div>
@@ -63,17 +78,20 @@
       ${canEdit && !job && withCnpj === 0 && active.length ? `<div class="banner info">${icon('info')}<div>Para puxar os dados públicos da Receita, informe o CNPJ ao editar uma empresa. O sistema preenche razão social, CNAEs, situação cadastral e sugere o regime tributário.</div></div>` : ''}
       ${canEdit && nIncomplete ? `<div class="banner warn">${icon('alert')}<div><b>${nIncomplete} empresa${nIncomplete > 1 ? 's' : ''} com cadastro incompleto.</b> Informe o regime tributário e o CNPJ ao editar. <button type="button" class="link" data-act="setComp" data-key="status" data-val="incompletas">Mostrar só essas</button></div></div>` : ''}
       <div class="strip">
-        <div><span>Empresas ativas</span><b>${active.length}</b></div>
+        <div><span>${filtered ? 'Empresas no filtro' : 'Empresas ativas'}</span><b>${base.length}</b></div>
         ${regFilters.map(([k, l, cls]) => `<div class="clickable-strip ${f.regime === k ? 'on' : ''}" data-act="setComp" data-key="regime" data-val="${f.regime === k ? '' : k}" role="button" tabindex="0"><span><i class="sw ${cls}"></i> ${l}</span><b>${counts[k] || 0}</b></div>`).join('')}
       </div>
+      ${matrix}
       <section class="card"><div class="card-b"><div class="filters">
         <label class="field"><span>Código</span><input type="search" id="cp-code" value="${esc(f.code || '')}" data-set="comp.code" data-live placeholder="Ex.: 120" inputmode="search" data-st="max-width:140px"></label>
         <label class="field"><span>Buscar</span><input type="search" id="cp-q" value="${esc(f.q)}" data-set="comp.q" data-live placeholder="Razão social ou CNPJ"></label>
         <label class="field"><span>Regime tributário</span><select id="cp-reg" data-set="comp.regime"><option value="">Todos</option>${regFilters.map(([k, l]) => `<option value="${k}" ${f.regime === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="field"><span>Município</span><select id="cp-city" data-set="comp.city"><option value="">Todos</option>${[...new Set(all.map(P.cityOf).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(x => `<option value="${esc(x)}" ${f.city === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="nao" ${f.city === 'nao' ? 'selected' : ''}>Não informado</option></select></label>
         <label class="field"><span>Departamento</span><select id="cp-dept" data-set="comp.dept"><option value="">Todos</option>${depts.map(d => `<option value="${d.id}" ${f.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
+        <label class="field"><span>Responsável</span><select id="cp-owner" data-set="comp.owner"><option value="">Todos</option>${ownerOpts.map(x => `<option value="${x.id}" ${f.owner === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Situação</span><select id="cp-st" data-set="comp.status"><option value="">Todas</option><option value="ativas" ${f.status === 'ativas' ? 'selected' : ''}>Ativas</option><option value="incompletas" ${f.status === 'incompletas' ? 'selected' : ''}>Cadastro incompleto</option><option value="inativas" ${f.status === 'inativas' ? 'selected' : ''}>Inativas</option><option value="semcodigo" ${f.status === 'semcodigo' ? 'selected' : ''}>Sem código (não vieram da planilha)</option></select></label>
         <label class="field"><span>Exibir</span><select id="cp-limit" data-set="comp.limit">${LIMITS.map(([k, l]) => `<option value="${k}" ${limit === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        ${f.q || f.code || f.regime || f.city || f.dept || f.owner || (f.status && f.status !== 'ativas') ? `<div class="field"><span>&nbsp;</span>${V.btn('Limpar filtros', { act: 'compClear', cls: 'sm ghost', icon: 'x' })}</div>` : ''}
       </div></div></section>
       ${canBulk && sel.size ? `<div class="bulkbar" role="region" aria-label="Ações em lote">
         <span><b>${sel.size}</b> empresa${sel.size > 1 ? 's' : ''} selecionada${sel.size > 1 ? 's' : ''}${[...sel].some(id => !list.some(c => c.id === id)) ? ' <small class="muted">(algumas fora do filtro atual)</small>' : ''}</span>
