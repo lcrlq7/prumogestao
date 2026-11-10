@@ -114,4 +114,24 @@
       }
     });
   };
+
+  // aviso de novidade: uma vez para cada pessoa (notificação no sino + faixa no Dashboard até ela dispensar)
+  const SEEN = () => 'prumo.certNovo.' + ((U() || {}).id || '');
+  const seen = () => { try { return localStorage.getItem(SEEN()) === '1'; } catch (e) { return false; } };
+  const announce = () => {
+    const u = U(); if (!u || !P.notify || P.certMissing || !certs().length) return;
+    const notifs = (db().notifications = db().notifications || []), tag = 'cert:novo';
+    if (notifs.some(n => n.userId === u.id && n.key === tag)) return;
+    P.notify([u.id], { type: 'cert', icon: 'shield', title: 'Novo: Certificados digitais', text: 'Veja a validade e a senha dos certificados das empresas. Menu Clientes, Certificados digitais.', link: 'certificados' });
+    const n = notifs[notifs.length - 1]; if (n) n.key = tag;
+    P.store.save();
+  };
+  setTimeout(announce, 5000);
+  A.certDismiss = () => { try { localStorage.setItem(SEEN(), '1'); } catch (e) { } P.render(); };
+  const origDash = V.dashboard;
+  V.dashboard = u => {
+    const html = origDash(u);
+    if (seen() || P.certMissing || !certs().length) return html;
+    return `<div class="banner">${icon('shield')}<div><b>Novo: Certificados digitais.</b> Agora você consulta a validade e a senha dos certificados das empresas direto no Prumo. ${V.btn('Ver certificados', { go: 'certificados', cls: 'sm primary' })} ${V.btn('Entendi', { act: 'certDismiss', cls: 'sm ghost' })}</div></div>` + html;
+  };
 })(window.P);
