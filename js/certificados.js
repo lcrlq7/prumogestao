@@ -115,23 +115,19 @@
     });
   };
 
-  // aviso de novidade: uma vez para cada pessoa (notificação no sino + faixa no Dashboard até ela dispensar)
-  const SEEN = () => 'prumo.certNovo.' + ((U() || {}).id || '');
-  const seen = () => { try { return localStorage.getItem(SEEN()) === '1'; } catch (e) { return false; } };
-  const announce = () => {
-    const u = U(); if (!u || !P.notify || P.certMissing || !certs().length) return;
-    const notifs = (db().notifications = db().notifications || []), tag = 'cert:novo';
-    if (notifs.some(n => n.userId === u.id && n.key === tag)) return;
-    P.notify([u.id], { type: 'cert', icon: 'shield', title: 'Novo: Certificados digitais', text: 'Veja a validade e a senha dos certificados das empresas. Menu Clientes, Certificados digitais.', link: 'certificados' });
-    const n = notifs[notifs.length - 1]; if (n) n.key = tag;
-    P.store.save();
+  // guia de novidade (mesmo estilo do tour do site): aponta o item do menu, uma vez para cada pessoa
+  const SEEN = () => 'prumo.certGuia.' + ((U() || {}).id || '');
+  const guide = () => {
+    const u = U(); if (!u || !u.tourDone || P.certMissing || !certs().length || !P.fx || !P.fx.guide) return;
+    try { if (localStorage.getItem(SEEN()) === '1') return; } catch (e) { return; }
+    const grp = document.querySelector('.nav-grp[data-g=clientes]');
+    if (grp && grp.classList.contains('shut')) { const h = grp.querySelector('.nav-grp-h'); if (h) h.click(); } // abre o grupo Clientes para mostrar o item
+    setTimeout(() => {
+      P.fx.guide([['.nav-a[data-go=certificados]', 'Novo: Certificados digitais', 'Aqui você vê a validade e a senha dos certificados das empresas. A senha fica oculta e cada consulta é registrada. Quem a diretoria liberar também cadastra e altera. Clique em Concluir para abrir.']], done => {
+        try { localStorage.setItem(SEEN(), '1'); } catch (e) { }
+        if (done && P.state.route.page !== 'certificados') P.go('certificados');
+      });
+    }, 500);
   };
-  setTimeout(announce, 5000);
-  A.certDismiss = () => { try { localStorage.setItem(SEEN(), '1'); } catch (e) { } P.render(); };
-  const origDash = V.dashboard;
-  V.dashboard = u => {
-    const html = origDash(u);
-    if (seen() || P.certMissing || !certs().length) return html;
-    return `<div class="banner">${icon('shield')}<div><b>Novo: Certificados digitais.</b> Agora você consulta a validade e a senha dos certificados das empresas direto no Prumo. ${V.btn('Ver certificados', { go: 'certificados', cls: 'sm primary' })} ${V.btn('Entendi', { act: 'certDismiss', cls: 'sm ghost' })}</div></div>` + html;
-  };
+  setTimeout(guide, 6000);
 })(window.P);

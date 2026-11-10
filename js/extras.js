@@ -728,18 +728,21 @@
   };
   const endTour = done => {
     if (!tour) return;
-    tour.root.remove(); tour = null;
+    const onEnd = tour.onEnd; tour.root.remove(); tour = null;
+    if (onEnd) return onEnd(done); // guia curto de uma novidade: não mexe no tour de boas-vindas
     const u = S().user; if (u) { P.user(u.id).tourDone = true; P.store.save(); }
     if (done) P.toast('Tudo pronto! Use Ctrl+K para encontrar qualquer coisa e ? para ver os atalhos.');
   };
-  A.startTour = () => {
-    const u = S().user; if (!u || tour) return;
+  A.startTour = () => { const u = S().user; if (u) beginTour(TOUR(u).filter(([sel]) => visible(sel) || sel === '.side .nav')); };
+  // guia curto para novidades (ex.: certificados): P.fx.guide([[seletor, título, texto]], aoTerminar)
+  fx.guide = (steps, onEnd) => { const ok = steps.filter(([sel]) => visible(sel)); if (S().user && !tour && ok.length) beginTour(ok, onEnd || (() => { })); };
+  const beginTour = (steps, onEnd) => {
+    if (tour) return;
     ui().closeModal(); closePalette(); closeNotif();
-    const steps = TOUR(u).filter(([sel]) => visible(sel) || sel === '.side .nav');
     const root = document.createElement('div'); root.className = 'tour';
     root.innerHTML = '<div class="tour-spot"></div><div class="tour-box" role="dialog" aria-live="polite"></div>';
     document.body.appendChild(root);
-    tour = { root, spot: root.querySelector('.tour-spot'), box: root.querySelector('.tour-box'), steps, i: 0 };
+    tour = { root, spot: root.querySelector('.tour-spot'), box: root.querySelector('.tour-box'), steps, i: 0, onEnd };
     root.addEventListener('click', ev => {
       const b = ev.target.closest('[data-tour]'); if (!b) return;
       const k = b.dataset.tour;
