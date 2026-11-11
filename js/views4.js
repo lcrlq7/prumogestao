@@ -324,14 +324,14 @@
     for (let i = 0; i < 60 && P.api.vacationRules(D.iso(s), D.iso(e)); i++) { s = D.add(s, 1); e = D.add(s, 13); }
     return `<form class="form" id="${id}" data-vac-form novalidate>
       <div class="fgrid">
-        <label class="field"><span>Início</span><input type="date" name="start" id="${id}-start" value="${D.iso(s)}" min="${D.iso(D.add(t, 1))}" data-vf></label>
-        <label class="field"><span>Fim</span><input type="date" name="end" id="${id}-end" value="${D.iso(e)}" min="${D.iso(D.add(t, 1))}" data-vf></label>
+        <label class="field"><span>Início</span><input type="date" name="start" id="${id}-start" value="${D.iso(s)}" min="${D.iso(D.add(t, P.VAC_MIN_NOTICE))}" data-vf></label>
+        <label class="field"><span>Fim</span><input type="date" name="end" id="${id}-end" value="${D.iso(e)}" min="${D.iso(D.add(t, P.VAC_MIN_NOTICE))}" data-vf></label>
         <div class="field calc"><span>Período</span><output data-vac-calc>${V.vacCalcText(D.iso(s), D.iso(e))}</output></div>
         <label class="field check span3"><input type="checkbox" name="abono" id="${id}-abono"><span>Quero vender 10 dias (abono pecuniário)</span></label>
         <label class="field check span3"><input type="checkbox" name="adiant13" id="${id}-13"><span>Quero adiantar a 1ª parcela do 13º salário</span></label>
         <label class="field span3"><span>Comentário para o gestor e a diretoria <small>(opcional)</small></span><textarea name="comment" id="${id}-comment" rows="3" placeholder="Ex.: viagem já reservada, preferência por emendar com feriado, quem pode cobrir sua carteira…"></textarea></label>
       </div>
-      <p class="fine">Regras: mínimo de 5 dias corridos por período; o início não pode cair na sexta, no sábado, no domingo, em feriado ou nos dois dias antes de um feriado. O comentário é visto apenas por quem aprova (gestor, gerente e diretoria).</p>
+      <p class="fine">Regras: peça com pelo menos ${P.VAC_MIN_NOTICE} dias de antecedência; mínimo de 5 dias corridos por período; o início não pode cair na sexta, no sábado, no domingo, em feriado ou nos dois dias antes de um feriado. O comentário é visto apenas por quem aprova (gestor, gerente e diretoria).</p>
     </form>`;
   };
   V.vacCalcText = (s, e) => {

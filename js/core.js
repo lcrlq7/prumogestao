@@ -670,6 +670,7 @@ window.P = window.P || {};
   /* Funções que o usuário pode atribuir: a diretoria atribui qualquer uma; o gerente, gestor e funcionário */
   P.assignableRoles = u => u.role === 'admin' ? ['admin', 'office', 'manager', 'employee'] : u.role === 'office' ? ['manager', 'employee'] : [];
   const ALL = ['admin', 'office', 'manager', 'employee'], GLOBAL = ['admin', 'office'];
+  P.VAC_MIN_NOTICE = 3; // dias de antecedência mínima para pedir férias
   P.PAGES = {
     dashboard: ALL,
     equipe: ['admin', 'office', 'manager'],
@@ -1268,7 +1269,9 @@ window.P = window.P || {};
       const days = Math.round((e - s) / 864e5) + 1;
       if (days < 5) return 'Cada período de férias deve ter no mínimo 5 dias corridos.';
       if (days > 30) return 'O período máximo é de 30 dias corridos.';
-      if (start <= D.iso(P.today())) return 'Solicite férias com início a partir de amanhã.';
+      // antecedência mínima: o início precisa ser daqui a 3 dias ou mais
+      const first = D.iso(D.add(P.today(), P.VAC_MIN_NOTICE));
+      if (start < first) return 'Solicite as férias com pelo menos ' + P.VAC_MIN_NOTICE + ' dias de antecedência (início a partir de ' + D.fmt(first) + ').';
       if ([5, 6, 0].includes(s.getDay())) return 'As férias não podem começar na sexta, no sábado ou no domingo (dois dias antes do repouso semanal).';
       if (D.HOLIDAYS.has(start) || D.HOLIDAYS.has(D.iso(D.add(s, 1))) || D.HOLIDAYS.has(D.iso(D.add(s, 2)))) return 'As férias não podem começar em feriado nem nos dois dias que o antecedem.';
       return null;

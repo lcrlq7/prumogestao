@@ -1631,8 +1631,8 @@
         submit: cancel ? 'Enviar pedido de cancelamento' : 'Enviar pedido de alteração', cancel: 'Voltar',
         body: `<p class="prose">Férias aprovadas: <b>${D.fmt(v.start)} a ${D.fmt(v.end)}</b> · ${v.days} dias corridos.</p>
           ${cancel ? '' : `<form class="form" data-vac-form data-vac-change novalidate><div class="fgrid">
-            <label class="field"><span>Novo início</span><input type="date" name="start" id="vc-start" value="${v.start}" min="${D.iso(D.add(P.today(), 1))}" data-vf></label>
-            <label class="field"><span>Novo fim</span><input type="date" name="end" id="vc-end" value="${v.end}" min="${D.iso(D.add(P.today(), 1))}" data-vf></label>
+            <label class="field"><span>Novo início</span><input type="date" name="start" id="vc-start" value="${v.start}" min="${D.iso(D.add(P.today(), P.VAC_MIN_NOTICE))}" data-vf></label>
+            <label class="field"><span>Novo fim</span><input type="date" name="end" id="vc-end" value="${v.end}" min="${D.iso(D.add(P.today(), P.VAC_MIN_NOTICE))}" data-vf></label>
             <div class="field calc"><span>Período</span><output data-vac-calc>${V.vacCalcText(v.start, v.end)}</output></div></div></form>`}
           <label class="field"><span>Motivo do pedido</span><textarea id="vc-reason" rows="3" placeholder="${cancel ? 'Ex.: viagem cancelada; prefiro tirar as férias no próximo ano' : 'Ex.: mudança na data da viagem'}"></textarea></label>
           <p class="fine">O pedido passa pelas mesmas etapas da solicitação de férias, começando pela etapa "${stage}". Até a aprovação final, as férias continuam valendo como estão.</p>`,
