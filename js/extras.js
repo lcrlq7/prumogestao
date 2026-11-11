@@ -716,15 +716,19 @@
     if (!tour) return;
     const steps = tour.steps, [sel, title, text] = steps[tour.i];
     const el = visible(sel);
+    if (el) el.scrollIntoView({ block: 'nearest' }); // item do menu fora da vista (tela pequena): rola até ele
     const r = el ? el.getBoundingClientRect() : { left: innerWidth / 2 - 1, top: innerHeight / 2 - 1, width: 2, height: 2, right: innerWidth / 2, bottom: innerHeight / 2 };
     const pad = 6;
     tour.spot.style.cssText = `left:${r.left - pad}px;top:${r.top - pad}px;width:${r.width + pad * 2}px;height:${r.height + pad * 2}px`;
     const bw = Math.min(320, innerWidth - 24);
     let x = r.right + 14, y = r.top;
     if (x + bw > innerWidth - 12) { x = Math.max(12, Math.min(r.left, innerWidth - bw - 12)); y = r.bottom + 14; }
-    if (y + 180 > innerHeight) y = Math.max(12, r.top - 190);
     tour.box.style.cssText = `left:${x}px;top:${y}px;width:${bw}px`;
     tour.box.innerHTML = `<small>${tour.i + 1} de ${steps.length}</small><b>${esc(title)}</b><p>${esc(text)}</p><div class="tour-b"><button type="button" class="link" data-tour="skip">Pular</button><span>${tour.i ? '<button type="button" class="btn sm ghost" data-tour="prev">Voltar</button>' : ''}<button type="button" class="btn sm primary" data-tour="next">${tour.i === steps.length - 1 ? 'Concluir' : 'Próximo'}</button></span></div>`;
+    // o balão sempre cabe na janela: mede a altura real e sobe se passar do rodapé (telas pequenas)
+    const bh = tour.box.offsetHeight || 200;
+    if (y + bh > innerHeight - 12) y = Math.max(12, innerHeight - bh - 12);
+    tour.box.style.top = y + 'px';
   };
   const endTour = done => {
     if (!tour) return;

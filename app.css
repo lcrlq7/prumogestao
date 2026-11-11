@@ -1788,3 +1788,20 @@ h4.tk-read,h4.tk-dlv,h4.tk-sent{margin:12px 0 0;font-size:12px;text-transform:up
 .mt-rank ol{margin:8px 0 0;padding-left:22px;font-size:14px}
 .mt-rank li{padding:2px 0}.mt-rank li span{display:inline-block;max-width:70%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;white-space:nowrap}
 .mt-rank li b{float:right}
+
+/* Telas pequenas (notebook de 12–14 pol., Windows com escala de 125–150%): menos espaços para caber mais na tela */
+@media (min-width:1021px) and (max-width:1366px), (min-width:1021px) and (max-height:760px){
+  .app{grid-template-columns:216px minmax(0,1fr)}
+  .side{padding:12px 8px}
+  .nav-a{padding:5px 9px;gap:9px;font-size:13px}
+  .nav-grp-h{padding:6px 10px 2px}
+  .top{padding:6px 18px}
+  .view{padding:14px 18px 40px;gap:13px}
+  .page-head h1{font-size:22px}
+  .card-h{padding:12px 14px 0}
+  .card-b{padding:10px 14px 14px}
+}
+@media (min-width:1021px) and (max-height:640px){
+  .brand{padding-bottom:8px}
+  .nav-a{padding:4px 9px}
+}
