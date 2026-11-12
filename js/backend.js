@@ -21,8 +21,37 @@
     P.backendError = 'O sistema ainda não foi configurado (js/config.js). Fale com o administrador.';
     return;
   }
+  /* ---------- Guarda de autenticação: TODA requisição ao banco e às funções passa por aqui ----------
+   * 1) sem sessão, a requisição nem sai do navegador;
+   * 2) se o servidor responder 401 (token vencido ou inválido), renova o token e repete UMA vez; se não der, encerra a sessão e volta ao login;
+   * 3) a cada 5 minutos (e ao voltar para a aba) o servidor confirma que a sessão continua valendo (conta apagada ou bloqueada sai na hora).
+   * O banco continua sendo a barreira final: as regras de acesso (RLS) conferem o token em cada consulta. */
+  const API_BASE = String(CFG.supabaseUrl).replace(/\/$/, '');
+  let refreshing = null;
+  function renewOrLeave() {
+    if (!refreshing) refreshing = (async () => {
+      try { const { data, error } = await sb.auth.refreshSession(); if (error || !data.session) throw error || new Error('sem sessão'); session = data.session; }
+      catch (e) { session = null; try { await sb.auth.signOut(); } catch (e2) { } } // o evento SIGNED_OUT leva ao login com o aviso
+      finally { refreshing = null; }
+    })();
+    return refreshing;
+  }
+  async function guardedFetch(input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    const gated = url.startsWith(API_BASE + '/rest/v1/') || url.startsWith(API_BASE + '/functions/v1/');
+    if (gated && !session) throw new Error('Sessão encerrada. Entre novamente para continuar.');
+    const res = await fetch(input, init);
+    if (gated && res.status === 401 && typeof input === 'string') {
+      await renewOrLeave();
+      if (!session) return res;
+      const h = new Headers((init && init.headers) || {}); h.set('Authorization', 'Bearer ' + session.access_token);
+      return fetch(input, Object.assign({}, init, { headers: h }));
+    }
+    return res;
+  }
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' }
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
+    global: { fetch: guardedFetch }
   });
   const site = (CFG.siteUrl || location.origin + location.pathname).replace(/\/$/, '');
 
@@ -351,6 +380,15 @@
 
   /* ---------- Autenticação ---------- */
   let session = null;
+  // confirmação periódica no servidor de que a sessão ainda vale
+  let verifyAt = 0;
+  async function verifySession() {
+    if (!session || saving || Date.now() - verifyAt < 60e3) return;
+    verifyAt = Date.now();
+    try { const { data, error } = await sb.auth.getUser(); if ((error && /40[13]|invalid|expired|not found|JWT/i.test(error.status + ' ' + error.message)) || (!error && !data.user)) await renewOrLeave(); } catch (e) { /* sem rede: tenta na próxima */ }
+  }
+  setInterval(verifySession, 5 * 60e3);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) verifySession(); });
   const toUser = async () => {
     await loadAll();
     const me = P.user(session.user.id);
