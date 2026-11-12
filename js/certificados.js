@@ -29,7 +29,7 @@
     const total = rows.length; if (!s.all) rows = rows.slice(0, LIMIT);
     const types = [...new Set(all.map(c => c.type).filter(Boolean))].sort();
     const head = V.pageHead('Certificados digitais', 'Validade e senha dos certificados das empresas. Todos consultam; quem a diretoria delegar cadastra e altera.',
-      (P.state.user.role === 'admin' ? V.btn('Quem pode editar', { act: 'certEditors', icon: 'shield', cls: 'ghost' }) : '') + (edit ? V.btn('Novo certificado', { act: 'certNew', icon: 'plus', cls: 'primary' }) : ''));
+      (P.isGlobal(u) ? V.btn('Consultas às senhas', { act: 'certLog', icon: 'history', cls: 'ghost' }) : '') + (P.state.user.role === 'admin' ? V.btn('Quem pode editar', { act: 'certEditors', icon: 'shield', cls: 'ghost' }) : '') + (edit ? V.btn('Novo certificado', { act: 'certNew', icon: 'plus', cls: 'primary' }) : ''));
     if (P.certMissing) return `${head}<div class="banner warn">${icon('alert')}<div>A tabela de certificados ainda não foi criada no banco. Peça para rodar o arquivo <b>modelos/certificados.sql</b> no Supabase.</div></div>`;
     const chip = (k, label, n, cls) => `<button type="button" class="chip ${s.f === k ? 'on' : ''}" data-act="certFilter" data-k="${k}">${label} <b>${n}</b></button>`;
     return `${head}
@@ -42,11 +42,11 @@
         ${total > rows.length ? `<div class="fine" style="padding:10px">Mostrando ${rows.length} de ${total}. ${V.btn('Mostrar todos', { act: 'certAll', cls: 'sm ghost' })}</div>` : ''}` : '<div class="empty"><p>Nenhum certificado encontrado.</p></div>', { cls: 'flush' })}`;
   };
   const row = (c, edit) => {
-    const d = daysOf(c), s = statusOf(c), shown = st().shown[c.id];
+    const d = daysOf(c), s = statusOf(c), open = c.id in st().shown, hasPw = c.hasPassword || c.password;
     return `<tr><td><b>${esc(c.company)}</b></td><td>${esc(c.type || '—')}</td>
       <td class="nowrap">${c.validity ? esc(D.fmt(c.validity)) : '—'}${d == null ? '' : `<small class="obs">${d < 0 ? 'venceu há ' + (-d) + ' dia(s)' : d === 0 ? 'vence hoje' : 'faltam ' + d + ' dia(s)'}</small>`}</td>
       <td><span class="badge ${s[2]}">${s[1]}</span></td><td>${esc(c.location || '—')}</td>
-      <td class="nowrap">${shown ? `<code>${esc(c.password || '')}</code>` : '<span class="muted">••••••••</span>'} ${c.password ? V.ibtn(shown ? 'x' : 'eye', shown ? 'Ocultar senha' : 'Mostrar senha (fica registrado)', { act: 'certShow', attrs: `data-id="${esc(c.id)}"` }) + V.ibtn('copy', 'Copiar senha (fica registrado)', { act: 'certCopy', attrs: `data-id="${esc(c.id)}"` }) : ''}</td>
+      <td class="nowrap">${open ? `<code>${esc(st().shown[c.id])}</code>` : '<span class="muted">••••••••</span>'} ${hasPw ? V.ibtn(open ? 'x' : 'eye', open ? 'Ocultar senha' : 'Mostrar senha (fica registrado)', { act: 'certShow', attrs: `data-id="${esc(c.id)}"` }) + V.ibtn('copy', 'Copiar senha (fica registrado)', { act: 'certCopy', attrs: `data-id="${esc(c.id)}"` }) : ''}</td>
       <td>${esc(c.note || '')}</td>
       ${edit ? `<td class="actions-col">${V.ibtn('edit', 'Editar', { act: 'certEdit', attrs: `data-id="${esc(c.id)}"` })}${V.ibtn('trash', 'Excluir', { act: 'certDel', attrs: `data-id="${esc(c.id)}"` })}</td>` : ''}</tr>`;
   };
@@ -54,19 +54,42 @@
   A.certFilter = el => { st().f = el.dataset.k || ''; st().all = false; P.render(); };
   A.certAll = () => { st().all = true; P.render(); };
 
-  // consultar a senha: fica no histórico; some da tela depois de 20 segundos
-  const consult = (u, c, how) => { P.audit(u, 'Senha de certificado consultada', '', c.company + ' (' + how + ')'); P.store.save(); };
-  A.certShow = el => {
-    const u = U(), c = list().find(x => x.id === el.dataset.id); if (!c) return;
-    const s = st();
-    if (s.shown[c.id]) { delete s.shown[c.id]; return P.render(); }
-    consult(u, c, 'ver'); s.shown[c.id] = true; P.render();
-    setTimeout(() => { if (s.shown[c.id]) { delete s.shown[c.id]; if (P.state.route.page === 'certificados') P.render(); } }, 20000);
+  // a senha só vem do servidor quando alguém pede (função cert_reveal), que registra quem consultou; some da tela em 20 segundos
+  const rpc = P.backend && P.backend.rpc ? (fn, args) => P.backend.rpc(fn, args) : null;
+  const fetchPw = async (c, how) => {
+    if (!rpc) { P.audit(U(), 'Senha de certificado consultada', '', c.company + ' (' + how + ')'); P.store.save(); return c.password || ''; } // modo de demonstração
+    const { data, error } = await rpc('cert_reveal', { p_id: c.id, p_how: how });
+    if (error && /cert_reveal|function|schema cache/i.test(error.message)) { // SQL ainda não rodado: usa a senha que ainda está no documento (se houver)
+      if (c.password) return c.password;
+      throw new Error('A atualização do banco para as senhas ainda não foi aplicada.');
+    }
+    if (error) throw new Error(error.message);
+    return data || '';
   };
-  A.certCopy = el => {
-    const u = U(), c = list().find(x => x.id === el.dataset.id); if (!c) return;
-    const done = () => { consult(u, c, 'copiar'); P.toast('Senha copiada.'); };
-    try { navigator.clipboard.writeText(String(c.password || '')).then(done, () => P.toast('Não foi possível copiar. Use Mostrar senha.', 'err')); } catch (e) { P.toast('Não foi possível copiar. Use Mostrar senha.', 'err'); }
+  A.certShow = async el => {
+    const c = list().find(x => x.id === el.dataset.id); if (!c) return;
+    const s = st();
+    if (c.id in s.shown) { delete s.shown[c.id]; return P.render(); }
+    try { s.shown[c.id] = await fetchPw(c, 'ver'); } catch (e) { return P.toast(e.message, 'err'); }
+    P.render();
+    setTimeout(() => { if (c.id in s.shown) { delete s.shown[c.id]; if (P.state.route.page === 'certificados') P.render(); } }, 20000);
+  };
+  A.certCopy = async el => {
+    const c = list().find(x => x.id === el.dataset.id); if (!c) return;
+    try { const pw = await fetchPw(c, 'copiar'); await navigator.clipboard.writeText(pw); P.toast('Senha copiada.'); } catch (e) { P.toast(e.message || 'Não foi possível copiar.', 'err'); }
+  };
+  const setPw = (c, pw) => { // pw: texto novo, '' = não mexe, null = apagar
+    if (!rpc) { if (pw !== '') c.password = pw || ''; return; }
+    if (pw === '') return;
+    rpc('cert_set_password', { p_id: c.id, p_pw: pw }).then(r => { if (r.error) P.toast('A senha não foi salva: ' + r.error.message, 'err'); });
+  };
+  // quem consultou as senhas (diretoria e gerência)
+  A.certLog = async () => {
+    if (!P.isGlobal(U())) return;
+    if (!rpc) return P.toast('O registro de consultas existe só no sistema real.', 'err');
+    const { data, error } = await rpc('cert_access_list');
+    if (error) return P.toast(error.message, 'err');
+    P.ui.modal({ title: 'Consultas às senhas dos certificados', submit: 'Fechar', body: (data || []).length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Quando</th><th>Quem</th><th>Empresa</th><th>Ação</th></tr></thead><tbody>${data.map(r => `<tr><td class="nowrap">${esc(new Date(r.at).toLocaleString('pt-BR'))}</td><td>${esc(r.user_name || '—')}</td><td>${esc(r.company || '—')}</td><td>${esc(r.action === 'copiar' ? 'Copiou' : 'Viu')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Ninguém consultou ainda.</p>', onSubmit: () => { } });
   };
 
   const $v = s => String((document.querySelector(s) || {}).value || '').trim();
@@ -75,12 +98,16 @@
     <label class="field"><span>Tipo</span><select id="ce-type">${['A1', 'A3', 'e-CNPJ', 'e-CPF', 'Outro'].concat(c.type && !['A1', 'A3', 'e-CNPJ', 'e-CPF', 'Outro'].includes(c.type) ? [c.type] : []).map(t => `<option ${((c.type || 'A1') === t) ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
     <label class="field"><span>Vencimento</span><input type="date" id="ce-val" value="${esc(c.validity || '')}"></label>
     <label class="field"><span>Localização</span><input id="ce-loc" maxlength="80" value="${esc(c.location || 'Arquivo')}" placeholder="Arquivo, token, cartão…"></label>
-    <label class="field span3"><span>Senha</span><input id="ce-pw" maxlength="120" value="${esc(c.password || '')}" autocomplete="off"></label>
+    <label class="field span3"><span>Senha${c.hasPassword || c.password ? ' <small>(deixe em branco para manter a atual)</small>' : ''}</span><input id="ce-pw" maxlength="120" value="" autocomplete="new-password"></label>
     <label class="field span3"><span>Anotação (opcional)</span><input id="ce-note" maxlength="200" value="${esc(c.note || '')}"></label></div>`;
   const save = (u, c, isNew) => {
     const company = $v('#ce-co'); if (company.length < 2) throw new Error('Informe a empresa.');
-    Object.assign(c, { company, type: $v('#ce-type'), validity: $v('#ce-val'), location: $v('#ce-loc'), password: $v('#ce-pw'), note: $v('#ce-note') });
+    const pw = $v('#ce-pw');
+    Object.assign(c, { company, type: $v('#ce-type'), validity: $v('#ce-val'), location: $v('#ce-loc'), note: $v('#ce-note') });
+    if (rpc) delete c.password; // no sistema real a senha não fica no documento
+    if (pw) c.hasPassword = true;
     c.by = u.id; c.at = Date.now();
+    setPw(c, pw);
     if (isNew) list().push(c);
     P.audit(u, isNew ? 'Certificado cadastrado' : 'Certificado alterado', '', company); P.store.save(); P.toast('Certificado salvo.'); P.render();
   };
@@ -96,7 +123,7 @@
   A.certDel = el => {
     const u = U(); if (!canEdit(u)) return P.toast('Você não tem permissão para excluir certificados.', 'err');
     const c = list().find(x => x.id === el.dataset.id); if (!c || !confirm('Excluir o certificado de "' + c.company + '"?')) return;
-    list().splice(list().indexOf(c), 1); P.audit(u, 'Certificado excluído', '', c.company); P.store.save(); P.render();
+    list().splice(list().indexOf(c), 1); setPw(c, null); P.audit(u, 'Certificado excluído', '', c.company); P.store.save(); P.render();
   };
 
   // diretoria escolhe quem pode cadastrar/alterar (além da diretoria e da gerência, que sempre podem)

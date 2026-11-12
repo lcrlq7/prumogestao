@@ -408,6 +408,7 @@
   const CAP_ERR = 'A verificação de segurança falhou ou expirou. Marque "Sou humano" de novo e tente outra vez.';
   P.backend = {
     client: sb,
+    rpc(fn, args) { return sb.rpc(fn, args); },
     flow: urlFlow,
     queueSave() { clearTimeout(timer); timer = setTimeout(() => { timer = null; runSave(); }, 350); },
     flushNow() { clearTimeout(timer); timer = null; return runSave(); },
