@@ -1,0 +1,2 @@
+# Scripts SQL: ficam no repositório para uso no SQL Editor do Supabase, mas não devem ser servidos pelo site
+modelos/*.sql
