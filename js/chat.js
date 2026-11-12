@@ -110,6 +110,9 @@
     const k = !rows.length ? 'sent' : rows.every(r => r.read) ? 'read' : rows.every(r => r.dlv) ? 'dlv' : 'sent';
     return { st: k, rows };
   };
+  // editar: só quem enviou, enquanto ninguém leu (como no WhatsApp); figurinha e mensagem apagada não se editam
+  const canEditMsg = (cur, m, u) => !!cur && !!m && !!u && m.from === u.id && !m.deleted && !stickerOf(m.text) && cur.canPost(u)
+    && !(P.isLive && peerFail) && !stateOf(cur, m, u).rows.some(r => r.read);
   const ticksHtml = (cur, m, u) => {
     const k = stateOf(cur, m, u).st, n = k === 'sent' ? 1 : 2;
     const tip = { sent: 'Enviada', dlv: 'Entregue', read: 'Lida' }[k];
@@ -153,6 +156,14 @@
       const m = msgs().find(x => x.id === id);
       if (!m || m.from !== u.id) deny('Você só apaga as próprias mensagens.');
       m.deleted = true; m.text = ''; P.store.save();
+    },
+    edit(u, id, text) {
+      const m = msgs().find(x => x.id === id), cur = m && resolve(u, m.conv);
+      if (!m || m.from !== u.id) deny('Você só edita as próprias mensagens.');
+      if (!canEditMsg(cur, m, u)) deny('Esta mensagem já foi lida e não pode mais ser editada.');
+      text = String(text || '').trim(); if (!text) deny('A mensagem não pode ficar vazia.');
+      if (text === m.text) return;
+      m.text = text; m.edited = Date.now(); P.store.save();
     },
     // só para quem pede: a mensagem some da tela dele e continua para os outros
     hide(u, id) {
@@ -338,11 +349,11 @@
           <div class="msg-b" data-mid="${esc(m.id)}">${cont || cur.dm ? '' : `<div class="msg-h"><b>${mine ? 'Você' : esc(who.name)}</b><small>${esc(P.ROLES[who.role] || '')}</small><time>${hm(m.ts)}</time></div>`}
             ${m.rt && !m.deleted && stickerOf(m.text) ? quoteHtml(m, u) : ''}
             ${!m.deleted && stickerOf(m.text) ? `<div class="msg-stk">${stickerHtml(stickerOf(m.text))}</div>`
-              : `<div class="msg-txt ${m.deleted ? 'del' : ''} ${!m.deleted && /^(\p{Extended_Pictographic}|‍|️|\s){1,8}$/u.test(m.text) ? 'big-emoji' : ''}">${m.rt && !m.deleted ? quoteHtml(m, u) : ''}${m.deleted ? icon('x') + ' Mensagem apagada' : linkify(m.text)}</div>`}
+              : `<div class="msg-txt ${m.deleted ? 'del' : ''} ${!m.deleted && /^(\p{Extended_Pictographic}|‍|️|\s){1,8}$/u.test(m.text) ? 'big-emoji' : ''}">${m.rt && !m.deleted ? quoteHtml(m, u) : ''}${m.deleted ? icon('x') + ' Mensagem apagada' : linkify(m.text)}${m.edited && !m.deleted ? ' <small class="msg-ed">(editada)</small>' : ''}</div>`}
             ${cur.dm || (mine && !geral) ? `<span class="msg-t">${cur.dm ? `<time>${hm(m.ts)}</time>` : ''}${mine && !geral ? ticksHtml(cur, m, u) : ''}</span>` : ''}
             ${seen != null ? `<small class="msg-seen">${icon('check')} Visto por ${seen} de ${total - 1}</small>` : ''}
           </div>
-          ${canPost ? `<button type="button" class="ibtn msg-del msg-re" data-act="chatReply" data-id="${esc(m.id)}" aria-label="Responder" title="Responder"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>` : ''}${V.ibtn('trash', 'Apagar mensagem', { act: 'chatDelete', cls: 'msg-del', attrs: `data-id="${m.id}"` })}
+          ${canPost ? `<button type="button" class="ibtn msg-del msg-re" data-act="chatReply" data-id="${esc(m.id)}" aria-label="Responder" title="Responder"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>` : ''}${canEditMsg(cur, m, u) ? V.ibtn('edit', 'Editar mensagem', { act: 'chatEdit', cls: 'msg-del', attrs: `data-id="${m.id}"` }) : ''}${V.ibtn('trash', 'Apagar mensagem', { act: 'chatDelete', cls: 'msg-del', attrs: `data-id="${m.id}"` })}
         </div>`;
       }).join('') : `<div class="msg-empty">${icon('message')}<p>${cur.dm ? 'Comece a conversa com ' + esc(P.firstName(cur.name)) + '.' : 'Nenhuma mensagem neste canal ainda.'}</p></div>`;
       main = `<section class="chat-main">
@@ -503,6 +514,15 @@
     P.ui.modal({ title: 'Dados da mensagem', cancel: 'Fechar', body: `<p class="prose">Enviada em ${D.fmt(D.iso(new Date(m.ts)))} às ${hm(m.ts)}.</p>
       ${part('Lida por', grp(r => r.read), 'tk-read')}${part('Entregue a', grp(r => r.dlv && !r.read), 'tk-dlv')}${part('Ainda não recebeu', grp(r => !r.dlv), 'tk-sent')}
       ${P.isLive && peerFail ? '<p class="fine">O status de leitura de outras pessoas ainda não foi ativado no banco.</p>' : ''}` });
+  };
+  A.chatEdit = el => {
+    const u = S().user, m = msgs().find(x => x.id === el.dataset.id), cur = m && resolve(u, m.conv);
+    if (!canEditMsg(cur, m, u)) return P.toast('Esta mensagem já foi lida e não pode mais ser editada.', 'err');
+    loadPeer(true);
+    P.ui.modal({ title: 'Editar mensagem', submit: 'Salvar',
+      body: `<label class="field"><span>Mensagem</span><textarea id="chat-ed" rows="4" maxlength="4000">${esc(m.text)}</textarea></label><p class="fine">Dá para editar até alguém ler a mensagem. Quem receber verá a marcação "editada".</p>`,
+      onSubmit: () => { P.chat.edit(u, m.id, document.getElementById('chat-ed').value); P.render(); } });
+    setTimeout(() => { const t = document.getElementById('chat-ed'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }, 50);
   };
   A.chatDelete = el => {
     const m = msgs().find(x => x.id === el.dataset.id), u = S().user; if (!m || !u) return;
