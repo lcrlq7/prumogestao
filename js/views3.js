@@ -20,7 +20,7 @@
         meta: [['Funcionário', emp.name], ['Departamento', (P.dept(emp.deptId) || { name: '—' }).name], ['Cargo', emp.title || '—'], ['Período', p.label + ' (' + D.fmt(p.s) + ' a ' + D.fmt(p.e) + ')']].concat(load ? [['Capacidade semanal', F.n(emp.capacity) + ' pts']] : []),
         summary: load ? [['Pontos', F.n(st.points)], ['Capacidade no período', F.n(st.capacity)], ['Utilização', F.pct(st.util)], ['Classificação', V.STATUS[st.status].label], ['Atividades (unidades)', F.n(st.tasks)], ['Lançamentos', F.n(st.n)]]
           : [['Pontos', F.n(st.points)], ['Atividades (unidades)', F.n(st.tasks)], ['Lançamentos', F.n(st.n)]],
-        acts, evo, insights: ins,
+        acts, evo, insights: ins, weeks: M.weeksIn(emp, p),
         entries: M.entries(emp.id, p)
       };
     }
@@ -68,6 +68,7 @@
       <dl class="rep-meta">${rep.meta.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
       <div class="rep-sum">${rep.summary.map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>
       ${rep.team ? `<h4 class="sub-h">Carga por colaborador</h4><div class="table-wrap"><table class="tbl"><thead><tr><th>Funcionário</th><th class="num">Pontos</th><th class="num">Capacidade</th><th class="num">Utilização</th><th class="num">Tarefas</th><th>Classificação</th></tr></thead><tbody>${rep.team.map(r => `<tr><td>${esc(r.user.name)}</td><td class="num">${F.n(r.points)}</td><td class="num">${F.n(r.capacity)}</td><td class="num">${F.pct(r.util)}</td><td class="num">${F.n(r.tasks)}</td><td>${V.badge(r.status)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${rep.weeks && rep.weeks.length ? `<h4 class="sub-h">Semana a semana</h4><div class="table-wrap"><table class="tbl compact"><thead><tr><th>Semana</th><th class="num">Pontos</th><th class="num">Atividades (unid.)</th><th class="num">Lançamentos</th>${rep.load ? '<th class="num">Capacidade</th><th class="num">Utilização</th>' : ''}</tr></thead><tbody>${rep.weeks.map(w => `<tr><td>${w.label}${w.partial ? ' <small class="muted">(parcial)</small>' : ''}</td><td class="num"><b>${F.n(w.points)}</b></td><td class="num">${F.n(w.tasks)}</td><td class="num">${F.n(w.n)}</td>${rep.load ? `<td class="num">${F.n(w.capacity)}</td><td class="num">${F.pct(w.util)}</td>` : ''}</tr>`).join('')}</tbody></table></div>` : ''}
       <div class="grid g-1-1">
         <div><h4 class="sub-h">Atividades no período</h4>${rep.acts.rows.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Atividade</th><th class="num">Qtd.</th><th class="num">Pontos</th><th class="num">%</th></tr></thead><tbody>${rep.acts.rows.map(r => `<tr><td>${esc(r.act.name)}</td><td class="num">${F.n(r.qty, 2)}</td><td class="num">${F.n(r.points)}</td><td class="num">${F.pct0(r.share)}</td></tr>`).join('')}</tbody></table></div>` : V.empty('Sem atividades no período.')}</div>
         <div><h4 class="sub-h">Evolução mensal</h4>${C.slot({ type: 'bars', data: rep.evo.map(m => ({ label: m.label, value: m.points, partial: m.partial, tip: `${D.monthLabel(m.start, true)}: ${F.n(m.points)} pts${rep.load ? ' · ' + F.pct0(m.util) : ''}` })), ref: rep.load ? { values: rep.evo.map(m => m.capacity), label: 'Capacidade' } : null, height: 220, aria: 'Evolução mensal' })}

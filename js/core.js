@@ -545,6 +545,16 @@ window.P = window.P || {};
       }
       return out;
     },
+    /* Semana a semana dentro de um período (segunda a domingo, recortada no início e no fim do período) */
+    weeksIn(u, p) {
+      const out = [], end = p.end < P.today() ? p.end : P.today();
+      for (let w = D.weekStart(p.start); w <= end; w = D.add(w, 7)) {
+        const s = w < p.start ? p.start : w, e0 = D.add(w, 6), e = e0 > end ? end : e0;
+        const st = M.stats(u, P.range(s, e));
+        out.push({ start: s, end: e, label: D.short(s) + ' a ' + D.short(e), points: st.points, capacity: st.capacity, util: st.util, tasks: st.tasks, n: st.n, partial: s > w || e < e0 });
+      }
+      return out;
+    },
     monthly(users, n, includeCurrent = true) {
       const t = P.today(), out = [];
       for (let i = n - (includeCurrent ? 1 : 0); i >= (includeCurrent ? 0 : 1); i--) {
