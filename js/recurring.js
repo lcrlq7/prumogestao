@@ -612,9 +612,9 @@
   A.reopenTask = el => {
     const u = U(), t = taskOf(el);
     if (!t || !canManage(u, t.deptId) || t.status !== 'dispensada') return;
-    if (!confirm('Reativar esta tarefa? Ela volta para as pendentes de ' + ((P.user(t.userId) || {}).name || 'quem é responsável') + '.')) return;
+    if (!confirm('Reabrir esta tarefa? Ela volta para as pendentes.')) return;
     (t.reopened = t.reopened || []).push({ by: u.id, at: D.stamp(), dismissed: t.dismissed }); t.status = 'pendente'; delete t.dismissed;
-    P.audit(u, 'Tarefa reativada', t.id, t.title); notifyOwner(t, u, `${t.title}: reativada por ${u.name}. Ela voltou para as suas pendentes.`); P.toast('Tarefa reativada: voltou para as pendentes.');
+    P.audit(u, 'Tarefa reaberta', t.id, t.title); notifyOwner(t, u, `${t.title}: reaberta por ${u.name}.`);
     P.store.save(); P.render();
   };
   // editar uma tarefa já lançada (prazo, responsável, título, atividade, empresa): gestor do departamento, gerência e diretoria
@@ -743,7 +743,7 @@
   // vários botões por linha poluem a tela: ficam todos dentro de um único menu "⋯"
   const taskBtns = (u, t) => t.status === 'pendente' && canHandle(u, t)
     ? V.rowMenu((canManage(u, t.deptId) ? V.btn('Editar', { act: 'editTask', icon: 'edit', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) : '') + V.btn('Adiar', { act: 'postponeTask', icon: 'clock', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) + V.btn('Dispensar', { act: 'dismissTask', icon: 'x', cls: 'sm ghost', attrs: `data-id="${t.id}"` }))
-    : t.status === 'dispensada' && canManage(u, t.deptId) ? V.btn('Reativar', { act: 'reopenTask', icon: 'refresh', cls: 'sm primary', attrs: `data-id="${t.id}"` }) : '';
+    : t.status === 'dispensada' && canManage(u, t.deptId) ? V.btn('Reabrir', { act: 'reopenTask', icon: 'refresh', cls: 'sm ghost', attrs: `data-id="${t.id}"` }) : '';
   V.taskExtra = (u, t) => {
       const extra = [];
       if (t.status === 'dispensada' && t.dismissed) extra.push(`<span class="badge st-sem">${V.icon('x')}Dispensada</span><small class="task-why">${esc(t.dismissed.reason)} · ${esc((P.user(t.dismissed.by) || {}).name || '')}</small>`);

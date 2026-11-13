@@ -118,7 +118,7 @@
         ${V.card('Tabela de pesos do meu departamento', V.weightTable(u, u.deptId, false), { sub: '1 ponto ≈ 1 hora média de trabalho' })}`;
     }
     const emps = V.team(u);
-    let tasks = api.tasks(u, { deptId: V.scopeDept(u) || undefined }).filter(t => t.status === tab);
+    let tasks = api.tasks(u, { deptId: V.scopeDept(u) || undefined }).filter(t => tab === 'concluida' ? (t.status === 'concluida' || t.status === 'dispensada') : t.status === tab);
     if (S.taskUser) tasks = tasks.filter(t => t.userId === S.taskUser);
     const tabbed = tasks; tasks = V.taskFilter(tasks);
     tasks.sort((a, b) => tab === 'pendente' ? (a.due < b.due ? -1 : 1) : (a.due > b.due ? -1 : 1));
@@ -131,7 +131,7 @@
         <div><span>Vencem em 7 dias</span><b>${all.filter(t => t.status === 'pendente' && t.due >= today && t.due <= D.iso(D.add(P.today(), 7))).length}</b></div>
         <div><span>Concluídas (30 dias)</span><b>${all.filter(t => t.status === 'concluida' && (t.doneAt || t.due) >= D.iso(D.add(P.today(), -30))).length}</b></div>
       </div>
-      <div class="toolbar">${V.tabs([['lista', 'Lista'], ['quadro', 'Quadro da equipe']], S.taskView || 'lista', 'taskView')}${S.taskView === 'quadro' ? '' : V.tabs([['pendente', 'Pendentes'], ['concluida', 'Concluídas'], ['dispensada', 'Dispensadas', all.filter(t => t.status === 'dispensada' && (!S.taskUser || t.userId === S.taskUser)).length]], tab, 'taskTab')}
+      <div class="toolbar">${V.tabs([['lista', 'Lista'], ['quadro', 'Quadro da equipe']], S.taskView || 'lista', 'taskView')}${S.taskView === 'quadro' ? '' : V.tabs([['pendente', 'Pendentes'], ['concluida', 'Concluídas']], tab, 'taskTab')}
         <label class="picker">${icon('users')}<select id="task-user" data-set="taskUser" aria-label="Responsável"><option value="">Toda a equipe</option>${emps.map(e => `<option value="${e.id}" ${S.taskUser === e.id ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label></div>
       ${S.taskView === 'quadro' ? '' : V.taskFilterBar(tabbed, tasks.length)}
       ${S.taskView === 'quadro' ? '' : teamBulkBar(u, tasks, tab)}
