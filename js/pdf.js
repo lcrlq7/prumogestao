@@ -114,6 +114,7 @@ P.reportPdf = function (rep, opts = {}) {
   const R = { halign: 'right' };
   if (rep.team && rep.team.length) tbl('Detalhe por pessoa', ['Pessoa', 'Pontos', 'Capacidade', 'Tarefas', 'Utilização', 'Situação'], rep.team.map(r => [r.user.name, F.n(r.points), F.n(r.capacity), F.n(r.tasks), F.pct(r.util), V.STATUS[r.status].label]),
     { 1: R, 2: R, 3: R, 4: R }, d => { if (d.section === 'body' && d.column.index === 5) d.cell.styles.textColor = st(rep.team[d.row.index].status); });
+  if (rep.weeks && rep.weeks.length) tbl('Semana a semana', ['Semana', 'Pontos', 'Ativ. (unid.)', 'Lançamentos'].concat(rep.load ? ['Capacidade', 'Utilização'] : []), rep.weeks.map(w => [w.label + (w.partial ? ' (parcial)' : ''), F.n(w.points), F.n(w.tasks), F.n(w.n)].concat(rep.load ? [F.n(w.capacity), F.pct(w.util)] : [])), rep.load ? { 1: R, 2: R, 3: R, 4: R, 5: R } : { 1: R, 2: R, 3: R });
   const allActs = rep.acts.rows.slice().sort((a, b) => b.points - a.points);
   tbl('Atividades', ['Atividade', 'Qtd.', 'Pontos', '%'], allActs.length ? allActs.map(r => [r.act.name, F.n(r.qty, 2), F.n(r.points), F.pct0(r.share)]) : [['Sem atividades no período.', '', '', '']], { 1: R, 2: R, 3: R });
   tbl('Evolução mensal', rep.load ? ['Mês', 'Pontos', 'Capacidade', 'Utilização'] : ['Mês', 'Pontos'], rep.evo.map(m => [D.monthLabel(m.start, true) + (m.partial ? ' (parcial)' : ''), F.n(m.points)].concat(rep.load ? [F.n(m.capacity), F.pct(m.util)] : [])), { 1: R, 2: R, 3: R });

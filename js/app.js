@@ -511,6 +511,7 @@
     const resumo = [[rep.title], [rep.subject], []].concat(rep.meta).concat([[]]).concat(rep.summary.map(([k, v]) => [k, String(v)]));
     const sheets = [['Resumo', resumo]];
     if (rep.team) sheets.push(['Equipe', rep.team.map(r => ({ 'Funcionário': r.user.name, Pontos: r.points, Capacidade: r.capacity, 'Utilização (%)': r.util == null ? '' : P.round2(r.util), Tarefas: r.tasks, 'Classificação': V.STATUS[r.status].label }))]);
+    if (rep.weeks && rep.weeks.length) sheets.push(['Semana a semana', rep.weeks.map(w => Object.assign({ Semana: D.fmt(D.iso(w.start)) + ' a ' + D.fmt(D.iso(w.end)) + (w.partial ? ' (parcial)' : ''), Pontos: w.points, 'Atividades (unid.)': w.tasks, 'Lançamentos': w.n }, rep.load ? { Capacidade: P.round2(w.capacity), 'Utilização (%)': w.util == null ? '' : P.round2(w.util) } : {}))]);
     sheets.push(['Atividades', rep.acts.rows.map(r => ({ Atividade: r.act.name, Unidade: r.act.unit, Quantidade: r.qty, Pontos: r.points, 'Participação (%)': P.round2(r.share) }))]);
     sheets.push(['Evolução mensal', rep.evo.map(m => Object.assign({ 'Mês': D.monthLabel(m.start, true) + (m.partial ? ' (parcial)' : ''), Pontos: m.points }, rep.load ? { Capacidade: P.round2(m.capacity), 'Utilização (%)': m.util == null ? '' : P.round2(m.util) } : {}, { Tarefas: m.tasks }))]);
     if (rep.insights.length) sheets.push(['Insights', rep.insights.map(i => ({ Tipo: i.title, Insight: i.text }))]);
