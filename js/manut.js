@@ -1,5 +1,7 @@
 /* Prumo Gestão — tela de manutenção
- * Liga e desliga pelo arquivo maintenance.json (sem mexer no banco):
+ * Liga e desliga por um Edge Config da Vercel (sem deploy, sem mexer no banco: efeito em segundos).
+ * O token abaixo só LÊ esta chave (on/msg/volta) — não dá acesso a mais nada do projeto; por isso
+ * este Edge Config guarda só a manutenção, nunca nada sensível.
  *   { "on": true, "msg": "Estamos melhorando o Prumo.", "volta": "por volta das 15h" }
  * Enquanto "on" for true, quem abre o site vê esta tela, com um joguinho, em vez do sistema.
  * Para a equipe técnica entrar mesmo assim: abra o site com  ?manut=ok  (vale neste navegador)
@@ -8,6 +10,7 @@
  */
 (function () {
   'use strict';
+  var EDGE_URL = 'https://edge-config.vercel.com/ecfg_2ioalpqk4e10zkrbvaoib9kfiewn/item/manutencao?token=474306a6-5b69-4ad8-8147-d27656d48041';
   var KEY = 'prumo.manutOk', shown = false, timer = null;
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { } return null; }
   try {
@@ -17,7 +20,7 @@
   var bypass = store(KEY) === '1';
 
   function check() {
-    fetch('maintenance.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (c) {
+    fetch(EDGE_URL + '&t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (c) {
       var on = !!(c && c.on) && !bypass;
       if (on && !shown) show(c);
       else if (on && shown) { var m = document.getElementById('mt-msg'); if (m) m.textContent = c.msg || ''; }
