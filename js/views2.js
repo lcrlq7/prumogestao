@@ -367,7 +367,7 @@
       <div class="rec-b">
         <div class="rec-h">${o.self ? '' : `<b>${esc(x ? x.name : '—')}</b>`}<span class="chip-s">${esc(P.REC_CATEGORIES[r.category] || r.category)}</span>${!o.self ? (r.shared ? '<span class="chip-s chip-wall">no mural</span>' : !r.visible ? '<small class="muted">· só para a gestão</small>' : '<small class="muted">· visível ao colaborador</small>') : ''}</div>
         <p>${esc(r.text)}</p>
-        <small class="muted">${esc(by ? by.name : '—')} · ${D.fmt(r.date)}</small>
+        <small class="muted">${esc(P.actorName(r.by))} · ${D.fmt(r.date)}</small>
       </div>
       ${!o.self && (r.by === u.id || P.isGlobal(u)) ? `<div class="rec-acts">${V.ibtn('users', !r.shared ? 'Compartilhar no mural (todo mundo vê)' : 'Retirar do mural', { act: 'shareRecognition', cls: r.shared ? 'on' : '', attrs: `data-id="${r.id}"` })}${V.ibtn('trash', 'Remover reconhecimento', { act: 'removeRecognition', attrs: `data-id="${r.id}"` })}</div>` : ''}
     </li>`; }).join('')}</ul>` : V.empty(o.empty || 'Nenhum reconhecimento registrado ainda.', 'medal');

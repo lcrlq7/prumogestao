@@ -74,7 +74,7 @@
         ${shown.map(r => row(u, r)).join('')}</tbody></table></div>` : V.empty(s.tab === 'abertas' ? (canRequest(u) ? 'Nenhuma solicitação aberta. Use "Nova solicitação".' : 'Nenhuma solicitação aguardando decisão.') : 'Nada por aqui.', 'cart'), { cls: 'flush' })}`;
   };
   function row(u, r) {
-    const who = P.user(r.by) || { name: '—' };
+    const who = { name: P.actorName(r.by) };
     const val = r.paidValue != null ? brl(r.paidValue) + '<small class="obs">estimado ' + brl(r.estimate) + '</small>' : brl(r.estimate) + '<small class="obs">estimado</small>';
     const b = (lbl, act, cls, ic) => V.btn(lbl, { act, cls: 'sm ' + (cls || ''), icon: ic, attrs: `data-id="${r.id}"` });
     return `<tr class="${['recusada', 'cancelada'].includes(r.status) ? 'inactive' : ''}">

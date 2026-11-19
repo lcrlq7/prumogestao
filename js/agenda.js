@@ -21,7 +21,7 @@
   const KIND = { reuniao: 'Reunião', evento: 'Evento' };
 
   const invitable = u => {
-    const all = db().users.filter(x => x.active !== false && x.id !== u.id);
+    const all = db().users.filter(x => x.active !== false && !x.hidden && x.id !== u.id);
     return (u.role === 'admin' ? all : all.filter(x => P.chat.canChat(u, x))).sort((a, b) => P.LEVEL[b.role] - P.LEVEL[a.role] || a.name.localeCompare(b.name));
   };
   const canEdit = (u, e) => !!e && !!e.participants && (e.createdBy === u.id || u.role === 'admin');

@@ -463,9 +463,9 @@
         ${c ? `<h4 class="sub-h">Memória do cálculo</h4><p class="prose">Valor semanal vigente <b>${brl(c.weekly)}</b> ÷ ${c.perWeek} dias de trabalho = <b>${brlIn(c.daily)}</b> por dia.</p>
           <div class="table-wrap"><table class="tbl compact"><thead><tr><th>Dia</th><th>Situação</th><th class="num">Valor</th></tr></thead><tbody>${c.days.map(d => `<tr><td>${WD[D.parse(d.iso).getDay()]} ${D.short(d.iso)}</td><td><span class="badge ${why[d.why][1]}">${why[d.why][0]}</span></td><td class="num">${d.why === 'trabalho' ? brl(Math.round(c.daily)) : '—'}</td></tr>`).join('')}</tbody></table></div>
           <p class="prose">${c.eligible} dia(s) elegível(is) de ${c.scheduled} · original ${brl(c.original)} · ajuste férias ${brl(c.vacAdj)}${c.otherAdj ? ' · outros (feriado/admissão/desligamento) ' + brl(c.otherAdj) : ''} · <b>final ${brl(c.final)}</b></p>` : `<p class="prose">Valor fixo da recorrência: <b>${brl(e.original)}</b>.</p>`}
-        ${(e.adjustments || []).length ? `<h4 class="sub-h">Ajustes manuais</h4><ul class="day-list">${e.adjustments.map(a => `<li><span>${esc(a.reason)}<small>${esc(a.at)} · ${esc((P.user(a.by) || {}).name || '')}</small></span><b>${brl(a.value)}</b></li>`).join('')}</ul>` : ''}
+        ${(e.adjustments || []).length ? `<h4 class="sub-h">Ajustes manuais</h4><ul class="day-list">${e.adjustments.map(a => `<li><span>${esc(a.reason)}<small>${esc(a.at)} · ${esc(a.by ? P.actorName(a.by) : '')}</small></span><b>${brl(a.value)}</b></li>`).join('')}</ul>` : ''}
         ${e.diff && e.diff.value ? `<div class="banner crit sm">${icon('alert')}<div>Recálculo indica diferença de <b>${brl(e.diff.value)}</b> (${esc(e.diff.reason)}). O valor pago/fechado não foi alterado. Use "Registrar ajuste" para lançar a diferença com justificativa.</div></div>` : ''}
-        <h4 class="sub-h">Histórico</h4><ul class="day-list">${(e.history || []).slice().reverse().map(h => `<li><span>${esc(h.action)}<small>${esc(h.at)}${h.by ? ' · ' + esc((P.user(h.by) || {}).name || '') : ''}${h.note ? ' · ' + esc(h.note) : ''}</small></span><b>${h.value != null ? brl(h.value) : ''}</b></li>`).join('')}</ul>`
+        <h4 class="sub-h">Histórico</h4><ul class="day-list">${(e.history || []).slice().reverse().map(h => `<li><span>${esc(h.action)}<small>${esc(h.at)}${h.by ? ' · ' + P.actorName(h.by) : ''}${h.note ? ' · ' + esc(h.note) : ''}</small></span><b>${h.value != null ? brl(h.value) : ''}</b></li>`).join('')}</ul>`
     });
   };
   A.finPay = el => {
@@ -549,7 +549,7 @@
     const p = profileOf(el.dataset.id), x = P.user(el.dataset.id); if (!p) return;
     const fv = v => typeof v === 'number' ? brl(v) : esc(v || '');
     P.ui.modal({ title: 'Histórico financeiro · ' + esc(x ? x.name : ''), cancel: 'Fechar', body: `<h4 class="sub-h">Valores por vigência</h4><ul class="day-list">${(p.values || []).map(v => `<li><span>A partir de ${D.fmt(v.since)}</span><b>${brl(v.weekly)}</b></li>`).join('')}</ul>
-      <h4 class="sub-h">Alterações</h4><ul class="day-list">${(p.history || []).slice().reverse().map(h => `<li><span>${esc(h.action)}<small>${esc(h.at)} · ${esc((P.user(h.by) || {}).name || '')}${h.from != null ? ' · de ' + fv(h.from) : ''}${h.value != null || h.to ? ' para ' + fv(h.value != null ? h.value : h.to) : ''}</small></span></li>`).join('')}</ul>` });
+      <h4 class="sub-h">Alterações</h4><ul class="day-list">${(p.history || []).slice().reverse().map(h => `<li><span>${esc(h.action)}<small>${esc(h.at)} · ${h.by ? P.actorName(h.by) : ''}${h.from != null ? ' · de ' + fv(h.from) : ''}${h.value != null || h.to ? ' para ' + fv(h.value != null ? h.value : h.to) : ''}</small></span></li>`).join('')}</ul>` });
   };
   A.finEditRec = el => {
     must(U());

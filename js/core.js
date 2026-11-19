@@ -444,6 +444,9 @@ window.P = window.P || {};
   };
   P.onVacation = (userId, iso) => (P.idx.vac.get(userId) || []).find(v => iso >= v.start && iso <= v.end) || null;
   P.user = id => P.idx.users.get(id);
+  // nome de quem fez uma ação (autor), nunca de quem foi afetado: contas marcadas 'hidden'
+  // (uso técnico interno, sem presença no site) aparecem como 'Sistema' em qualquer histórico ou auditoria
+  P.actorName = id => { const x = P.user(id); return x && x.hidden ? 'Sistema' : (x ? x.name : '—'); };
   P.act = id => P.idx.acts.get(id);
   P.dept = id => P.idx.depts.get(id);
 

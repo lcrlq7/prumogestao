@@ -93,7 +93,7 @@
   V.roleBadge = r => `<span class="badge role-${r}">${icon(r === 'admin' ? 'shield' : r === 'office' ? 'building' : r === 'manager' ? 'users' : 'user')}${esc(P.ROLES[r] || r)}</span>`;
   /* Quadro da hierarquia: quem está em cada nível, do topo para a base */
   V.hierarchyChart = () => {
-    const users = P.store.db.users.filter(x => x.active !== false);
+    const users = P.store.db.users.filter(x => x.active !== false && !x.hidden);
     const by = r => users.filter(x => x.role === r).sort((a, b) => a.name.localeCompare(b.name));
     const names = l => l.map(x => esc(P.firstName(x.name) + (x.name.split(' ').length > 1 ? ' ' + x.name.split(' ').slice(-1)[0] : ''))).join(' · ') || '<span class="muted">Vago</span>';
     // Gestores: inclui os diretores que também respondem pela gestão de um departamento
@@ -422,7 +422,7 @@
 
   V.notesList = (viewer, emp) => {
     const notes = api.notes(viewer, emp.id);
-    return `${notes.length ? `<ul class="notes">${notes.map(n => `<li><div class="note-meta"><b>${esc((P.user(n.by) || {}).name || '—')}</b><span>${esc(n.at)}</span></div><p>${esc(n.text)}</p></li>`).join('')}</ul>` : V.empty('Nenhuma observação registrada.')}
+    return `${notes.length ? `<ul class="notes">${notes.map(n => `<li><div class="note-meta"><b>${esc(P.actorName(n.by))}</b><span>${esc(n.at)}</span></div><p>${esc(n.text)}</p></li>`).join('')}</ul>` : V.empty('Nenhuma observação registrada.')}
       ${V.btn('Adicionar observação', { act: 'addNote', icon: 'plus', cls: 'ghost sm', attrs: `data-id="${emp.id}"` })}`;
   };
 

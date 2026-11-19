@@ -571,7 +571,7 @@
     },
     quickAccessGo(el) {
       const role = el.dataset.role, deptId = ($('#qa-dept') || {}).value;
-      const act = P.store.db.users.filter(x => x.active !== false && x.role === role);
+      const act = P.store.db.users.filter(x => x.active !== false && !x.hidden && x.role === role);
       let user = act[0];
       if (role === 'manager') { const d = P.dept(deptId), m = d && P.user(d.managerId); user = m && m.active !== false && m.role === 'manager' ? m : act.find(x => x.deptId === deptId) || act[0]; }
       if (role === 'employee') user = act.find(x => x.deptId === deptId) || act[0];
@@ -677,7 +677,7 @@
       modal({
         title: 'Histórico do lançamento', cancel: 'Fechar',
         body: `<p class="prose"><b>${esc((P.act(e.activityId) || { name: '—' }).name)}</b> · ${esc((P.user(e.userId) || { name: '—' }).name)} · ${D.fmt(e.date)} · ${F.n(e.qty, 2)} × ${F.n(e.weight, 2)} = <b>${F.n(e.points, 2)} pts</b> ${V.ebadge(e.status)}</p>
-        <ol class="timeline">${hist.map(h => `<li><b>${esc(h.action)}</b><span>${esc((P.user(h.by) || {}).name || '—')} · ${esc(h.at)}</span>${h.note ? `<p>${esc(h.note)}</p>` : ''}</li>`).join('')}</ol>`
+        <ol class="timeline">${hist.map(h => `<li><b>${esc(h.action)}</b><span>${esc(P.actorName(h.by))} · ${esc(h.at)}</span>${h.note ? `<p>${esc(h.note)}</p>` : ''}</li>`).join('')}</ol>`
       });
     },
     selectAll(el) { document.querySelectorAll('.sel').forEach(c => { c.checked = el.checked; }); },
@@ -855,7 +855,7 @@
       const d = el.dataset.id ? P.dept(el.dataset.id) : { name: '', code: '', description: '', managerId: '' };
       const mgrs = P.store.db.users.filter(x => x.role === 'manager');
       // Um diretor também pode ser o gestor responsável (continua diretor e aprova a 1ª etapa das férias da equipe)
-      const dirs = P.store.db.users.filter(x => x.role === 'admin' && x.active !== false);
+      const dirs = P.store.db.users.filter(x => x.role === 'admin' && x.active !== false && !x.hidden);
       const opt = m => { const cur = m.role === 'admin' ? P.ledDept(m) : (m.deptId && P.dept(m.deptId)); return `<option value="${m.id}" ${d.managerId === m.id ? 'selected' : ''}>${esc(m.name)}${cur && cur.id !== d.id ? ' (hoje ' + (m.role === 'admin' ? 'gere ' : 'em ') + esc(cur.name) + ')' : ''}</option>`; };
       modal({
         title: el.dataset.id ? 'Editar departamento' : 'Novo departamento',
@@ -1153,7 +1153,7 @@
       if (pend) w.push(`${pend} pedido${pend > 1 ? 's' : ''} de férias de ${P.firstName(x.name)} ${pend > 1 ? 'subirão' : 'subirá'} para a próxima etapa, porque ninguém aprova as próprias férias.`);
       if (role === 'manager') w.push(`${P.firstName(x.name)} passará a ver e aprovar os lançamentos e as férias da equipe de ${d ? d.name : 'departamento escolhido'}.`);
       if (role === 'office') {
-        const other = P.store.db.users.filter(o => o.role === 'office' && o.id !== x.id && o.active !== false);
+        const other = P.store.db.users.filter(o => o.role === 'office' && o.id !== x.id && o.active !== false && !o.hidden);
         if (other.length) w.push(`Já existe gerente do escritório (${other.map(o => o.name).join(', ')}). Os dois passarão a aprovar a mesma etapa.`);
         w.push(`${P.firstName(x.name)} verá todos os departamentos, alterará gestores e funcionários e aprovará férias antes da diretoria. Deixará de aparecer nas métricas de equipe.`);
       }
@@ -1294,7 +1294,7 @@
       const imp = api.dismissImpact(x.id);
       if (imp.lastDirector) return toast('Não é possível desligar o último diretor ativo.', 'err');
       const d = P.dept(x.deptId);
-      const peers = d ? P.store.db.users.filter(o => o.id !== x.id && o.active !== false && o.deptId === x.deptId && (o.role === 'employee' || o.role === 'manager')).sort((a, b) => a.name.localeCompare(b.name)) : [];
+      const peers = d ? P.store.db.users.filter(o => o.id !== x.id && o.active !== false && !o.hidden && o.deptId === x.deptId && (o.role === 'employee' || o.role === 'manager')).sort((a, b) => a.name.localeCompare(b.name)) : [];
       const hasWork = imp.assignments || imp.tasks;
       const items = [];
       if (imp.dept) items.push(`<b>${esc(imp.dept)}</b> ficará sem gestor(a). Defina outra pessoa depois em Gestores.`);

@@ -55,7 +55,7 @@
     const dn = (P.dept(o.deptId) || {}).name || 'o seu departamento';
     notify(deptAll(o.deptId).concat(extra || []), { sticky: true, osId: o.id, icon: 'file',
       title: (released ? 'OS liberada para ' : 'Nova OS para ') + dn + ': ' + o.code,
-      text: o.company + ' · ' + o.type + ' · prazo ' + D.fmt(o.due) + ' · aberta por ' + ((P.user(o.by) || {}).name || '—') });
+      text: o.company + ' · ' + o.type + ' · prazo ' + D.fmt(o.due) + ' · aberta por ' + P.actorName(o.by) });
   };
   const findOS = id => list().find(o => o.id === id);
   // avisos fixos de OS ainda não vistos pela pessoa (OS em aberto)
@@ -131,7 +131,7 @@
           <td>${esc(o.demand.length > 90 ? o.demand.slice(0, 90) + '…' : o.demand)}</td>
           <td>${esc((P.dept(o.deptId) || {}).name || '—')}</td><td>${esc(o.type)}</td>
           <td class="nowrap ${late(o) ? 'neg' : ''}">${D.fmt(o.due)}</td><td>${badge(o)}</td>
-          <td>${esc((P.user(o.by) || {}).name || '—')}</td>
+          <td>${esc(P.actorName(o.by))}</td>
           <td class="actions-col"><div class="row-actions">${canDecide(u, o) ? V.btn('Aprovar', { act: 'osApprove', cls: 'sm primary', icon: 'check', attrs: `data-id="${o.id}"` }) + V.btn('Recusar', { act: 'osReject', cls: 'sm ghost', icon: 'x', attrs: `data-id="${o.id}"` }) : ''}${canAct(u, o) ? V.ibtn('edit', 'Atualizar situação', { act: 'osStatus', attrs: `data-id="${o.id}"` }) : ''}${V.ibtn('info', 'Detalhes e histórico', { act: 'osDetail', attrs: `data-id="${o.id}"` })}</div></td></tr>`).join('')}
         </tbody></table></div>` : V.empty(s.tab === 'abertas' ? (canOpen(u) ? 'Nenhuma OS em aberto. Use "Nova OS".' : 'Nenhuma OS em aberto no seu departamento.') : 'Nada por aqui.', 'clipboard'), { cls: 'flush' })}`;
   };

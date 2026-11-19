@@ -14,7 +14,7 @@
   const first = n => String(n || '').split(' ')[0];
   const today = () => D.iso(P.today());
   // colegas que podem cobrir: mesmo departamento, ativos, que produzem (funcionário ou gestor)
-  const peers = (deptId, exceptId) => (db().users || []).filter(x => x.active !== false && x.id !== exceptId && x.deptId === deptId && (x.role === 'employee' || x.role === 'manager')).sort((a, b) => a.name.localeCompare(b.name));
+  const peers = (deptId, exceptId) => (db().users || []).filter(x => x.active !== false && !x.hidden && x.id !== exceptId && x.deptId === deptId && (x.role === 'employee' || x.role === 'manager')).sort((a, b) => a.name.localeCompare(b.name));
   const inPeriod = (userId, s, e) => (db().tasks || []).filter(t => t.userId === userId && t.status === 'pendente' && t.due >= s && t.due <= e);
   const awayOn = (userId, s, e) => (db().vacations || []).some(v => v.userId === userId && ['gestor', 'gerente', 'diretoria', 'aprovada'].includes(v.status) && !(e < v.start || s > v.end));
 
@@ -139,7 +139,7 @@
   /* ---------- Transferência pelo gestor ---------- */
   A.transferTasks = el => {
     const u = U(); const pre = el && el.dataset && el.dataset.id ? db().tasks.find(t => t.id === el.dataset.id) : null;
-    const team = (db().users || []).filter(x => x.active !== false && (x.role === 'employee' || x.role === 'manager') && x.deptId && manages(u, x.deptId)).sort((a, b) => a.name.localeCompare(b.name));
+    const team = (db().users || []).filter(x => x.active !== false && !x.hidden && (x.role === 'employee' || x.role === 'manager') && x.deptId && manages(u, x.deptId)).sort((a, b) => a.name.localeCompare(b.name));
     if (!team.length) return P.toast('Somente o gestor, a gerência e a diretoria transferem tarefas.', 'err');
     const from0 = pre ? pre.userId : (P.state.taskUser && team.some(x => x.id === P.state.taskUser) ? P.state.taskUser : team[0].id);
     const opts = (l, sel) => l.map(x => `<option value="${x.id}" ${x.id === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('');

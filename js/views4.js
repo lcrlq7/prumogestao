@@ -292,7 +292,7 @@
       ${o.comment && v.comment ? `<blockquote class="vac-comment">${icon('message')}<span>${esc(v.comment)}</span></blockquote>` : ''}
       ${V.vacSteps(v)}
       ${v.change && !v.restricted && (api._changeOpen(v) || o.change) ? V.vacChangeBox(v) : ''}
-      ${notes.length && o.history !== false ? `<ul class="vac-notes">${notes.map(h => `<li><b>${esc(h.action)}</b> · ${esc((P.user(h.by) || {}).name || '—')}: ${esc(h.note)}</li>`).join('')}</ul>` : ''}
+      ${notes.length && o.history !== false ? `<ul class="vac-notes">${notes.map(h => `<li><b>${esc(h.action)}</b> · ${esc(P.actorName(h.by))}: ${esc(h.note)}</li>`).join('')}</ul>` : ''}
       ${conflicts.length ? `<div class="banner warn sm">${icon('users')}<div><b>${conflicts.length} colega${conflicts.length > 1 ? 's' : ''} do departamento fora no mesmo período:</b> ${conflicts.map(c => `${esc(whoOf(c.userId).name)} (${D.short(c.start)}–${D.short(c.end)}, ${P.VAC[c.status].short.toLowerCase()})`).join(', ')}</div></div>` : ''}
       ${o.actions ? `<div class="vac-actions">${o.actions}</div>` : ''}
     </li>`;

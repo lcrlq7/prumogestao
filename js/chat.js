@@ -18,7 +18,7 @@
   const $ = (s, r = document) => r.querySelector(s);
   const A = P.ext.actions;
   const deny = msg => { throw new P.AccessError(msg); };
-  const active = () => db().users.filter(x => x.active !== false);
+  const active = () => db().users.filter(x => x.active !== false && !x.hidden);
   const msgs = () => (db().messages = db().messages || []);
   const reads = () => (db().chatReads = db().chatReads || {});
   const st = () => (S().chat = S().chat || { conv: null, q: '', drafts: {} });

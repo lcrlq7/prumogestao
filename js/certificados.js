@@ -87,9 +87,12 @@
   A.certLog = async () => {
     if (!P.isGlobal(U())) return;
     if (!rpc) return P.toast('O registro de consultas existe só no sistema real.', 'err');
-    const { data, error } = await rpc('cert_access_list');
+    const { data: raw, error } = await rpc('cert_access_list');
     if (error) return P.toast(error.message, 'err');
-    P.ui.modal({ title: 'Consultas às senhas dos certificados', submit: 'Fechar', body: (data || []).length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Quando</th><th>Quem</th><th>Empresa</th><th>Ação</th></tr></thead><tbody>${data.map(r => `<tr><td class="nowrap">${esc(new Date(r.at).toLocaleString('pt-BR'))}</td><td>${esc(r.user_name || '—')}</td><td>${esc(r.company || '—')}</td><td>${esc(r.action === 'copiar' ? 'Copiou' : 'Viu')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Ninguém consultou ainda.</p>', onSubmit: () => { } });
+    // o registro guarda o nome digitado na hora; contas 'hidden' (uso técnico) não aparecem nem aqui
+    const hiddenNames = new Set(db().users.filter(x => x.hidden).map(x => x.name));
+    const data = (raw || []).filter(r => !hiddenNames.has(r.user_name));
+    P.ui.modal({ title: 'Consultas às senhas dos certificados', submit: 'Fechar', body: data.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Quando</th><th>Quem</th><th>Empresa</th><th>Ação</th></tr></thead><tbody>${data.map(r => `<tr><td class="nowrap">${esc(new Date(r.at).toLocaleString('pt-BR'))}</td><td>${esc(r.user_name || '—')}</td><td>${esc(r.company || '—')}</td><td>${esc(r.action === 'copiar' ? 'Copiou' : 'Viu')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Ninguém consultou ainda.</p>', onSubmit: () => { } });
   };
 
   const $v = s => String((document.querySelector(s) || {}).value || '').trim();
@@ -130,7 +133,7 @@
   A.certEditors = () => {
     const u = U(); if (u.role !== 'admin') return P.toast('Somente a diretoria escolhe quem edita.', 'err');
     const cur = cfg().editors || [];
-    const people = db().users.filter(x => x.active !== false && !P.isGlobal(x)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const people = db().users.filter(x => x.active !== false && !x.hidden && !P.isGlobal(x)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
     P.ui.modal({
       title: 'Quem pode editar certificados', submit: 'Salvar',
       body: `<p class="fine">Todos veem a lista e consultam a senha. Marque quem também pode cadastrar, alterar e excluir. Diretoria e gerência sempre podem.</p>
