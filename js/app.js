@@ -582,6 +582,12 @@
     cmp(el) { S.cmp = el.dataset.key; render(); },
     setState(el) { if (/^task/.test(el.dataset.key)) S.taskPg = {}; setPath(el.dataset.key, el.dataset.val); render(); },
     tfClear() { S.tf = { q: '', client: '', from: '', to: '', late: false }; S.taskPg = {}; render(); },
+    tfQuick(el) {
+      const t = P.today();
+      if (el.dataset.k === 'hoje') { S.tf = Object.assign(S.tf || {}, { from: D.iso(t), to: D.iso(t) }); }
+      else { const s = D.weekStart(t); S.tf = Object.assign(S.tf || {}, { from: D.iso(s), to: D.iso(D.add(s, 6)) }); }
+      S.taskPg = {}; render();
+    },
     pgGo(el) { S.taskPg = S.taskPg || {}; S.taskPg[el.dataset.key] = (S.taskPg[el.dataset.key] || 1) + Number(el.dataset.dir); render(); window.scrollTo(0, 0); },
     reloadPage() { render(true); },
     // botão Voltar do topo: volta para a tela anterior (se não houver, vai para o Dashboard)

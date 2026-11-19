@@ -4,20 +4,22 @@
  * este Edge Config guarda só a manutenção, nunca nada sensível.
  *   { "on": true, "msg": "Estamos melhorando o Prumo.", "volta": "por volta das 15h" }
  * Enquanto "on" for true, quem abre o site vê esta tela, com um joguinho, em vez do sistema.
- * Para a equipe técnica entrar mesmo assim: abra o site com  ?manut=ok  (vale neste navegador)
- * e  ?manut=off  para voltar a ver a tela como os demais.
+ * Para a equipe técnica entrar mesmo assim: abra o site com  ?manut=ok  (vale neste navegador por 8 horas,
+ * depois volta a mostrar a tela sozinho — assim um link ou aba esquecida não libera o acesso para sempre)
+ * e  ?manut=off  para voltar a ver a tela como os demais antes das 8 horas.
  * Quando a manutenção termina (on:false), a tela some sozinha e a página recarrega.
  */
 (function () {
   'use strict';
   var EDGE_URL = 'https://edge-config.vercel.com/ecfg_2ioalpqk4e10zkrbvaoib9kfiewn/item/manutencao?token=474306a6-5b69-4ad8-8147-d27656d48041';
-  var KEY = 'prumo.manutOk', shown = false, timer = null;
+  var KEY = 'prumo.manutOk', BYPASS_MS = 8 * 60 * 60e3, shown = false, timer = null;
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { } return null; }
   try {
     var q = new URLSearchParams(location.search).get('manut');
-    if (q === 'ok') store(KEY, '1'); else if (q === 'off') store(KEY, null);
+    if (q === 'ok') store(KEY, String(Date.now())); else if (q === 'off') store(KEY, null);
   } catch (e) { }
-  var bypass = store(KEY) === '1';
+  var bypassAt = parseInt(store(KEY) || '0', 10);
+  var bypass = bypassAt > 0 && Date.now() - bypassAt < BYPASS_MS;
 
   function check() {
     fetch(EDGE_URL + '&t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (c) {

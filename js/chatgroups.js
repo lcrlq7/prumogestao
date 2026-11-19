@@ -10,7 +10,7 @@
   const norm = P.norm;
   const mine = u => groups().filter(g => (g.members || []).includes(u.id));
   const okPhoto = p => typeof p === 'string' && /^data:image\/jpeg;base64,/.test(p);
-  const photoHtml = (p, cls) => `<span class="avatar has-photo ${cls || ''}" aria-hidden="true"><img src="${p}" alt=""></span>`;
+  const photoHtml = (p, cls) => `<span class="avatar has-photo ${cls || ''}" aria-hidden="true"><img src="${p}" alt="" loading="lazy"></span>`;
   let pendingPhoto; // undefined = não mexeu; '' = remover; 'data:...' = nova foto
 
   // os grupos entram na lista de canais de quem participa (lista, "não lidas" e abertura usam o mesmo caminho dos canais)

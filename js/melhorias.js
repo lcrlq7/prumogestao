@@ -33,7 +33,7 @@
     img.src = url;
   });
   const okImg = s => typeof s === 'string' && /^data:image\/jpeg;base64,/.test(s);
-  const thumbs = (imgs, removable) => imgs.map((s, i) => `<span class="sg-th">${okImg(s) ? `<img src="${s}" alt="Imagem ${i + 1}" data-act="sugImg" data-src="${i}">` : ''}${removable ? `<button type="button" class="sg-x" data-act="sugImgDel" data-i="${i}" aria-label="Remover imagem">${icon('x')}</button>` : ''}</span>`).join('');
+  const thumbs = (imgs, removable) => imgs.map((s, i) => `<span class="sg-th">${okImg(s) ? `<img src="${s}" alt="Imagem ${i + 1}" loading="lazy" data-act="sugImg" data-src="${i}">` : ''}${removable ? `<button type="button" class="sg-x" data-act="sugImgDel" data-i="${i}" aria-label="Remover imagem">${icon('x')}</button>` : ''}</span>`).join('');
   const drawPending = () => { const b = document.getElementById('sg-imgs'); if (b) b.innerHTML = thumbs(pending, true); const n = document.getElementById('sg-n'); if (n) n.textContent = pending.length + '/' + MAX_IMG; };
   const addFiles = async files => {
     for (const f of [...files]) {

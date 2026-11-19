@@ -91,6 +91,8 @@
       <label class="picker grow">${icon('building')}<input type="search" id="tf-client" list="tf-clients" data-set="tf.client" data-live value="${esc(f.client || '')}" placeholder="Empresa: código ou nome" aria-label="Empresa (código ou nome)" autocomplete="off"><datalist id="tf-clients">${clients.map(c => { const co = V.companyOfClient(c); return `<option value="${esc(c)}" label="${co && co.code ? esc(co.code) : ''}"></option>`; }).join('')}</datalist></label>
       <label class="picker"><span>Prazo de</span><input type="date" data-set="tf.from" value="${esc(f.from || '')}" aria-label="Prazo a partir de"></label>
       <label class="picker"><span>até</span><input type="date" data-set="tf.to" value="${esc(f.to || '')}" aria-label="Prazo até"></label>
+      <button type="button" class="chip" data-act="tfQuick" data-k="hoje">Hoje</button>
+      <button type="button" class="chip" data-act="tfQuick" data-k="semana">Esta semana</button>
       <label class="check-inline"><input type="checkbox" data-set="tf.late" ${f.late ? 'checked' : ''}> Só atrasadas</label>
       ${on ? V.btn('Limpar filtros', { act: 'tfClear', icon: 'x', cls: 'sm ghost' }) : ''}
       <span class="fine tf-count">${shown} de ${base.length} tarefa(s)</span></div>${(() => {

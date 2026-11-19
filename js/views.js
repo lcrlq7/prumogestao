@@ -111,7 +111,7 @@
     const ini = (u.name || '?').split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase();
     const hue = [...u.id].reduce((a, c) => a + c.charCodeAt(0), 0) % 5 + 1;
     // Foto de perfil, se houver; senão, as iniciais
-    if (u.photo && /^data:image\/(jpeg|png|webp);base64,/.test(u.photo)) return `<span class="avatar has-photo ${size}" aria-hidden="true"><img src="${u.photo}" alt=""></span>`;
+    if (u.photo && /^data:image\/(jpeg|png|webp);base64,/.test(u.photo)) return `<span class="avatar has-photo ${size}" aria-hidden="true"><img src="${u.photo}" alt="" loading="lazy"></span>`;
     return `<span class="avatar a${hue} ${size}" aria-hidden="true">${ini}</span>`;
   };
   /* Gestor(a) responsável pelo departamento da pessoa (gestor ou diretor que acumula a gestão) */
