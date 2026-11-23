@@ -633,11 +633,41 @@
     setComp(el) { S.comp[el.dataset.key] = el.dataset.val; render(); },
     compCell(el) { S.comp.dept = el.dataset.dept; S.comp.regime = el.dataset.reg; S.comp.status = 'ativas'; render(); },
     compClear() { Object.assign(S.comp, { q: '', code: '', regime: '', dept: '', city: '', owner: '', status: 'ativas' }); render(); },
-    compExport(el) {
-      const ids = el.dataset.k === 'filtro' ? A._compFiltered : A._compAll;
-      const rows = (ids || []).map(id => P.idx.companies.get(id)).filter(Boolean)
-        .map(c => ({ 'Código': c.code || '', 'Empresa': c.name, 'CNPJ': c.cnpj || '', 'Município': P.cityOf(c) || '' }));
-      P.ui.xlsx([['Empresas', rows]], 'empresas' + (el.dataset.k === 'filtro' ? '-filtradas' : ''));
+    // Exportar empresas: a pessoa escolhe o regime (pode marcar mais de um, ex.: Presumido + Real), o município,
+    // o departamento, o responsável e a situação — não depende do que estiver filtrado na tela atrás do diálogo.
+    compExportOpen() {
+      const u = U(), all = api.companies(u);
+      const owners = {};
+      (P.store.db.clientAssignments || []).forEach(a => { (owners[a.client] = owners[a.client] || []).push(a); });
+      const deptsOf = c => [...new Set((c.depts || []).concat((owners[c.name] || []).map(a => a.deptId)))];
+      const depts = P.store.db.departments.filter(d => d.active !== false);
+      const regOpts = Object.entries(P.REGIMES).map(([k, r]) => [k, r.label]).concat([['nao', 'Não informado']]);
+      const cities = [...new Set(all.map(P.cityOf).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      const ownerOpts = [...new Set((P.store.db.clientAssignments || []).map(a => a.userId))].map(id => P.user(id)).filter(Boolean).sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+      modal({
+        title: 'Exportar empresas', submit: 'Exportar', icon: 'download',
+        body: `<p class="fine">A planilha sai com Código, Empresa, CNPJ e Município. Escolha o que entra:</p>
+          <div class="fgrid">
+            <div class="field span3"><span>Regime tributário</span><div class="checklist">${regOpts.map(([k, l]) => `<label class="field check"><input type="checkbox" class="cex-reg" value="${k}" checked><span>${esc(l)}</span></label>`).join('')}</div></div>
+            <label class="field"><span>Município</span><select id="cex-city"><option value="">Todos</option>${cities.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></label>
+            <label class="field"><span>Departamento</span><select id="cex-dept"><option value="">Todos</option>${depts.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('')}</select></label>
+            <label class="field"><span>Responsável</span><select id="cex-owner"><option value="">Todos</option>${ownerOpts.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
+            <label class="field"><span>Situação</span><select id="cex-st"><option value="ativas" selected>Só ativas</option><option value="todas">Todas</option><option value="inativas">Só inativas</option></select></label>
+          </div>`,
+        onSubmit: m => {
+          const regs = [...m.querySelectorAll('.cex-reg:checked')].map(i => i.value);
+          if (!regs.length) throw new Error('Marque pelo menos um regime tributário.');
+          const city = $('#cex-city', m).value, dept = $('#cex-dept', m).value, owner = $('#cex-owner', m).value, st = $('#cex-st', m).value;
+          let rows = all;
+          if (regs.length < regOpts.length) rows = rows.filter(c => regs.includes(P.REGIMES[c.regime] ? c.regime : 'nao'));
+          if (city) rows = rows.filter(c => P.cityOf(c) === city);
+          if (dept) rows = rows.filter(c => deptsOf(c).includes(dept));
+          if (owner) rows = rows.filter(c => (owners[c.name] || []).some(a => a.userId === owner));
+          if (st === 'ativas') rows = rows.filter(c => c.active); else if (st === 'inativas') rows = rows.filter(c => !c.active);
+          if (!rows.length) throw new Error('Nenhuma empresa com esses filtros.');
+          P.ui.xlsx([['Empresas', rows.map(c => ({ 'Código': c.code || '', 'Empresa': c.name, 'CNPJ': c.cnpj || '', 'Município': P.cityOf(c) || '' }))]], 'empresas');
+        }
+      });
     },
     closeModal,
     modalSubmit() {

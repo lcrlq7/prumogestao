@@ -524,6 +524,12 @@ a{color:var(--accent)}
 .field input.ro{background:var(--surface-2);font-family:var(--f-mono)}
 .field select:disabled{background:var(--surface-2);color:var(--ink-2)}
 .field.span2{grid-column:span 2} .field.span3{grid-column:1/-1}
+/* select com ícone; .field.on destaca quando o filtro não está no valor padrão */
+.sel-ic{position:relative;display:block}
+.sel-ic .sel-ic-i{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted);pointer-events:none}
+.sel-ic select{padding-left:32px}
+.field.on .sel-ic select{border-color:var(--plumb);box-shadow:inset 3px 0 0 var(--plumb)}
+.field.on .sel-ic .sel-ic-i{color:var(--plumb)}
 .field.check{flex-direction:row;align-items:center;gap:8px}
 .field.check input{width:18px;height:18px}
 .field.check span{font-weight:500;font-size:13.5px}
