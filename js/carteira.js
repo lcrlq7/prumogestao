@@ -48,7 +48,8 @@
     const rows = shown.map(({ c }) => { const p = pend.get(c.name);
       return `<tr><td><b>${esc(c.name)}</b>${c.code ? `<small class="obs">${esc(c.code)}</small>` : ''}</td><td>${esc((P.REGIMES[c.regime] || {}).label || '—')}</td>
         <td>${p ? p.n + (p.late ? ` <span class="badge st-sobrecarga">${p.late} em atraso</span>` : '') : '<span class="muted">nenhuma</span>'}</td><td class="nowrap">${p && p.next ? esc(D.fmt(p.next)) : '—'}</td></tr>`; }).join('');
-    return `${V.pageHead('Minhas empresas', 'As empresas pelas quais você é responsável. Para mudar a carteira, fale com o seu gestor.')}
+    A._cartExport = { name: 'minhas-empresas', rows: list.map(({ c }) => ({ 'Código': c.code || '', 'Empresa': c.name, 'CNPJ': c.cnpj || '', 'Município': P.cityOf(c) || '' })) };
+    return `${V.pageHead('Minhas empresas', 'As empresas pelas quais você é responsável. Para mudar a carteira, fale com o seu gestor.', V.btn('Exportar lista', { act: 'cartExport', icon: 'download', cls: 'ghost' }))}
       <div class="toolbar tfilter"><label class="picker grow">${icon('search')}<input type="search" id="cart-q" data-set="cart.q" data-live value="${esc(s.q)}" placeholder="Buscar empresa por nome ou código" aria-label="Buscar empresa" autocomplete="off"></label>${regSelect(s.regime, regCounts)}<span class="fine tf-count">${list.length} empresa(s)</span></div>
       ${V.card('Carteira de ' + esc(u.name), list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Regime</th><th>Tarefas pendentes</th><th>Próximo prazo</th></tr></thead><tbody>${rows}</tbody></table></div>${rest > 0 ? `<div class="pager">${V.btn('Mostrar mais (' + rest + ' restantes)', { act: 'cartMore', icon: 'plus', cls: 'sm ghost' })}</div>` : ''}` : V.empty(mine.length ? 'Nenhuma empresa neste filtro.' : 'Você ainda não tem empresas na carteira.', 'building'), { cls: 'flush' })}`;
   };
@@ -62,6 +63,8 @@
     const { s, people, counts, list, byClient, mine } = m, me = P.user(s.userId) || people[0];
     const shown = list.slice(0, s.limit), rest = list.length - shown.length;
     const semDono = (db().companies || []).filter(c => c.active !== false && !byClient.has(c.name)).length;
+    const slug = (me.name || 'carteira').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+    A._cartExport = { name: 'carteira-' + slug, rows: list.map(c => ({ 'Código': c.code || '', 'Empresa': c.name, 'CNPJ': c.cnpj || '', 'Município': P.cityOf(c) || '' })) };
     const rows = shown.map(c => {
       const a = byClient.get(c.name), owner = a ? P.user(a.userId) : null, isMine = mine(c);
       return `<tr class="${isMine ? '' : 'dim'}"><td class="chk-col"><input type="checkbox" data-act="cartToggle" data-id="${esc(c.id)}" aria-label="Responsável: ${esc(me.name)}" ${isMine ? 'checked' : ''}></td>
@@ -80,6 +83,7 @@
             <label class="picker grow">${icon('search')}<input type="search" id="cart-q" data-set="cart.q" data-live value="${esc(s.q)}" placeholder="Buscar empresa por nome, código ou CNPJ" aria-label="Buscar empresa" autocomplete="off"></label>
             <label class="picker"><select data-set="cart.view" aria-label="Mostrar"><option value="ela" ${s.view === 'ela' ? 'selected' : ''}>Só as de ${esc(P.firstName ? P.firstName(me.name) : me.name)}</option><option value="todas" ${s.view === 'todas' ? 'selected' : ''}>Todas as empresas</option><option value="livres" ${s.view === 'livres' ? 'selected' : ''}>Sem responsável</option><option value="outros" ${s.view === 'outros' ? 'selected' : ''}>De outras pessoas</option></select></label>
             ${regSelect(s.regime)}
+            ${V.btn('Exportar lista', { act: 'cartExport', icon: 'download', cls: 'ghost sm' })}
             <span class="fine tf-count">${list.length} empresa(s)</span></div>
           <div class="cart-bulk">${V.btn('Marcar todas as filtradas', { act: 'cartAll', icon: 'check', cls: 'sm ghost' })}${V.btn('Desmarcar todas as filtradas', { act: 'cartNone', icon: 'x', cls: 'sm ghost' })}<span class="fine">Marcar uma empresa de outra pessoa transfere para ${esc(me.name)}. Cada clique já salva.</span></div>
           ${V.card('Empresas · responsável: ' + esc(me.name), list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th class="chk-col"></th><th>Empresa</th><th>Regime</th><th>Responsável atual</th></tr></thead><tbody>${rows}</tbody></table></div>${rest > 0 ? `<div class="pager">${V.btn('Mostrar mais (' + rest + ' restantes)', { act: 'cartMore', icon: 'plus', cls: 'sm ghost' })}</div>` : ''}` : V.empty('Nenhuma empresa neste filtro.', 'building'), { cls: 'flush' })}
@@ -127,6 +131,7 @@
   const guard = fn => P.ui.guard(fn);
 
   A.cartPerson = el => { st().userId = el.dataset.id; st().limit = 100; P.render(); };
+  A.cartExport = () => { const x = A._cartExport || { name: 'carteira', rows: [] }; P.ui.xlsx([['Carteira', x.rows]], x.name); };
   A.cartMore = () => { st().limit += 100; P.render(); };
   A.cartToggle = el => guard(() => {
     const u = U(), m = model(u), c = (db().companies || []).find(x => x.id === el.dataset.id);

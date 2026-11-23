@@ -633,6 +633,12 @@
     setComp(el) { S.comp[el.dataset.key] = el.dataset.val; render(); },
     compCell(el) { S.comp.dept = el.dataset.dept; S.comp.regime = el.dataset.reg; S.comp.status = 'ativas'; render(); },
     compClear() { Object.assign(S.comp, { q: '', code: '', regime: '', dept: '', city: '', owner: '', status: 'ativas' }); render(); },
+    compExport(el) {
+      const ids = el.dataset.k === 'filtro' ? A._compFiltered : A._compAll;
+      const rows = (ids || []).map(id => P.idx.companies.get(id)).filter(Boolean)
+        .map(c => ({ 'Código': c.code || '', 'Empresa': c.name, 'CNPJ': c.cnpj || '', 'Município': P.cityOf(c) || '' }));
+      P.ui.xlsx([['Empresas', rows]], 'empresas' + (el.dataset.k === 'filtro' ? '-filtradas' : ''));
+    },
     closeModal,
     modalSubmit() {
       if (!modalHandler) return closeModal();
