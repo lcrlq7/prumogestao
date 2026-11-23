@@ -1669,6 +1669,14 @@ window.P = window.P || {};
       P.reindex(); audit(u, 'Perfil atualizado', me.id, changes.join('; ')); P.store.save();
       return me;
     },
+    // Aceite do aviso de privacidade (LGPD): cada pessoa aceita por si mesma; versão permite pedir de novo se o texto mudar
+    acceptTerms(u) {
+      const me = P.user(u.id);
+      assert(me && me.active !== false, 'Usuário não encontrado.');
+      me.termsVersion = P.TERMS_VERSION; me.termsAcceptedAt = D.stamp();
+      P.reindex(); audit(u, 'Aceitou o aviso de privacidade', me.id, 'versão ' + P.TERMS_VERSION); P.store.save();
+      return me;
+    },
     /* Garante capacidade, jornada e metas para quem passa a ter produção (funcionário ou gestor) */
     _ensureWorker(x) {
       if (!(x.capacity > 0)) x.capacity = db().settings.defaultCapacity || 32;

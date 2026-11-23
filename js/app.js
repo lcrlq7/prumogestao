@@ -337,6 +337,7 @@
     const u = S.user;
     applyColors(u);
     if (!u) { root().innerHTML = loginView(S.loginErr); S.authSeen = true; return; }
+    if (P.needsTerms && P.needsTerms(u)) { root().innerHTML = V.termsGate(u); S.justLogged = false; return; }
     let page = S.route.page;
     if (!P.PAGES[page]) page = S.route.page = 'dashboard';
     // Páginas mais pesadas aparecem primeiro como esqueleto e são calculadas no quadro seguinte
