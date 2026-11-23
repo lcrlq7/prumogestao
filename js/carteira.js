@@ -7,7 +7,7 @@
   // filtro por regime tributário (vale em "Minhas empresas" e na carteira do gestor)
   const regKey = c => P.REGIMES[c.regime] ? c.regime : 'nao';
   const regOk = (c, r) => !r || regKey(c) === r;
-  const regSelect = (cur, counts) => `<label class="picker"><select data-set="cart.regime" aria-label="Regime tributário"><option value="">Todos os regimes</option>${Object.entries(P.REGIMES).map(([k, r]) => [k, r.label]).concat([['nao', 'Não informado']]).map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${esc(l)}${counts ? ' (' + (counts[k] || 0) + ')' : ''}</option>`).join('')}</select></label>`;
+  const regSelect = (cur, counts) => `<label class="picker ${cur ? 'on' : ''}">${icon('scale')}<select data-set="cart.regime" aria-label="Regime tributário"><option value="">Todos os regimes</option>${Object.entries(P.REGIMES).map(([k, r]) => [k, r.label]).concat([['nao', 'Não informado']]).map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${esc(l)}${counts ? ' (' + (counts[k] || 0) + ')' : ''}</option>`).join('')}</select></label>`;
   const st = () => (P.state.cart = P.state.cart || { userId: '', q: '', regime: '', view: 'ela', limit: 100 });
   const norm = P.norm;
   const byName = P.byName;

@@ -243,12 +243,12 @@
   function filtersBar() {
     const f = st().f, depts = (db().departments || []).filter(d => d.active !== false);
     const people = profiles().map(p => P.user(p.id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
-    const sel = (key, opts, label) => `<label class="field"><span>${label}</span><select data-set="fin.f.${key}"><option value="">Todos</option>${opts.map(([v, l]) => `<option value="${esc(v)}" ${f[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
+    const sel = (key, opts, label, ic) => `<label class="field ${f[key] ? 'on' : ''}"><span>${label}</span><span class="sel-ic">${icon(ic, 'sel-ic-i')}<select data-set="fin.f.${key}"><option value="">Todos</option>${opts.map(([v, l]) => `<option value="${esc(v)}" ${f[key] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></span></label>`;
     return `<section class="card"><div class="card-b"><div class="filters">
       <label class="field"><span>Buscar</span><input type="search" value="${esc(f.q)}" data-set="fin.f.q" data-live placeholder="Funcionário ou descrição"></label>
-      ${sel('userId', people.map(x => [x.id, x.name]), 'Funcionário')}
-      ${sel('deptId', depts.map(d => [d.id, d.name]), 'Departamento')}
-      ${sel('cat', Object.entries(CATS), 'Categoria')}
+      ${sel('userId', people.map(x => [x.id, x.name]), 'Funcionário', 'users')}
+      ${sel('deptId', depts.map(d => [d.id, d.name]), 'Departamento', 'briefcase')}
+      ${sel('cat', Object.entries(CATS), 'Categoria', 'sliders')}
       <label class="field"><span>De</span><input type="date" value="${f.s}" data-set="fin.f.s"></label>
       <label class="field"><span>Até</span><input type="date" value="${f.e}" data-set="fin.f.e"></label>
       ${sel('status', [['pendentes', 'Pendentes'], ['realizados', 'Realizados'], ['atrasados', 'Atrasados'], ['previsto', 'Previstos'], ['ajustado', 'Ajustados'], ['parcial', 'Parcialmente pagos'], ['cancelado', 'Cancelados']], 'Status')}

@@ -122,7 +122,7 @@
       </div>
       <section class="card"><div class="card-b"><div class="filters">
         <label class="field"><span>Buscar</span><input type="search" value="${esc(s.q)}" data-set="osv.q" data-live placeholder="Empresa, demanda, tipo ou nº"></label>
-        ${P.isGlobal(u) ? `<label class="field"><span>Departamento</span><select data-set="osv.dept"><option value="">Todos</option>${depts.map(d => `<option value="${d.id}" ${s.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}
+        ${P.isGlobal(u) ? `<label class="field ${s.dept ? 'on' : ''}"><span>Departamento</span><span class="sel-ic">${icon('briefcase', 'sel-ic-i')}<select data-set="osv.dept"><option value="">Todos</option>${depts.map(d => `<option value="${d.id}" ${s.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></span></label>` : ''}
       </div></div></section>
       <div class="toolbar">${V.tabs([].concat(tabs.diretoria.length || s.tab === 'diretoria' ? [['diretoria', 'Aguardando diretoria · inadimplência', tabs.diretoria.length]] : []).concat([['abertas', 'Em aberto', tabs.abertas.length], ['atrasadas', 'Atrasadas', tabs.atrasadas.length], ['aguardando', 'Aguardando cliente', tabs.aguardando.length], ['concluidas', 'Concluídas', tabs.concluidas.length], ['nao', 'Não concluídas', tabs.nao.length], ['todas', 'Todas', tabs.todas.length]]), s.tab, 'osv.tab')}</div>
       ${V.card('', shown.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Nº</th><th>Empresa</th><th>Demanda</th><th>Departamento</th><th>Tipo</th><th>Prazo</th><th>Situação</th><th>Aberta por</th><th class="actions-col"></th></tr></thead><tbody>
