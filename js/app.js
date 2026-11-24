@@ -358,7 +358,11 @@
       if (!(e instanceof P.AccessError)) { console.error(e); html = V.pageError(e.message); }
       else { P.audit(u, 'Acesso negado', page + (S.route.id ? '/' + S.route.id : ''), e.message); P.store.save(); html = V.forbidden(e.message); }
     }
+    // uma atualização em tempo real (sem navegar) recria a tela inteira; sem isso, quem estivesse
+    // arrastando a barra de rolagem de uma tabela larga (ex.: Empresas) via ela voltar ao início sozinha
+    const tableScrolls = !scrollTop ? [...root().querySelectorAll('.table-wrap')].map(el => el.scrollLeft) : null;
     root().innerHTML = shell(html);
+    if (tableScrolls) [...root().querySelectorAll('.table-wrap')].forEach((el, i) => { if (tableScrolls[i]) el.scrollLeft = tableScrolls[i]; });
     S.justLogged = false;
     if (P.fx) P.fx.afterRender(!!scrollTop);
     P.charts.hydrate();
