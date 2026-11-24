@@ -1630,6 +1630,21 @@
       });
     },
     toggleCompany(el) { guard(() => { api.toggleCompany(U(), el.dataset.id); render(); }); },
+    // aplica o regime que a Receita indica (botão "Trocar" no aviso da tabela de Empresas)
+    applyRegimeSuggestion(el) {
+      guard(() => {
+        const u = U(), c = api.company(u, el.dataset.id), s = c.receita && c.receita.suggestion;
+        if (!s || !s.regime) return;
+        const antigo = (P.REGIMES[c.regime] || {}).label || 'Não informado', novo = P.REGIMES[s.regime].label;
+        if (!confirm('Trocar o regime de "' + c.name + '" de ' + antigo + ' para ' + novo + '?\n\nMotivo (Receita Federal): ' + s.source)) return;
+        const r = api.saveCompany(u, {
+          id: c.id, code: c.code, name: c.name, tradeName: c.tradeName, cnpj: c.cnpj,
+          regime: s.regime, regimeNote: 'Aplicado a partir da sugestão da Receita: ' + s.source, since: c.since,
+          depts: c.depts || [], notes: c.notes, city: c.city, uf: c.uf, receita: c.receita
+        });
+        toast('Regime atualizado: ' + r.name + ' agora é ' + P.REGIMES[r.regime].label + '.'); render();
+      });
+    },
     requestVacation(el) {
       const f = el.closest('.card, .modal').querySelector('[data-vac-form]');
       try {

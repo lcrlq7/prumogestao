@@ -9,6 +9,8 @@
     ? `<span class="reg"><i class="sw ${REG_CLS[r] || 's1'}"></i>${esc(P.REGIMES[r].label)}</span>`
     : '<span class="reg muted"><i class="sw sw-empty"></i>Não informado</span>';
   const incomplete = c => !P.REGIMES[c.regime] || !c.cnpj;
+  // regime cadastrado diferente do que a Receita Federal diz hoje (ECF, opção pelo Simples/MEI etc.)
+  const divergentRegime = c => { const s = c.receita && c.receita.suggestion; return !!(s && s.regime && P.REGIMES[c.regime] && s.regime !== c.regime); };
 
   /* ---------- Empresas ---------- */
   V.empresas = u => {
@@ -34,7 +36,7 @@
     if (f.regime && !skipReg) list = list.filter(c => f.regime === 'nao' ? !P.REGIMES[c.regime] : c.regime === f.regime);
     if (f.dept) list = list.filter(c => deptsOf(c).includes(f.dept));
     if (f.owner) list = list.filter(c => (owners[c.name] || []).some(a => a.userId === f.owner && (!f.dept || a.deptId === f.dept)));
-    if (f.status) list = list.filter(c => f.status === 'ativas' ? c.active : f.status === 'incompletas' ? c.active && incomplete(c) : f.status === 'semcodigo' ? !c.code : !c.active);
+    if (f.status) list = list.filter(c => f.status === 'ativas' ? c.active : f.status === 'incompletas' ? c.active && incomplete(c) : f.status === 'divergentes' ? c.active && divergentRegime(c) : f.status === 'semcodigo' ? !c.code : !c.active);
     return list;
     };
     const list = pipeline(false), base = pipeline(true);
@@ -57,6 +59,7 @@
     const active = all.filter(c => c.active);
     const counts = {}; base.forEach(c => { const k = P.REGIMES[c.regime] ? c.regime : 'nao'; counts[k] = (counts[k] || 0) + 1; });
     const nIncomplete = active.filter(incomplete).length;
+    const nDivergent = active.filter(divergentRegime).length;
     const depts = P.store.db.departments.filter(d => d.active !== false);
     const regFilters = Object.entries(P.REGIMES).map(([k, r]) => [k, r.label, REG_CLS[k]]).concat([['nao', 'Não informado', 'sw-empty']]);
     const job = S.receitaJob;
@@ -77,6 +80,7 @@
         ${job.running ? V.progress(job.total ? job.done / job.total * 100 : 0, { max: 100, marks: false }) : ''}</div></div>` : ''}
       ${canEdit && !job && withCnpj === 0 && active.length ? `<div class="banner info">${icon('info')}<div>Para puxar os dados públicos da Receita, informe o CNPJ ao editar uma empresa. O sistema preenche razão social, CNAEs, situação cadastral e sugere o regime tributário.</div></div>` : ''}
       ${canEdit && nIncomplete ? `<div class="banner warn">${icon('alert')}<div><b>${nIncomplete} empresa${nIncomplete > 1 ? 's' : ''} com cadastro incompleto.</b> Informe o regime tributário e o CNPJ ao editar. <button type="button" class="link" data-act="setComp" data-key="status" data-val="incompletas">Mostrar só essas</button></div></div>` : ''}
+      ${canEdit && nDivergent ? `<div class="banner warn">${icon('alert')}<div><b>${nDivergent} empresa${nDivergent > 1 ? 's' : ''} com o regime diferente do que a Receita Federal indica agora.</b> Confira e troque se for o caso. <button type="button" class="link" data-act="setComp" data-key="status" data-val="divergentes">Mostrar só essas</button></div></div>` : ''}
       <div class="strip">
         <div><span>${filtered ? 'Empresas no filtro' : 'Empresas ativas'}</span><b>${base.length}</b></div>
         ${regFilters.map(([k, l, cls]) => `<div class="clickable-strip ${f.regime === k ? 'on' : ''}" data-act="setComp" data-key="regime" data-val="${f.regime === k ? '' : k}" role="button" tabindex="0"><span><i class="sw ${cls}"></i> ${l}</span><b>${counts[k] || 0}</b></div>`).join('')}
@@ -89,7 +93,7 @@
         <label class="field ${f.city ? 'on' : ''}"><span>Município</span><span class="sel-ic">${icon('building', 'sel-ic-i')}<select id="cp-city" data-set="comp.city"><option value="">Todos</option>${[...new Set(all.map(P.cityOf).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(x => `<option value="${esc(x)}" ${f.city === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="nao" ${f.city === 'nao' ? 'selected' : ''}>Não informado</option></select></span></label>
         <label class="field ${f.dept ? 'on' : ''}"><span>Departamento</span><span class="sel-ic">${icon('briefcase', 'sel-ic-i')}<select id="cp-dept" data-set="comp.dept"><option value="">Todos</option>${depts.map(d => `<option value="${d.id}" ${f.dept === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></span></label>
         <label class="field ${f.owner ? 'on' : ''}"><span>Responsável</span><span class="sel-ic">${icon('users', 'sel-ic-i')}<select id="cp-owner" data-set="comp.owner"><option value="">Todos</option>${ownerOpts.map(x => `<option value="${x.id}" ${f.owner === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></span></label>
-        <label class="field ${f.status && f.status !== 'ativas' ? 'on' : ''}"><span>Situação</span><span class="sel-ic">${icon('check', 'sel-ic-i')}<select id="cp-st" data-set="comp.status"><option value="">Todas</option><option value="ativas" ${f.status === 'ativas' ? 'selected' : ''}>Ativas</option><option value="incompletas" ${f.status === 'incompletas' ? 'selected' : ''}>Cadastro incompleto</option><option value="inativas" ${f.status === 'inativas' ? 'selected' : ''}>Inativas</option><option value="semcodigo" ${f.status === 'semcodigo' ? 'selected' : ''}>Sem código (não vieram da planilha)</option></select></span></label>
+        <label class="field ${f.status && f.status !== 'ativas' ? 'on' : ''}"><span>Situação</span><span class="sel-ic">${icon('check', 'sel-ic-i')}<select id="cp-st" data-set="comp.status"><option value="">Todas</option><option value="ativas" ${f.status === 'ativas' ? 'selected' : ''}>Ativas</option><option value="incompletas" ${f.status === 'incompletas' ? 'selected' : ''}>Cadastro incompleto</option><option value="divergentes" ${f.status === 'divergentes' ? 'selected' : ''}>Regime diferente da Receita</option><option value="inativas" ${f.status === 'inativas' ? 'selected' : ''}>Inativas</option><option value="semcodigo" ${f.status === 'semcodigo' ? 'selected' : ''}>Sem código (não vieram da planilha)</option></select></span></label>
         <label class="field"><span>Exibir</span><select id="cp-limit" data-set="comp.limit">${LIMITS.map(([k, l]) => `<option value="${k}" ${limit === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         ${f.q || f.code || f.regime || f.city || f.dept || f.owner || (f.status && f.status !== 'ativas') ? `<div class="field"><span>&nbsp;</span>${V.btn('Limpar filtros', { act: 'compClear', cls: 'sm ghost', icon: 'x' })}</div>` : ''}
       </div></div></section>
@@ -109,7 +113,7 @@
           <td><b>${esc(c.name)}</b>${P.delinq ? P.delinq.chip(c.name) : ''}${c.tradeName && c.tradeName !== c.name ? `<small class="obs">${esc(c.tradeName)}</small>` : ''}${c.receita && c.receita.cnaeMain ? `<small class="cnae" title="${esc(c.receita.cnaeMain.desc)}">CNAE ${esc(c.receita.cnaeMain.code)} · ${esc(c.receita.cnaeMain.desc)}</small>` : ''}</td>
           <td class="nowrap">${P.cityOf(c) ? `<span class="city-chip" title="Município da empresa">${icon('building')}${esc(P.cityOf(c))}</span>` : '<span class="muted" title="Informe o município ao editar a empresa ou use Atualizar pela Receita">Não informado</span>'}</td>
           <td class="mono nowrap">${c.cnpj ? esc(c.cnpj) : '<span class="muted">—</span>'}</td>
-          <td>${V.regime(c.regime)}${c.history && c.history.length ? ` <small class="muted" title="Regime alterado">(antes: ${esc(P.REGIMES[c.history[0].from].short)})</small>` : ''}${(() => { const s = c.receita && c.receita.suggestion; return s && s.regime && P.REGIMES[c.regime] && s.regime !== c.regime ? `<small class="cnae t-warn" title="${esc(s.source)}">${icon('alert')}Receita indica ${esc(P.REGIMES[s.regime].label)}</small>`
+          <td>${V.regime(c.regime)}${c.history && c.history.length ? ` <small class="muted" title="Regime alterado">(antes: ${esc(P.REGIMES[c.history[0].from].short)})</small>` : ''}${(() => { const s = c.receita && c.receita.suggestion; return s && s.regime && P.REGIMES[c.regime] && s.regime !== c.regime ? `<small class="cnae t-warn">${icon('alert')}Receita indica ${esc(P.REGIMES[s.regime].label)}${canEdit ? ` · ${V.btn('Trocar', { act: 'applyRegimeSuggestion', cls: 'sm ghost', attrs: `data-id="${c.id}"` })}` : ''}<br><span class="muted">${esc(s.source)}</span></small>`
             : c.receita && !P.REGIMES[c.regime] && !P.receita.hasRegimeSource(c.receita) ? `<small class="cnae" title="Será buscado de novo em Atualizar pela Receita">${icon('clock')}Regime pendente na Receita</small>` : ''; })()}</td>
           <td><div class="dept-own">${deptsOf(c).map(d => {
             const dept = P.dept(d); if (!dept) return '';
