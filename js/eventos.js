@@ -44,17 +44,30 @@
   };
   const dismissKey = u => 'prumo.evsDismiss.' + u.id;
   const dismissedIds = u => { try { return new Set(JSON.parse(localStorage.getItem(dismissKey(u)) || '[]')); } catch (e) { return new Set(); } };
+  // conta 'hidden' (ex.: DEV SISTEMA): o menu já some os números dela por padrão (js/app.js); só volta a contar
+  // este aviso se alguém, usando essa conta, pedir "Mostrar aviso no menu de novo" de propósito.
+  const showHiddenKey = u => 'prumo.evsShowHidden.' + u.id;
+  const hiddenShown = u => { try { return localStorage.getItem(showHiddenKey(u)) === '1'; } catch (e) { return false; } };
   P.evSug = {
-    badge: u => { if (!u) return 0; const ids = badgeIds(u); if (!canDismissBadge(u)) return ids.length; const dis = dismissedIds(u); return ids.filter(id => !dis.has(id)).length; }
+    badge: u => {
+      if (!u) return 0;
+      const ids = badgeIds(u);
+      if (u.hidden) return hiddenShown(u) ? ids.length : 0;
+      if (!canDismissBadge(u)) return ids.length;
+      const dis = dismissedIds(u);
+      return ids.filter(id => !dis.has(id)).length;
+    }
   };
   A.evsDismissBadge = () => {
     const u = U(); if (!canDismissBadge(u)) return;
+    if (u.hidden) { try { localStorage.removeItem(showHiddenKey(u)); } catch (e) { } return P.render(); }
     try { localStorage.setItem(dismissKey(u), JSON.stringify(badgeIds(u))); } catch (e) { }
     P.render();
   };
   // desfaz o "ocultar": volta a mostrar a pendência real no menu
   A.evsRestoreBadge = () => {
     const u = U(); if (!canDismissBadge(u)) return;
+    if (u.hidden) { try { localStorage.setItem(showHiddenKey(u), '1'); } catch (e) { } return P.render(); }
     try { localStorage.removeItem(dismissKey(u)); } catch (e) { }
     P.render();
   };

@@ -158,7 +158,8 @@
       .filter(([k]) => k !== 'solicitacoes' || (P.purchases && P.purchases.canSee(u)))
       .filter(([k]) => k !== 'datasdp' || (P.dpCal && P.dpCal.canSee(u)));
     // conta marcada como 'hidden' (uso técnico): sem os números pendentes no menu — ela continua com acesso total, só não fica com avisos acumulando
-    if (u.hidden) main.forEach(item => { if (item.length > 3) item[3] = 0; });
+    // 'eventos' decide por conta própria (P.evSug.badge já some por padrão e respeita o botão "Mostrar aviso no menu de novo")
+    if (u.hidden) main.forEach(item => { if (item.length > 3 && item[0] !== 'eventos') item[3] = 0; });
     // Administração conforme o nível: gerente e diretoria veem tudo; o gestor cuida dos funcionários e dos pesos do departamento
     const admin = P.isGlobal(u) ? [
       ['departamentos', 'Departamentos', 'building'], ['funcionarios', 'Funcionários', 'userplus'], ['gestores', 'Gestores e diretoria', 'shield'],
