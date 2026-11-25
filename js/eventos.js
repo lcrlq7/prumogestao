@@ -34,7 +34,24 @@
   const myInfo = u => list().filter(e => e.status === 'info' && e.createdBy === u.id);
   const myPending = u => list().filter(e => e.status === 'aprovado' && e.date >= today() && ((e.resp || {})[u.id] || {}).st === 'aguardando');
   const toDecide = u => canDecide(u) ? list().filter(e => e.status === 'pendente').length + list().filter(e => e.status === 'aprovado' && Object.values(e.resp || {}).some(r => r.st === 'troca')).length : 0;
-  P.evSug = { badge: u => !u ? 0 : toDecide(u) + myPending(u).length + myInfo(u).length };
+  // gestor, gerência e diretoria podem "ocultar" o aviso do menu sem resolver — some até aparecer algo novo
+  const canDismissBadge = u => !!u && ['admin', 'office', 'manager'].includes(u.role);
+  const badgeIds = u => {
+    const ids = [];
+    if (canDecide(u)) { list().forEach(e => { if (e.status === 'pendente' || (e.status === 'aprovado' && Object.values(e.resp || {}).some(r => r.st === 'troca'))) ids.push(e.id); }); }
+    myPending(u).forEach(e => ids.push(e.id)); myInfo(u).forEach(e => ids.push(e.id));
+    return ids;
+  };
+  const dismissKey = u => 'prumo.evsDismiss.' + u.id;
+  const dismissedIds = u => { try { return new Set(JSON.parse(localStorage.getItem(dismissKey(u)) || '[]')); } catch (e) { return new Set(); } };
+  P.evSug = {
+    badge: u => { if (!u) return 0; const ids = badgeIds(u); if (!canDismissBadge(u)) return ids.length; const dis = dismissedIds(u); return ids.filter(id => !dis.has(id)).length; }
+  };
+  A.evsDismissBadge = () => {
+    const u = U(); if (!canDismissBadge(u)) return;
+    try { localStorage.setItem(dismissKey(u), JSON.stringify(badgeIds(u))); } catch (e) { }
+    P.render();
+  };
   P.PAGES.eventos = ['admin', 'office', 'manager', 'employee'];
 
   /* ---------- Agenda e calendário: evento aprovado entra como compromisso ---------- */
@@ -113,7 +130,8 @@
     }[tab] || [];
     const warn = missing() ? `<div class="banner warn">${icon('alert')}<div><b>As indicações de eventos ainda não estão ativas.</b> Falta criar a tabela <code>event_suggestions</code> no banco (comando enviado no chat).</div></div>` : '';
     const empty = { pendente: 'Nenhuma indicação aguardando decisão.', info: 'Nenhuma indicação aguardando informações.', convites: 'Você não tem convites para eventos.', aprovados: 'Nenhum evento aprovado por enquanto.', minhas: 'Você ainda não indicou nenhum evento. Achou algo bom? Use "Indicar evento".', historico: 'Nada por aqui.' }[tab];
-    return `${V.pageHead('Eventos do setor', 'Congressos, feiras e cursos de contabilidade, BPO, RH e afins. Qualquer pessoa indica; a direção aprova e escolhe quem vai.', V.btn('Indicar evento', { act: 'evsNew', icon: 'plus', cls: 'evx-go' }))}
+    const canDismiss = canDismissBadge(u) && P.evSug.badge(u) > 0;
+    return `${V.pageHead('Eventos do setor', 'Congressos, feiras e cursos de contabilidade, BPO, RH e afins. Qualquer pessoa indica; a direção aprova e escolhe quem vai.', (canDismiss ? V.btn('Ocultar aviso do menu', { act: 'evsDismissBadge', icon: 'x', cls: 'ghost sm', attrs: 'title="Some do menu lateral até aparecer algo novo; não decide nem muda os eventos."' }) : '') + V.btn('Indicar evento', { act: 'evsNew', icon: 'plus', cls: 'evx-go' }))}
       ${warn}<div class="toolbar">${V.tabs(tabs, tab, 'evs.tab')}</div>
       ${shown.length ? `<div class="evx-list">${shown.map(e => ticket(u, e)).join('')}</div>` : V.card('', V.empty(empty, 'bulb'))}`;
   };
