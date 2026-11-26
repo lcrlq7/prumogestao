@@ -214,7 +214,7 @@
     // fila de aprovação: só os departamentos que a pessoa gere (diretoria e gerência não aprovam)
     const reviewQueue = base.filter(e => e.userId !== u.id && P.canApproveDept(u, e.deptId));
     if (!P.store.db.departments.some(d => P.canApproveDept(u, d.id))) {
-      return `${V.pageHead('Lançamentos', 'A aprovação é feita pelo gestor de cada departamento.', V.btn('Lançamento em lote', { act: 'batchEntry', icon: 'inbox', cls: 'ghost' }) + V.btn('Registrar para colaborador', { act: 'newEntry', icon: 'plus', cls: 'primary' }))}
+      return `${V.pageHead('Lançamentos', 'A aprovação é feita pelo gestor de cada departamento.', V.btn('Lançamento em lote', { act: 'batchEntry', icon: 'inbox', cls: 'ghost' }) + (u.role === 'manager' ? V.btn('Registrar minha atividade', { act: 'newOwnEntry', icon: 'plus', cls: 'ghost' }) : '') + V.btn('Registrar para colaborador', { act: 'newEntry', icon: 'plus', cls: 'primary' }))}
         <div class="banner">${icon('info')}<div>Os lançamentos são aprovados pelo gestor de cada departamento. Por aqui você pode registrar atividades para um colaborador.</div></div>`;
     }
     const ownPending = u.role === 'manager' ? base.filter(e => e.userId === u.id && (e.status === 'pendente' || e.status === 'correcao')).reverse() : [];
@@ -231,7 +231,7 @@
       ${V.ibtn('history', 'Histórico de alterações', { act: 'entryHistory', attrs: `data-id="${e.id}"` })}
     </div>`;
     const pendPts = pend.reduce((a, e) => a + e.points, 0);
-    return `${V.pageHead('Lançamentos', 'Revise os registros da equipe. Cada decisão fica gravada no histórico do lançamento.', V.deptPicker(u) + V.btn('Lançamento em lote', { act: 'batchEntry', icon: 'inbox', cls: 'ghost' }) + V.btn('Registrar para colaborador', { act: 'newEntry', icon: 'plus', cls: 'primary' }))}
+    return `${V.pageHead('Lançamentos', 'Revise os registros da equipe. Cada decisão fica gravada no histórico do lançamento.', V.deptPicker(u) + V.btn('Lançamento em lote', { act: 'batchEntry', icon: 'inbox', cls: 'ghost' }) + (u.role === 'manager' ? V.btn('Registrar minha atividade', { act: 'newOwnEntry', icon: 'plus', cls: 'ghost' }) : '') + V.btn('Registrar para colaborador', { act: 'newEntry', icon: 'plus', cls: 'primary' }))}
       ${ownPending.length ? V.card('Meus lançamentos pendentes', V.entryTable(ownPending, { who: false, actions: e => `<div class="row-actions">${V.ibtn('edit', 'Editar e reenviar', { act: 'fixEntry', attrs: `data-id="${e.id}"` })}${V.ibtn('history', 'Histórico', { act: 'entryHistory', attrs: `data-id="${e.id}"` })}</div>` }), { cls: 'flush-b', sub: 'Aguardando revisão do administrador.' }) : ''}
       <div class="strip">
         <div><span>Pendentes de aprovação</span><b>${pend.length}</b></div>
